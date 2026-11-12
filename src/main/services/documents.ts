@@ -9,6 +9,7 @@ import type {
 } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
+import { cleanHtml, cleanImageSrc } from '../lib/sanitize'
 import { projectAccess } from './projects'
 
 const MAX_BLOCKS = 600
@@ -75,19 +76,21 @@ function sanitizeBlocks(input: unknown): DocBlock[] {
     }
 
     if (typeof block.html === 'string') {
-      clean.html = block.html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-        .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-        .slice(0, MAX_BLOCK_HTML)
+      // Allowlist, not blocklist: see src/main/lib/sanitize.ts for why a plain
+      // "strip <script> and on*=" sweep was not enough.
+      clean.html = cleanHtml(block.html, MAX_BLOCK_HTML)
     }
     if (Array.isArray(block.rows)) {
       clean.rows = block.rows
         .slice(0, 40)
         .map((row) => (Array.isArray(row) ? row.slice(0, 10).map((cell) => String(cell ?? '').slice(0, 400)) : []))
     }
-    if (typeof block.src === 'string') clean.src = block.src.slice(0, 200_000)
+    if (typeof block.src === 'string') {
+      // An image block carries its URL outside the markup, so it gets the same
+      // scheme check. An unusable URL is dropped rather than stored.
+      const src = cleanImageSrc(block.src.slice(0, 200_000))
+      if (src) clean.src = src
+    }
     if (typeof block.alt === 'string') clean.alt = block.alt.slice(0, 300)
 
     blocks.push(clean)
@@ -98,7 +101,15 @@ function sanitizeBlocks(input: unknown): DocBlock[] {
 function parseContent(raw: string): DocBlock[] {
   try {
     const parsed = JSON.parse(raw) as { blocks?: DocBlock[] }
-    return Array.isArray(parsed.blocks) ? parsed.blocks : []
+    if (!Array.isArray(parsed.blocks)) return []
+    // Rows written before the allowlist existed still contain whatever was
+    // pasted back then, so the read path cleans them too. This is also what
+    // makes restoring an old version safe.
+    return parsed.blocks.map((block) =>
+      typeof block?.html === 'string'
+        ? { ...block, html: cleanHtml(block.html, MAX_BLOCK_HTML) }
+        : block
+    )
   } catch {
     return []
   }
@@ -186,7 +197,12 @@ export function saveDocument(
 ): DocumentDetail {
   const row = loadDocument(viewer, projectId, documentId)
   const baseVersion = Number(input.baseVersion ?? row.version)
-  if (Number.isFinite(baseVersion) && baseVersion !== row.version) {
+  // `Number('abc')` is NaN, which used to slip past the comparison below and
+  // let a malformed save overwrite newer work. Reject it instead.
+  if (!Number.isInteger(baseVersion) || baseVersion < 1) {
+    throw errors.validation('The version this edit was based on is invalid.')
+  }
+  if (baseVersion !== row.version) {
     throw errors.conflict(
       'This document changed elsewhere. Reload it to get the newest version before saving.'
     )

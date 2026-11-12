@@ -9,6 +9,7 @@ import type {
 import ConfirmDialog from '../components/ConfirmDialog'
 import DocumentToolbar from '../components/DocumentToolbar'
 import EmptyState from '../components/EmptyState'
+import PromptDialog from '../components/PromptDialog'
 import { useToast } from '../components/ToastProvider'
 import { AlertCircleIcon, ChevronLeftIcon, PlusIcon } from '../components/icons'
 import { HistoryIcon, PresentationIcon } from '../components/DocIcons'
@@ -52,6 +53,9 @@ export default function DocumentEditorScreen() {
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [versions, setVersions] = useState<DocumentVersionSummary[] | null>(null)
   const [restoreTarget, setRestoreTarget] = useState<DocumentVersionSummary | null>(null)
+  const [urlPrompt, setUrlPrompt] = useState<
+    { kind: 'link' } | { kind: 'image'; blockId: string | null } | null
+  >(null)
   const [busy, setBusy] = useState(false)
   const [converting, setConverting] = useState(false)
 
@@ -261,18 +265,51 @@ export default function DocumentEditorScreen() {
   }
 
   function insertLink() {
-    const url = window.prompt('Link URL')
-    if (url) exec('createLink', url)
+    setUrlPrompt({ kind: 'link' })
   }
 
   function insertImage() {
-    const src = window.prompt('Image URL')
-    if (!src) return
-    setBlocks((current) => [
-      ...current,
-      { id: crypto.randomUUID(), type: 'image', src, alt: '' }
-    ])
-    markDirty()
+    setUrlPrompt({ kind: 'image', blockId: null })
+  }
+
+  /** Text that is safe to drop into markup we are about to insert ourselves. */
+  function escapeText(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  }
+
+  function applyUrl(url: string) {
+    const prompt = urlPrompt
+    setUrlPrompt(null)
+    if (!prompt) return
+
+    if (prompt.kind === 'image') {
+      if (prompt.blockId) {
+        setBlocks((current) =>
+          current.map((entry) => (entry.id === prompt.blockId ? { ...entry, src: url } : entry))
+        )
+      } else {
+        setBlocks((current) => [
+          ...current,
+          { id: crypto.randomUUID(), type: 'image', src: url, alt: '' }
+        ])
+      }
+      markDirty()
+      return
+    }
+
+    // With a selection, link the selection. With just a caret, insert the
+    // address as its own link so the command is never a silent no-op.
+    const selection = window.getSelection()
+    if (selection && selection.isCollapsed) {
+      const label = escapeText(url)
+      exec('insertHTML', `<a href="${label}" rel="noreferrer noopener">${label}</a>`)
+      return
+    }
+    exec('createLink', url)
   }
 
   function insertDivider() {
@@ -620,14 +657,7 @@ export default function DocumentEditorScreen() {
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm w-auto"
-                    onClick={() => {
-                      const src = window.prompt('Image URL', block.src ?? '')
-                      if (src === null) return
-                      setBlocks((current) =>
-                        current.map((entry) => (entry.id === block.id ? { ...entry, src } : entry))
-                      )
-                      markDirty()
-                    }}
+                    onClick={() => setUrlPrompt({ kind: 'image', blockId: block.id })}
                   >
                     Set image URL
                   </button>
@@ -805,6 +835,25 @@ export default function DocumentEditorScreen() {
           </div>
         </div>
       </dialog>
+
+      <PromptDialog
+        open={urlPrompt !== null}
+        title={urlPrompt?.kind === 'image' ? 'Image address' : 'Link address'}
+        label="URL"
+        description={
+          urlPrompt?.kind === 'image'
+            ? 'The image is loaded from this address and stored as a reference.'
+            : 'Select the text you want to link first, or leave the caret where the link should go.'
+        }
+        initialValue={
+          urlPrompt?.kind === 'image' && urlPrompt.blockId
+            ? (blocks.find((entry) => entry.id === urlPrompt.blockId)?.src ?? '')
+            : ''
+        }
+        confirmLabel={urlPrompt?.kind === 'image' ? 'Set image' : 'Add link'}
+        onCancel={() => setUrlPrompt(null)}
+        onSubmit={applyUrl}
+      />
 
       <ConfirmDialog
         open={Boolean(restoreTarget)}

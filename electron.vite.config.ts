@@ -5,7 +5,11 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // Everything the app needs at runtime travels inside `out/` (see the
+    // `files` list in electron-builder.yml), so the sanitizer is bundled
+    // instead of left as a bare `require` that would not resolve in the
+    // installed app.
+    plugins: [externalizeDepsPlugin({ exclude: ['sanitize-html'] })],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')

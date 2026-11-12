@@ -367,10 +367,10 @@
     font-size: var(--fs-base);
   }
 
+  /* A sentence, not an icon row. As a flex container each text node became its
+     own flex item, which squeezed the hint into a narrow column. */
   .field-hint {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    display: block;
     margin-top: 6px;
     font-size: var(--fs-sm);
     color: var(--ink-tertiary);
@@ -1052,6 +1052,11 @@
     border-color: transparent;
     background-color: var(--accent-soft);
     color: var(--accent);
+  }
+
+  .badge--muted {
+    color: var(--ink-tertiary);
+    font-weight: 500;
   }
 
   /* ---------------- project dashboard ---------------- */
@@ -2984,6 +2989,9 @@
   }
 
   .account-meta dd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
@@ -3002,6 +3010,13 @@
     margin-top: var(--space-4);
     padding-top: var(--space-2);
     border-top: 1px solid var(--line);
+  }
+
+  /* Nothing above it, so nothing to divide it from. */
+  .account-section:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
   }
 
   .account-note {

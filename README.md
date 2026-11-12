@@ -21,6 +21,27 @@ accounts, team projects, an administration panel and a deterministic offline con
   revocable; only a SHA-256 digest is stored, and each code is shown once when generated.
 - **AI provider** — not connected. Document conversion runs locally and consumes no credits.
 
+## Security model
+
+The app treats everything it renders as hostile, because a document is a file that can be
+shared.
+
+- **Editor markup is allowlisted.** Document blocks are stored as HTML and rendered back with
+  `innerHTML`, so every block passes through a tag and attribute allowlist
+  (`src/main/lib/sanitize.ts`) on the way in *and* on the way out. Anything else — scripts, event
+  handlers, `javascript:` URLs, iframes, inline styles — is discarded, including in documents
+  written before the allowlist existed.
+- **One instance.** A second launch focuses the first window instead of opening a second writer on
+  the same SQLite file.
+- **Links cannot hijack the window.** A link inside a document opens in the default browser; the
+  app shell never navigates away from itself.
+- **Stored keys are sealed.** The Supabase public key is encrypted with the operating system
+  keystore (DPAPI / Keychain / libsecret) rather than left as text in the database, and it is never
+  sent back to the renderer — the interface only ever shows its last four characters.
+- **Renderer isolation.** `sandbox`, `contextIsolation` and no `nodeIntegration`; the renderer
+  reaches the database only through typed IPC, and the packaged app runs under a Content Security
+  Policy.
+
 ## Stack
 
 Electron 45, React 19, TypeScript, electron-vite, Tailwind CSS 4, and SQLite through Node's built-in
@@ -71,11 +92,16 @@ Nothing is synced yet: the schema is sealed by Row Level Security until authenti
 because a desktop app that stores a key must never be able to write to tables it does not own. The
 app refuses to store a `service_role` key at all.
 
+The public key is not a secret and is safe to have in a client — Supabase expects it to be. What
+protects the data is Row Level Security in the database, which is why the tables stay sealed until
+sign-in is handled by Supabase. The key is additionally sealed with the OS keystore at rest.
+
 ## Updates
 
-An installed build updates itself from its GitHub Releases page. It checks shortly after launch and
-every four hours, downloads a newer version in the background, and installs it when the user chooses
-**Restart and install** in *Settings → Updates*. Nothing is installed while someone is working.
+An installed build updates itself from its GitHub Releases page. It checks **as it starts**, again
+when the window regains focus (at most hourly), and every four hours while it stays open. A newer
+version downloads in the background and installs when the user chooses **Restart and install** in
+*Settings → Updates*. Nothing is installed while someone is working.
 
 Updating requires releases to be **publicly readable**: GitHub refuses anonymous API and asset
 requests for a private repository, so a private repository would need a personal access token

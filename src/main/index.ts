@@ -2,9 +2,29 @@ import { app, BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electr
 import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
-import { initUpdates } from './services/updates'
+import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
 const isDev = !app.isPackaged
+
+/*
+ * One instance owns the database.
+ *
+ * SQLite tolerates two writers, but two copies of the app mean two windows
+ * editing the same documents with no idea about each other — and the updater
+ * replacing files under a live process. The second launch just focuses the
+ * first.
+ */
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0)
+}
+
+app.on('second-instance', () => {
+  const [existing] = BrowserWindow.getAllWindows()
+  if (!existing) return
+  if (existing.isMinimized()) existing.restore()
+  existing.show()
+  existing.focus()
+})
 
 /** Keeps the window background in step with the theme so resizes never flash white. */
 function windowBackground(): string {
@@ -35,10 +55,31 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  // Coming back to the app is a natural moment to ask whether it is current.
+  mainWindow.on('focus', () => checkForUpdatesOnFocus())
+
   // External links never open inside the app shell.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  /*
+   * Navigation guard.
+   *
+   * The app is a single page. A link inside a document must open in the real
+   * browser, never replace the app shell — otherwise one click leaves the user
+   * staring at a web page with no way back, and the window is no longer the
+   * thing the IPC surface was designed for.
+   */
+  const devServerUrl = process.env['ELECTRON_RENDERER_URL']
+  mainWindow.webContents.on('will-navigate', (event, target) => {
+    const internal = devServerUrl
+      ? target.startsWith(devServerUrl)
+      : target.startsWith('file://') && target.includes('/renderer/index.html')
+    if (internal) return
+    event.preventDefault()
+    if (/^https?:\/\//i.test(target)) void shell.openExternal(target)
   })
 
   // The renderer draws its own title bar, so it owns the window controls.

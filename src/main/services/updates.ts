@@ -5,23 +5,29 @@ import type { UpdateState } from '@shared/types'
 /*
  * Self-update.
  *
- * An installed build checks the published release feed shortly after launch
- * and every few hours after that. A newer version downloads in the background
- * and waits: the user is only ever asked to restart, never forced to.
+ * An installed build checks the published release feed as it starts — the
+ * check is part of opening the app, not something the user has to ask for —
+ * and again when the window regains focus (at most hourly) and every few hours
+ * regardless. A newer version downloads in the background and waits: the user
+ * is only ever asked to restart, never forced to.
  *
  * The updater lives in the main process because it must write to the app's
  * install directory. The renderer only ever sees `UpdateState`.
  */
 
 const STATE_CHANNEL = 'update:state'
-const FIRST_CHECK_DELAY_MS = 10_000
+/** Long enough for the window and first paint; part of every launch. */
+const FIRST_CHECK_DELAY_MS = 3_000
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+/** A focus check is a bonus, not a poll — once an hour at most. */
+const FOCUS_CHECK_AFTER_MS = 60 * 60 * 1000
 
 const packaged = app.isPackaged
 
 let updater: AppUpdater | null = null
 let firstCheck: NodeJS.Timeout | null = null
 let interval: NodeJS.Timeout | null = null
+let lastAttempt = 0
 
 let state: UpdateState = {
   phase: packaged ? 'idle' : 'unsupported',
@@ -154,6 +160,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
   // Never interrupt a download that is already under way.
   if (state.phase === 'downloading' || state.phase === 'ready') return state
 
+  lastAttempt = Date.now()
   setState({
     phase: 'checking',
     message: manual ? 'Checking for updates…' : null
@@ -186,6 +193,17 @@ export function installUpdate(): UpdateState {
   })
 
   return state
+}
+
+/**
+ * Called when the window regains focus — someone who left the app open all day
+ * should not have to find the Updates panel to learn a release exists.
+ */
+export function checkForUpdatesOnFocus(): void {
+  if (!packaged) return
+  if (Date.now() - lastAttempt < FOCUS_CHECK_AFTER_MS) return
+  if (state.phase === 'downloading' || state.phase === 'ready' || state.phase === 'checking') return
+  void checkForUpdates(false)
 }
 
 /** Called once at startup, after the database and IPC are ready. */

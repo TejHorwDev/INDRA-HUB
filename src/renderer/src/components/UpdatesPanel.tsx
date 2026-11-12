@@ -110,9 +110,10 @@ export default function UpdatesPanel() {
       <h3 className="account-subhead">Application updates</h3>
 
       <p className="account-note">
-        INDRA HUB updates itself from its release page. A new version downloads quietly in the
-        background; it is installed only when you choose to restart. Your projects, accounts and
-        activation keys are never touched by an update.
+        INDRA HUB updates itself from its release page. It checks as it starts, again when you
+        come back to the window, and every few hours while it stays open — a new version
+        downloads quietly in the background and is installed when you choose to restart. Your
+        projects, accounts and activation keys are never touched by an update.
       </p>
 
       <dl className="account-meta">

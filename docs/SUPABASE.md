@@ -34,6 +34,12 @@ policies exist yet, so the key can read nothing. That is the point.
 
 The app refuses to store a `service_role` key, and says why.
 
+The public key is still not left lying around: it is encrypted with the operating system keystore
+(DPAPI on Windows, Keychain on macOS, libsecret on Linux) before it is written to the local
+database, and the interface only ever shows its last four characters. *Settings → Backend* marks a
+sealed key with a small `sealed` badge; if the OS cannot provide a keystore, the app stores the
+value unsealed and says so rather than pretending.
+
 ### Why RLS is the whole lock
 
 Worth knowing before Stage 2: Supabase grants `SELECT` and `INSERT` on new

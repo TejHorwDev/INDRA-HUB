@@ -122,7 +122,14 @@ export default function BackendPanel() {
         </div>
         <div>
           <dt>Key</dt>
-          <dd>{status?.keyHint ?? '—'}</dd>
+          <dd>
+            {status?.keyHint ?? '—'}
+            {status?.keySealed && (
+              <span className="badge badge--muted" title="Sealed with the operating system keystore">
+                sealed
+              </span>
+            )}
+          </dd>
         </div>
       </dl>
 
