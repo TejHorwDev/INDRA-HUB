@@ -2139,41 +2139,276 @@
     line-height: 1.5;
   }
 
+  /* ---------------- maintenance ---------------- */
+  /* The signed-in "workspace closed" screen. One composed card: what is
+     happening, what the administrator said, what the session is, and one
+     honest action. Nothing here points at the administration area. */
   .maintenance-canvas {
+    position: relative;
     display: grid;
     place-items: center;
     height: 100%;
-    padding: var(--space-8) var(--space-6);
+    padding: var(--space-10) var(--space-6);
     overflow-y: auto;
     background-color: var(--bg);
   }
 
-  .maintenance-panel {
-    width: 100%;
-    max-width: 470px;
+  /* The same hairline grid as the sign-in screen, so the app keeps its
+     character on both sides of the front door. */
+  .maintenance-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
+    background-size: 96px 96px;
+    opacity: 0.7;
+    mask-image: radial-gradient(95% 75% at 50% 38%, #000 0%, transparent 70%);
+    -webkit-mask-image: radial-gradient(95% 75% at 50% 38%, #000 0%, transparent 70%);
+    pointer-events: none;
   }
 
-  .maintenance-copy {
-    margin-top: 20px;
-    max-width: 52ch;
+  .maintenance-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 524px;
+    padding: 28px 32px 26px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background-color: var(--surface);
+    box-shadow: var(--shadow-3);
+  }
+
+  /* One accent stroke along the top edge — the only colour on the card. */
+  .maintenance-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background-image: linear-gradient(
+      90deg,
+      var(--accent) 0%,
+      rgba(163, 59, 67, 0.55) 34%,
+      rgba(163, 59, 67, 0.16) 68%,
+      rgba(163, 59, 67, 0) 100%
+    );
+  }
+
+  .maintenance-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px var(--space-4);
+  }
+
+  .maintenance-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: var(--fs-2xs);
+    font-weight: 650;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
     color: var(--ink-secondary);
-    font-size: var(--fs-md);
+  }
+
+  .maintenance-dot {
+    position: relative;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .maintenance-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-color: var(--accent);
+    animation: maintenance-ping 2.6s var(--ease) infinite;
+  }
+
+  .maintenance-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface-subtle);
+    font-size: var(--fs-2xs);
+    font-weight: 550;
+    letter-spacing: 0.01em;
+    color: var(--ink-tertiary);
+    white-space: nowrap;
+  }
+
+  .maintenance-pill-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: var(--radius-pill);
+    background-color: var(--success);
+    animation: maintenance-blink 2.2s ease-in-out infinite;
+  }
+
+  .maintenance-title {
+    margin-top: 20px;
+    font-family: var(--font-display-stack);
+    font-size: var(--fs-2xl);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -0.032em;
+    color: var(--ink);
+  }
+
+  .maintenance-lede {
+    margin-top: 9px;
+    max-width: 52ch;
+    font-size: var(--fs-sm);
     line-height: var(--lh-normal);
+    color: var(--ink-secondary);
+    text-wrap: pretty;
+  }
+
+  /* The administrator's own words. A quiet panel with one accent rule —
+     it has to read as a message, not as an error. */
+  .maintenance-message {
+    margin-top: 20px;
+    padding: 16px 20px;
+    border-left: 2px solid var(--accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background-color: var(--surface-subtle);
+    font-size: var(--fs-lg);
+    line-height: 1.5;
+    letter-spacing: -0.004em;
+    color: var(--ink);
+    text-wrap: pretty;
+  }
+
+  .maintenance-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .maintenance-facts > div {
+    min-width: 0;
+    padding-right: 14px;
+  }
+
+  .maintenance-facts > div + div {
+    padding-left: 16px;
+    border-left: 1px solid var(--line);
+  }
+
+  .maintenance-facts dt {
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  .maintenance-facts dd {
+    margin-top: 6px;
+    overflow: hidden;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .maintenance-note {
-    margin-top: 14px;
-    max-width: 52ch;
-    color: var(--ink-tertiary);
-    font-size: var(--fs-sm);
+    margin-top: 18px;
+    max-width: 54ch;
+    font-size: var(--fs-xs);
     line-height: 1.6;
+    color: var(--ink-tertiary);
+    text-wrap: pretty;
   }
 
-  .maintenance-link {
-    display: inline-block;
-    margin-top: 24px;
-    color: var(--ink-secondary);
-    font-size: var(--fs-sm);
+  .maintenance-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .maintenance-actions .btn {
+    height: 30px;
+    padding: 0 11px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-xs);
+  }
+
+  .maintenance-mark {
+    margin-left: auto;
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    opacity: 0.75;
+    user-select: none;
+  }
+
+  /* An indeterminate sweep along the bottom edge: "still running", with no
+     invented progress percentage. */
+  .maintenance-track {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    overflow: hidden;
+  }
+
+  .maintenance-track > span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 34%;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--accent) 50%,
+      transparent 100%
+    );
+    animation: maintenance-sweep 2.8s var(--ease) infinite;
+  }
+
+  @media (max-width: 560px) {
+    .maintenance-card {
+      padding: 24px 20px 22px;
+    }
+
+    .maintenance-facts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .maintenance-facts > div {
+      padding-right: 0;
+    }
+
+    .maintenance-facts > div + div {
+      margin-top: 10px;
+      padding-top: 10px;
+      padding-left: 0;
+      border-left: 0;
+      border-top: 1px solid var(--line);
+    }
   }
 
   .admin-gate-card .field-input {
@@ -3288,6 +3523,37 @@
   }
   to {
     background-position: 0 50%;
+  }
+}
+
+@keyframes maintenance-ping {
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
+@keyframes maintenance-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes maintenance-sweep {
+  from {
+    transform: translate3d(-110%, 0, 0);
+  }
+  to {
+    transform: translate3d(360%, 0, 0);
   }
 }
 

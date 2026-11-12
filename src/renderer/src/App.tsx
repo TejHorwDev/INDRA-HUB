@@ -76,7 +76,6 @@ export default function App() {
 
   const signedIn = Boolean(user)
   const inShell = signedIn && SHELL_PATHS.some((path) => pathname.startsWith(path))
-  const label = viewLabel(pathname)
   /*
    * Maintenance closes the workspace, not the door. Signing in and registering
    * always work; what a session then finds is this screen. The administration
@@ -84,6 +83,9 @@ export default function App() {
    */
   const maintenance = status.maintenanceMode
   const workspaceClosed = maintenance && signedIn && !pathname.startsWith('/admin')
+
+  // The title bar names what is actually on screen, not the view underneath.
+  const label = workspaceClosed ? 'Maintenance' : viewLabel(pathname)
 
   // A fresh session re-reads the switches before it renders anything: a user who
   // signs in during maintenance must land on the maintenance screen, not on a
