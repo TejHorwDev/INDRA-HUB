@@ -50,6 +50,20 @@ jobs:
           Get-ChildItem release | Select-Object Name, Length
         shell: pwsh
 
+      # A release without these two files installs fine but can never update
+      # itself, so fail the build instead of shipping a silent dead end.
+      - name: Confirm the update feed is wired into the build
+        run: |
+          if (!(Test-Path "release/win-unpacked/resources/app-update.yml")) {
+            throw "app-update.yml is missing — self-update would be dead on arrival"
+          }
+          if (!(Test-Path "release/latest.yml")) {
+            throw "latest.yml is missing — installed copies could not see this release"
+          }
+          Get-Content "release/win-unpacked/resources/app-update.yml"
+          Get-Content "release/latest.yml"
+        shell: pwsh
+
       # Tag pushes become a real Release with the installer attached.
       - name: Publish the Release
         if: startsWith(github.ref, 'refs/tags/')
