@@ -7,13 +7,11 @@ import Notice from '../components/Notice'
 import PasswordField from '../components/PasswordField'
 import TextField from '../components/TextField'
 import { errorMessage } from '../lib/api'
-import { useAppStatus } from '../lib/appStatus'
 import { useSession } from '../lib/session'
 
 export default function LoginScreen() {
   const navigate = useNavigate()
   const { signIn } = useSession()
-  const { status } = useAppStatus()
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -101,17 +99,9 @@ export default function LoginScreen() {
         </Link>
       </p>
 
-      {/* Only a fresh installation shows this. Once the administrator exists
-          the entry point disappears from the signed-out screens, so ordinary
-          users are never pointed at the administration area. The administrator
-          reaches it with Ctrl+Alt+A (Cmd+Alt+A on macOS). */}
-      {!status.adminConfigured && (
-        <p className="auth-alt auth-alt--admin">
-          <Link to="/admin" className="link">
-            Set up the administrator
-          </Link>
-        </p>
-      )}
+      {/* Nothing here points at the administration area. The installation ships
+          with its administrator already created; the panel is reached with
+          Ctrl+Alt+A (Cmd+Alt+A on macOS) by someone who knows it exists. */}
     </AuthLayout>
   )
 }

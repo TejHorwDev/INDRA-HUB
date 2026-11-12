@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
 import { markHealthy, runningVersion } from './lib/payload'
-import { resetAdminIdentity } from './services/admin'
+import { ensureBuiltInAdmin, resetAdminIdentity } from './services/admin'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
 const isDev = !app.isPackaged
@@ -106,6 +106,11 @@ app.whenReady().then(() => {
 
   // Open (and migrate) the database before any IPC call can reach it.
   getDatabase()
+
+  // A fresh installation has exactly one administrator, created here — before
+  // any window exists, so nothing has to offer to create one.
+  ensureBuiltInAdmin()
+
   registerIpcHandlers()
 
   /*
