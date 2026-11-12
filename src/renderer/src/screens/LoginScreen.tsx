@@ -98,6 +98,15 @@ export default function LoginScreen() {
           Create one
         </Link>
       </p>
+
+      {/* Administration is a separate identity, so it needs its own way in
+          from the signed-out screen — otherwise a fresh install cannot reach
+          the first-run administrator setup at all. */}
+      <p className="auth-alt auth-alt--admin">
+        <Link to="/admin" className="link">
+          Administrator access
+        </Link>
+      </p>
     </AuthLayout>
   )
 }

@@ -141,6 +141,12 @@ export default function RegisterScreen() {
             Sign in
           </Link>
         </p>
+
+        <p className="auth-alt auth-alt--admin">
+          <Link to="/admin" className="link">
+            Administrator access
+          </Link>
+        </p>
       </AuthLayout>
     )
   }
@@ -251,6 +257,12 @@ export default function RegisterScreen() {
         Already have an account?{' '}
         <Link to="/login" className="link">
           Sign in
+        </Link>
+      </p>
+
+      <p className="auth-alt auth-alt--admin">
+        <Link to="/admin" className="link">
+          Administrator access
         </Link>
       </p>
     </AuthLayout>
