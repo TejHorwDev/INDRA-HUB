@@ -3019,6 +3019,81 @@
     border-top: 0;
   }
 
+  /* On-demand proof that the update path works. */
+  .update-diagnostics {
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken, rgba(255, 255, 255, 0.02));
+  }
+
+  .update-diagnostics-title {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: var(--space-2);
+  }
+
+  .update-diagnostics-list {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    list-style: none;
+  }
+
+  .update-diagnostics-list li {
+    display: grid;
+    grid-template-columns: 16px 130px 1fr;
+    align-items: baseline;
+    gap: var(--space-2);
+    font-size: var(--fs-2xs);
+    color: var(--ink-secondary);
+  }
+
+  .update-diagnostics-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    align-self: center;
+  }
+
+  .update-diagnostics-list li.is-ok .update-diagnostics-mark {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--accent);
+  }
+
+  .update-diagnostics-list li.is-bad .update-diagnostics-mark {
+    background: color-mix(in srgb, #f08a8a 22%, transparent);
+    color: #f08a8a;
+  }
+
+  .update-diagnostics-label {
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .update-diagnostics-detail {
+    color: var(--ink-tertiary);
+    word-break: break-word;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   /* The raw error, under the human one. Monospace so it reads as a fact. */
   .update-technical-row {
     display: flex;

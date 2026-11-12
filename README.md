@@ -83,9 +83,11 @@ second one. Administrator sign-in is rate-limited and audited.
 
 ## Supabase (optional)
 
-The app needs no server. If you want a cloud copy, **Settings → Backend** stores a Supabase project
-URL and its **public** key, then proves the connection and tells you whether the schema has been
-applied. The tables, the security model and the staged plan are in [docs/SUPABASE.md](docs/SUPABASE.md)
+The app needs no server. If you want a cloud copy, the administrator area
+(**Ctrl+Alt+A** → Backend) stores a Supabase project URL and its **public** key, then proves the
+connection and tells you whether the schema has been applied. It is an administrator setting, not a
+user preference: the panel does not exist outside the admin gate, and the main process refuses every
+`backend:*` call without an admin session. The tables, the security model and the staged plan are in [docs/SUPABASE.md](docs/SUPABASE.md)
 and [supabase/schema.sql](supabase/schema.sql).
 
 The identity layer is applied too — [supabase/auth.sql](supabase/auth.sql) adds member numbers, Google

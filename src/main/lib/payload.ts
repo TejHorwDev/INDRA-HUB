@@ -121,6 +121,20 @@ export function readPending(): StoredPayload | null {
 }
 
 /**
+ * A pending download that still matches a file on disk.
+ *
+ * `readPending` only reads the record, which is right for the bootstrap — it
+ * consumes the download. Anything that *reports* a download as ready should use
+ * this instead, so a deleted or half-written file can never be announced as an
+ * update that will install.
+ */
+export function readVerifiedPending(): StoredPayload | null {
+  const pending = readPending()
+  if (!pending) return null
+  return isValid(pending) ? pending : null
+}
+
+/**
  * Records a fresh download. Nothing is activated here: the file is only adopted
  * at the next start, once it has been verified again.
  */

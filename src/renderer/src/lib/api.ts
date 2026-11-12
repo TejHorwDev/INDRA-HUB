@@ -28,6 +28,7 @@ import type {
   BackendConfigInput,
   BackendStatus,
   SessionUser,
+  UpdateDiagnostics,
   UpdateState,
   UserSummary
 } from '@shared/types'
@@ -142,6 +143,7 @@ export const api = {
     check: (): Promise<UpdateState> => unwrap(bridge().updates.check()),
     install: (): Promise<UpdateState> => unwrap(bridge().updates.install()),
     /** Live progress pushes from the main process. Returns an unsubscribe. */
+    diagnose: (): Promise<UpdateDiagnostics> => unwrap(bridge().updates.diagnose()),
     onState: (listener: (state: UpdateState) => void): (() => void) =>
       bridge().updates.onState(listener)
   },

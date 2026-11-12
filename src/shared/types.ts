@@ -391,6 +391,20 @@ export interface UpdateState {
   canInstall: boolean
 }
 
+/**
+ * The result of proving the update path works *now*, rather than only naming a
+ * failure. Each step is a real request to GitHub, in the order a real check
+ * makes them, so a green report means an update would download.
+ */
+export interface UpdateDiagnostics {
+  checkedAt: string
+  currentVersion: string
+  latestVersion: string | null
+  ok: boolean
+  summary: string
+  steps: Array<{ label: string; ok: boolean; detail: string }>
+}
+
 /* ---------------- backend connection ---------------- */
 
 /**

@@ -17,6 +17,7 @@ export type AdminSectionId =
   | 'content'
   | 'keys'
   | 'access'
+  | 'backend'
   | 'activity'
   | 'system'
 
