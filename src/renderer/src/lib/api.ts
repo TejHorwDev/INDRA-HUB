@@ -1,5 +1,6 @@
 import type {
   AdminAccount,
+  AdminIdentityInput,
   AdminLoginInput,
   AdminOverview,
   AdminSettings,
@@ -183,7 +184,9 @@ export const api = {
     revokeKey: (id: string): Promise<null> => unwrap(bridge().admin.revokeKey(id)),
     deleteKey: (id: string): Promise<null> => unwrap(bridge().admin.deleteKey(id)),
     changePassword: (currentPassword: string, newPassword: string): Promise<null> =>
-      unwrap(bridge().admin.changePassword({ currentPassword, newPassword }))
+      unwrap(bridge().admin.changePassword({ currentPassword, newPassword })),
+    updateIdentity: (input: AdminIdentityInput): Promise<AdminAccount> =>
+      unwrap(bridge().admin.updateIdentity(input))
   }
 }
 

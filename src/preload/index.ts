@@ -6,6 +6,7 @@ import type {
   DocumentSummary,
   DocumentVersionSummary,
   AdminAccount,
+  AdminIdentityInput,
   AdminLoginInput,
   AdminOverview,
   AdminSettings,
@@ -217,7 +218,9 @@ const api = {
     changePassword: (payload: {
       currentPassword: string
       newPassword: string
-    }): Promise<ApiResult<null>> => ipcRenderer.invoke('admin:password:change', payload)
+    }): Promise<ApiResult<null>> => ipcRenderer.invoke('admin:password:change', payload),
+    updateIdentity: (payload: AdminIdentityInput): Promise<ApiResult<AdminAccount>> =>
+      ipcRenderer.invoke('admin:identity:update', payload)
   },
 
   window: {

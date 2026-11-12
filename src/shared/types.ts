@@ -234,6 +234,13 @@ export interface PresentationDetail extends PresentationSummary {
  * its own table with its own session, and only the overview below is ever
  * returned to an admin screen.
  */
+/** Changing the administrator's own sign-in identity, confirmed with a password. */
+export interface AdminIdentityInput {
+  email: string
+  displayName: string
+  currentPassword: string
+}
+
 export interface AdminAccount {
   id: string
   email: string
@@ -306,6 +313,7 @@ export type AdminAuditAction =
   | 'sign_out'
   | 'sign_in_failed'
   | 'password_changed'
+  | 'identity_changed'
   | 'account_suspended'
   | 'account_restored'
   | 'account_deleted'

@@ -44,7 +44,7 @@ export default function UpdatesPanel() {
     if (!state || state.phase !== 'ready' || !state.version) return
     if (announced.current === state.version) return
     announced.current = state.version
-    toast.success(`Version ${state.version} downloaded — restart to install it.`)
+    toast.success(`Version ${state.version} is ready — restart to apply it.`)
   }, [state, toast])
 
   const check = useCallback(async () => {
@@ -88,7 +88,7 @@ export default function UpdatesPanel() {
       case 'downloading':
         return state?.version ? `Downloading version ${state.version}…` : 'Downloading the update…'
       case 'ready':
-        return state?.version ? `Version ${state.version} is ready to install.` : 'An update is ready.'
+        return state?.version ? `Version ${state.version} is ready — restart to apply it.` : 'An update is ready.'
       case 'up-to-date':
         return 'You are on the newest version.'
       case 'error':
@@ -111,9 +111,9 @@ export default function UpdatesPanel() {
 
       <p className="account-note">
         INDRA HUB updates itself from its release page. It checks as it starts, again when you
-        come back to the window, and every few hours while it stays open — a new version
-        downloads quietly in the background and is installed when you choose to restart. Your
-        projects, accounts and activation keys are never touched by an update.
+        come back to the window, and every few hours while it stays open. A new version downloads
+        quietly and is applied on the next restart — no installer to run, no wizard, no download
+        page. Your projects, accounts and activation keys are never touched by an update.
       </p>
 
       <dl className="account-meta">
@@ -164,7 +164,7 @@ export default function UpdatesPanel() {
         {ready ? (
           <button type="button" className="btn btn-primary w-auto" onClick={() => void install()} disabled={busy}>
             {busy && <span className="spinner" aria-hidden="true" />}
-            {busy ? 'Restarting…' : 'Restart and install'}
+            {busy ? 'Restarting…' : 'Restart and update'}
           </button>
         ) : (
           <button
