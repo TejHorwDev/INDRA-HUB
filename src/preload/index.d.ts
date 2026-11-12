@@ -45,6 +45,7 @@ export interface IndraBridge {
   getAppVersion: () => Promise<string>
   appearance: {
     read: () => Promise<ApiResult<PublicAppearance>>
+    video: () => Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>>
   }
   auth: {
     register: (input: RegisterInput) => Promise<ApiResult<SessionUser>>
@@ -172,6 +173,9 @@ export interface IndraBridge {
     chooseLoginVideo: () => Promise<ApiResult<LoginAppearance | null>>
     removeLoginVideo: () => Promise<ApiResult<LoginAppearance>>
     updateAppearanceTreatment: (input: AppearanceTreatment) => Promise<ApiResult<LoginAppearance>>
+    appearanceHealth: () => Promise<
+      ApiResult<{ present: boolean; readable: boolean; bytes: number; mime: string | null }>
+    >
   }
   window: {
     minimize: () => void

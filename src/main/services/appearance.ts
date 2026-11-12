@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import {
   closeSync,
   copyFileSync,
-  createReadStream,
   existsSync,
   mkdirSync,
   openSync,
@@ -12,7 +11,6 @@ import {
   unlinkSync
 } from 'node:fs'
 import { extname, join } from 'node:path'
-import { Readable } from 'node:stream'
 import type { LoginAppearance, LoginBackground, PublicAppearance } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
@@ -20,24 +18,23 @@ import { errors } from '../lib/errors'
 /*
  * Administrator-installed media for the signed-out screens.
  *
- * The video itself is copied into <userData>/media and the database holds the
- * record that points at it. A multi-megabyte blob inside SQLite would be
- * rewritten on every checkpoint and copied into every backup, so the row keeps
- * the metadata and the file keeps the bytes — the panel, the sign-in screen and
- * the protocol handler all read the same record, so there is still exactly one
- * source of truth.
+ * The video is copied into <userData>/media and the database holds the record
+ * that points at it. A multi-megabyte blob inside SQLite would be rewritten on
+ * every checkpoint and copied into every backup, so the row keeps the metadata
+ * and the file keeps the bytes — the panel, the sign-in screen and the log all
+ * read the same record, so there is still exactly one source of truth.
  *
- * The renderer never touches the filesystem: it plays indra-media://asset/<id>,
- * which the main process resolves through the database. An id that is not in
- * the table returns 404, so no path in a URL can ever reach a file outside the
- * media folder.
+ * The renderer never touches the filesystem and never sees a path: it asks for
+ * the bytes over IPC and plays them from a Blob URL. That was a deliberate
+ * change from a custom indra-media:// scheme — a Blob URL is a plain Chromium
+ * media source with no scheme privileges, no range handling and no CSP surface
+ * to get wrong, and it behaves identically in dev and in the packaged app.
  */
 
-export const MEDIA_SCHEME = 'indra-media'
 const KIND = 'login_background'
 
-/** Large enough for a looping background, small enough to open instantly. */
-const MAX_BYTES = 200 * 1024 * 1024
+/** Large enough for a looping background, small enough to keep in memory. */
+const MAX_BYTES = 96 * 1024 * 1024
 const MAX_BLUR = 40
 const MAX_DIM = 92
 
@@ -64,7 +61,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function megabytes(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 /** Where the copied files live. Created on first use. */
@@ -72,10 +69,6 @@ export function mediaDirectory(): string {
   const directory = join(app.getPath('userData'), 'media')
   mkdirSync(directory, { recursive: true })
   return directory
-}
-
-export function mediaUrl(id: string): string {
-  return `${MEDIA_SCHEME}://asset/${id}`
 }
 
 function readSetting(key: string, fallback: string): string {
@@ -103,7 +96,6 @@ function assetRow(id: string): MediaRow | undefined {
 function toBackground(row: MediaRow): LoginBackground {
   return {
     id: row.id,
-    url: mediaUrl(row.id),
     mime: row.mime,
     originalName: row.original_name,
     bytes: row.bytes,
@@ -111,30 +103,60 @@ function toBackground(row: MediaRow): LoginBackground {
   }
 }
 
-/**
- * The active background, if the file behind it still exists. A row whose file
- * was removed outside the app must not leave the sign-in screen with a dead
- * <video>, so the record is checked against the disk on every read.
- */
-export function readLoginAppearance(): LoginAppearance {
+/** The active row, but only while the file behind it is still on disk. */
+function activeRow(): MediaRow | null {
   const assetId = readSetting('login_background_asset', '')
   const row = assetId ? assetRow(assetId) : undefined
-  const onDisk = row ? existsSync(join(mediaDirectory(), row.file_name)) : false
+  if (!row) return null
+  const path = join(mediaDirectory(), row.file_name)
+  return existsSync(path) ? row : null
+}
 
+export function readLoginAppearance(): LoginAppearance {
+  const row = activeRow()
   return {
-    background: row && onDisk ? toBackground(row) : null,
+    background: row ? toBackground(row) : null,
     blur: clamp(Number(readSetting('login_background_blur', '18')), 0, MAX_BLUR),
-    dim: clamp(Number(readSetting('login_background_dim', '58')), 0, MAX_DIM)
+    dim: clamp(Number(readSetting('login_background_dim', '46')), 0, MAX_DIM)
   }
 }
 
 export function publicAppearance(): PublicAppearance {
   const appearance = readLoginAppearance()
   return {
-    url: appearance.background?.url ?? null,
+    assetId: appearance.background?.id ?? null,
+    hasVideo: Boolean(appearance.background),
     mime: appearance.background?.mime ?? null,
+    bytes: appearance.background?.bytes ?? 0,
     blur: appearance.blur,
     dim: appearance.dim
+  }
+}
+
+/**
+ * The video bytes for the renderer. Read here, in the main process, so the
+ * renderer is handed a buffer and a mime type and nothing else.
+ */
+export function readLoginBackgroundFile(): { bytes: Buffer; mime: string } | null {
+  const row = activeRow()
+  if (!row) return null
+  try {
+    return { bytes: Buffer.from(readFileSync(join(mediaDirectory(), row.file_name))), mime: row.mime }
+  } catch (error) {
+    console.error('[appearance] could not read the background video', error)
+    return null
+  }
+}
+
+function readFileSync(path: string): Buffer {
+  const descriptor = openSync(path, 'r')
+  try {
+    const size = statSync(path).size
+    const buffer = Buffer.alloc(size)
+    readSync(descriptor, buffer, 0, size, 0)
+    return buffer
+  } finally {
+    closeSync(descriptor)
   }
 }
 
@@ -156,6 +178,41 @@ function looksLikeVideo(path: string): boolean {
     return false
   } catch {
     return false
+  } finally {
+    if (descriptor !== null) closeSync(descriptor)
+  }
+}
+
+/**
+ * Chromium cannot decode HEVC/H.265 — the codec most phones record by default
+ * — so an .mp4 that contains it plays back as a black rectangle with no error
+ * anyone can see. Detect it at upload and say so, instead of shipping a file
+ * that will never work. The sample reads the head and the tail because MP4
+ * keeps its `moov` atom at whichever end the muxer chose.
+ */
+function unsupportedCodec(path: string, mime: string): string | null {
+  let descriptor: number | null = null
+  try {
+    descriptor = openSync(path, 'r')
+    const size = statSync(path).size
+    const window = Math.min(size, 1_500_000)
+    const head = Buffer.alloc(window)
+    readSync(descriptor, head, 0, window, 0)
+    const tail = Buffer.alloc(window)
+    readSync(descriptor, tail, 0, window, Math.max(0, size - window))
+    const sample = `${head.toString('latin1')}${tail.toString('latin1')}`
+
+    const hevc =
+      mime.startsWith('video/mp4') || mime === 'video/x-m4v'
+        ? sample.includes('hvc1') || sample.includes('hev1') || sample.includes('dvh1')
+        : sample.includes('V_MPEGH/ISO/HEVC') || sample.includes('hev1') || sample.includes('hvc1')
+
+    if (hevc) {
+      return 'That video is H.265 (HEVC), which this app cannot decode — it would play as a black screen. Export it as H.264 (MP4) or WebM and try again.'
+    }
+    return null
+  } catch {
+    return null
   } finally {
     if (descriptor !== null) closeSync(descriptor)
   }
@@ -190,10 +247,10 @@ export function installLoginBackground(sourcePath: string, originalName: string)
       'video'
     )
   }
-  if (stat.size === 0) throw errors.validation('That video is empty file.', 'video')
+  if (stat.size === 0) throw errors.validation('That video is an empty file.', 'video')
   if (stat.size > MAX_BYTES) {
     throw errors.validation(
-      `That video is ${megabytes(stat.size)}. Keep it under ${MAX_BYTES / (1024 * 1024)} MB so the sign-in screen still opens quickly.`,
+      `That video is ${megabytes(stat.size)}. Keep it under ${MAX_BYTES / (1024 * 1024)} MB so the sign-in screen opens quickly.`,
       'video'
     )
   }
@@ -203,6 +260,8 @@ export function installLoginBackground(sourcePath: string, originalName: string)
       'video'
     )
   }
+  const codecProblem = unsupportedCodec(sourcePath, mime)
+  if (codecProblem) throw errors.validation(codecProblem, 'video')
 
   const id = randomUUID()
   const fileName = `${id}${extension}`
@@ -241,59 +300,28 @@ export function writeTreatment(input: { blur: number; dim: number }): LoginAppea
 
 export const APPEARANCE_LIMITS = { maxBlur: MAX_BLUR, maxDim: MAX_DIM, maxVideoBytes: MAX_BYTES }
 
-/**
- * Serves indra-media://asset/<id>.
- *
- * Range requests are answered here rather than left to the file loader, so the
- * video can seek, loop and start playing before the whole file is read.
- */
-export async function handleMediaRequest(request: Request): Promise<Response> {
+/** What the panel shows in its playback check. */
+export function backgroundHealth(): {
+  present: boolean
+  readable: boolean
+  bytes: number
+  mime: string | null
+} {
+  const assetId = readSetting('login_background_asset', '')
+  const row = assetId ? assetRow(assetId) : undefined
+  if (!row) return { present: false, readable: false, bytes: 0, mime: null }
+
+  // A stat, not a read: the point is whether the bytes are still there, and a
+  // forty-megabyte read would make the check itself feel broken.
   try {
-    const id = new URL(request.url).pathname.replace(/^\/+/, '')
-    const row = id ? assetRow(id) : undefined
-    if (!row) return new Response('Not found', { status: 404 })
-
-    const path = join(mediaDirectory(), row.file_name)
-    const stat = statSync(path, { throwIfNoEntry: false })
-    if (!stat?.isFile()) return new Response('Not found', { status: 404 })
-
-    const total = stat.size
-    const base: Record<string, string> = {
-      'content-type': row.mime,
-      'accept-ranges': 'bytes',
-      'cache-control': 'no-store'
+    const stat = statSync(join(mediaDirectory(), row.file_name))
+    return {
+      present: true,
+      readable: stat.isFile() && stat.size > 0,
+      bytes: stat.isFile() ? stat.size : row.bytes,
+      mime: row.mime
     }
-
-    const range = request.headers.get('range')
-    if (range) {
-      const match = /bytes=(\d*)-(\d*)/.exec(range)
-      if (match) {
-        const start = match[1] ? Number(match[1]) : 0
-        const end = match[2] ? Math.min(Number(match[2]), total - 1) : total - 1
-        if (!Number.isFinite(start) || start < 0 || start > end) {
-          return new Response(null, {
-            status: 416,
-            headers: { 'content-range': `bytes */${total}` }
-          })
-        }
-        const slice = createReadStream(path, { start, end })
-        return new Response(Readable.toWeb(slice) as ReadableStream, {
-          status: 206,
-          headers: {
-            ...base,
-            'content-length': String(end - start + 1),
-            'content-range': `bytes ${start}-${end}/${total}`
-          }
-        })
-      }
-    }
-
-    return new Response(Readable.toWeb(createReadStream(path)) as ReadableStream, {
-      status: 200,
-      headers: { ...base, 'content-length': String(total) }
-    })
-  } catch (error) {
-    console.error('[media] failed to serve asset', error)
-    return new Response('Media unavailable', { status: 500 })
+  } catch {
+    return { present: true, readable: false, bytes: row.bytes, mime: row.mime }
   }
 }

@@ -1,11 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { TrashIcon, UploadIcon } from '../../components/icons'
+import { PlayIcon, TrashIcon, UploadIcon } from '../../components/icons'
 import { useToast } from '../../components/ToastProvider'
 import { api, errorMessage } from '../../lib/api'
+import { forgetLoginVideo, useLoginVideo } from '../../lib/loginVideo'
 import { Badge, SectionHead, formatBytes, formatDateTime } from './shared'
 import type { SectionProps } from './shared'
+
+/** Chromium's MediaError codes, in words a person can act on. */
+function mediaErrorText(code: number): string {
+  switch (code) {
+    case 1:
+      return 'Playback was aborted.'
+    case 2:
+      return 'The video stream could not be read.'
+    case 3:
+      return 'The video is corrupt, or uses a codec this app cannot decode.'
+    case 4:
+      return 'This format or codec is not supported. Export it as H.264 MP4 or WebM.'
+    default:
+      return 'The video could not be played.'
+  }
+}
 
 /**
  * Everything about how the signed-out screens look.
@@ -21,9 +38,12 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
   const appearance = overview.appearance
   const background = appearance.background
 
-  const [busy, setBusy] = useState<'choose' | 'remove' | 'save' | null>(null)
+  const [busy, setBusy] = useState<'choose' | 'remove' | 'save' | 'check' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [probe, setProbe] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const previewRef = useRef<HTMLVideoElement>(null)
 
   const [blur, setBlur] = useState(appearance.blur)
   const [dim, setDim] = useState(appearance.dim)
@@ -37,12 +57,37 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
 
   const dirty = blur !== appearance.blur || dim !== appearance.dim
 
+  // The preview plays exactly what the sign-in screen plays: the same bytes,
+  // through the same Blob, so a black rectangle here is a real problem and not
+  // a difference between two code paths.
+  const publicAppearance = useMemo(
+    () => ({
+      assetId: background?.id ?? null,
+      hasVideo: Boolean(background),
+      mime: background?.mime ?? null,
+      bytes: background?.bytes ?? 0,
+      blur,
+      dim
+    }),
+    [background?.id, background?.mime, background?.bytes, blur, dim]
+  )
+  const { source, error: sourceError } = useLoginVideo(publicAppearance)
+
+  // A new source deserves a clean slate: the previous error (if any) belonged
+  // to the file that is no longer on screen.
+  useEffect(() => {
+    setVideoError(null)
+  }, [source?.url])
+
   async function chooseVideo() {
     setError(null)
     setBusy('choose')
     try {
       const next = await api.admin.chooseLoginVideo()
       if (next) {
+        forgetLoginVideo()
+        setVideoError(null)
+        setProbe(null)
         toast.success('Background video installed. The sign-in screen now plays it.')
         await refresh()
       }
@@ -58,6 +103,9 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
     setBusy('remove')
     try {
       await api.admin.removeLoginVideo()
+      forgetLoginVideo()
+      setProbe(null)
+      setVideoError(null)
       setConfirmRemove(false)
       toast.success('Background video removed. The plain canvas is back.')
       await refresh()
@@ -77,6 +125,61 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
       await refresh()
     } catch (caught) {
       setError(errorMessage(caught))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /**
+   * Answers "is it actually playing?" with facts instead of a guess: what the
+   * main process can read, and what the element itself reports. If the answer
+   * is ever no, this line says which half failed.
+   */
+  async function checkPlayback() {
+    setProbe(null)
+    setBusy('check')
+    try {
+      const health = await api.admin.appearanceHealth()
+      const parts: string[] = []
+      let ok = health.present && health.readable
+
+      if (!health.present) {
+        parts.push('no video installed')
+      } else if (!health.readable) {
+        parts.push('the file is missing from the media folder')
+      } else {
+        parts.push(
+          `file readable · ${formatBytes(health.bytes)} · ${(health.mime ?? '').replace('video/', '').toUpperCase()}`
+        )
+      }
+
+      const element = previewRef.current
+      if (element) {
+        // A cold disk can take a moment; do not call it stuck too early.
+        if (element.readyState < 2 && !element.error) {
+          await new Promise((resolve) => window.setTimeout(resolve, 900))
+        }
+        if (element.error) {
+          ok = false
+          parts.push(mediaErrorText(element.error.code))
+        } else if (element.readyState >= 1) {
+          parts.push(`${element.videoWidth}×${element.videoHeight}`)
+          if (Number.isFinite(element.duration) && element.duration > 0) {
+            parts.push(`${element.duration.toFixed(1)}s`)
+          }
+          parts.push(element.paused ? 'paused' : 'playing')
+        } else {
+          ok = false
+          parts.push('the browser never received any frames')
+        }
+      } else if (health.readable) {
+        ok = false
+        parts.push('the preview element is not mounted')
+      }
+
+      setProbe({ tone: ok ? 'good' : 'bad', text: parts.join(' · ') })
+    } catch (caught) {
+      setProbe({ tone: 'bad', text: errorMessage(caught) })
     } finally {
       setBusy(null)
     }
@@ -107,15 +210,23 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
               } as CSSProperties
             }
           >
+            {/* Mounted as soon as a file exists, not only once its bytes have
+                arrived, so the health check always has an element to read. */}
             {background ? (
               <video
+                ref={previewRef}
                 className="admin-preview-video"
-                src={background.url}
+                src={source?.url}
                 autoPlay
                 muted
                 loop
                 playsInline
                 preload="auto"
+                tabIndex={-1}
+                disablePictureInPicture
+                onError={(event) =>
+                  setVideoError(mediaErrorText(event.currentTarget.error?.code ?? 4))
+                }
               />
             ) : null}
 
@@ -173,6 +284,44 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
             )}
           </div>
 
+          <div className="admin-check">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void checkPlayback()}
+              disabled={busy !== null || !background}
+            >
+              {busy === 'check' ? (
+                <span className="spinner" aria-hidden="true" />
+              ) : (
+                <PlayIcon size={12} />
+              )}
+              Check playback
+            </button>
+
+            {probe ? (
+              <span className={`admin-check-result admin-check-result--${probe.tone}`}>
+                {probe.text}
+              </span>
+            ) : (
+              <span className="admin-check-hint">
+                Plays the installed file and reports what the browser says about it.
+              </span>
+            )}
+          </div>
+
+          {videoError && (
+            <p className="admin-error" role="alert">
+              {videoError}
+            </p>
+          )}
+
+          {sourceError && (
+            <p className="admin-error" role="alert">
+              {sourceError}
+            </p>
+          )}
+
           {background && (
             <dl className="admin-facts">
               <div>
@@ -201,9 +350,11 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
           )}
 
           <p className="admin-hint">
-            MP4 (H.264) or WebM, up to 200 MB. Keep it short and it loops seamlessly — a ten second
-            clip at 1080p is plenty. The file is copied into the app&apos;s media folder and recorded
-            in the database; the original on your disk is never touched.
+            MP4 (H.264) or WebM, up to 96 MB. Keep it short and it loops seamlessly — a ten second
+            clip at 1080p is plenty. H.265 / HEVC files are refused when you pick them, because this
+            app cannot decode them and they would only ever show a black screen. The file is copied
+            into the app&apos;s media folder and recorded in the database; the original on your disk is
+            never touched.
           </p>
         </div>
       </section>
