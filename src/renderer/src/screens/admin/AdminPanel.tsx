@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import type { AdminAccount, AdminOverview } from '@shared/types'
 import {
   BellIcon,
+  ChevronLeftIcon,
   DashboardIcon,
   FileIcon,
   FolderIcon,
   InfoIcon,
   PaletteIcon,
   SettingsIcon,
+  SignOutIcon,
   SparkIcon,
   UserIcon,
   WindowIcon
@@ -29,6 +32,8 @@ interface AdminPanelProps {
   admin: AdminAccount
   overview: AdminOverview
   refresh: () => Promise<void>
+  /** Ends the administrator session; the gate screen takes over from there. */
+  onSignOut: () => void
 }
 
 interface NavItem {
@@ -69,7 +74,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   }
 ]
 
-export default function AdminPanel({ admin, overview, refresh }: AdminPanelProps) {
+export default function AdminPanel({ admin, overview, refresh, onSignOut }: AdminPanelProps) {
   const [section, setSection] = useState<AdminSectionId>('overview')
 
   const counts: Partial<Record<AdminSectionId, number>> = {
@@ -83,7 +88,7 @@ export default function AdminPanel({ admin, overview, refresh }: AdminPanelProps
   const initial = (admin.displayName || admin.email).trim().charAt(0).toUpperCase()
 
   return (
-    <div className="admin-shell">
+    <div className="admin-console">
       <aside className="admin-side">
         <div className="admin-side-head">
           <span className="admin-side-eyebrow">
@@ -120,12 +125,25 @@ export default function AdminPanel({ admin, overview, refresh }: AdminPanelProps
         </nav>
 
         <div className="admin-side-foot">
-          <span className="admin-avatar" aria-hidden="true">
-            {initial}
-          </span>
-          <div className="admin-identity">
-            <p className="admin-identity-name">{admin.displayName}</p>
-            <p className="admin-identity-email">{admin.email}</p>
+          <div className="admin-side-identity">
+            <span className="admin-avatar" aria-hidden="true">
+              {initial}
+            </span>
+            <div className="admin-identity">
+              <p className="admin-identity-name">{admin.displayName}</p>
+              <p className="admin-identity-email">{admin.email}</p>
+            </div>
+          </div>
+
+          <div className="admin-side-actions">
+            <Link to="/dashboard" className="admin-side-action">
+              <ChevronLeftIcon size={13} />
+              Back to app
+            </Link>
+            <button type="button" className="admin-side-action" onClick={onSignOut}>
+              <SignOutIcon size={13} />
+              Sign out
+            </button>
           </div>
         </div>
       </aside>

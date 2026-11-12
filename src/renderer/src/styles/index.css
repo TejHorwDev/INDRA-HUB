@@ -2489,9 +2489,10 @@
   }
 
   /* ---------------- administration ---------------- */
-  /* A full-height control room: grouped navigation on the left, a live status
-     bar across the top, and one scrolling column of cards on the right. */
-  .admin-shell {
+  /* The signed-in console: grouped navigation on the left, a live status bar
+     across the top, and one scrolling column of cards on the right.
+     `.admin-shell` stays the outer gate wrapper — this is the panel inside it. */
+  .admin-console {
     display: grid;
     grid-template-columns: 248px minmax(0, 1fr);
     height: 100%;
@@ -2499,11 +2500,16 @@
     background-color: var(--bg);
   }
 
+  /* The console scrolls itself; the wrapper must not add a second scrollbar. */
+  .admin-scroll--flush {
+    overflow: hidden;
+  }
+
   .admin-side {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: var(--space-5) var(--space-3) var(--space-4);
+    padding: var(--space-5) var(--space-3) 0;
     overflow-y: auto;
     border-right: 1px solid var(--line);
     background-color: var(--surface);
@@ -2551,8 +2557,8 @@
   .admin-nav {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    margin-top: 22px;
+    gap: 12px;
+    margin-top: 16px;
   }
 
   .admin-nav-group {
@@ -2574,7 +2580,7 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    height: 32px;
+    height: 30px;
     padding: 0 8px;
     border-radius: var(--radius-sm);
     color: var(--ink-secondary);
@@ -2620,13 +2626,51 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Pinned to the bottom of the rail: on a short window the navigation
+     scrolls behind it, and the identity and the two exits stay reachable. */
   .admin-side-foot {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+    padding: 12px 0 var(--space-4);
+    background-color: var(--surface);
+    box-shadow: 0 -1px 0 var(--line);
+  }
+
+  .admin-side-identity {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: auto;
-    padding: 14px 8px 0;
-    border-top: 1px solid var(--line);
+    padding: 0 8px;
+  }
+
+  .admin-side-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .admin-side-action {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--ink-tertiary);
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+    transition:
+      color var(--dur-fast) var(--ease),
+      background-color var(--dur-fast) var(--ease);
+  }
+
+  .admin-side-action:hover {
+    background-color: var(--surface-subtle);
+    color: var(--ink);
   }
 
   .admin-avatar {
@@ -3011,7 +3055,9 @@
 
   .admin-stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    /* Always complete rows: six metrics split 6 / 3 / 2, so the 1px grid
+       never shows an empty block at the end of a row. */
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 1px;
     overflow: hidden;
     border: 1px solid var(--line);
@@ -3840,7 +3886,7 @@
   }
 
   @media (max-width: 900px) {
-    .admin-shell {
+    .admin-console {
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto minmax(0, 1fr);
     }
@@ -3886,6 +3932,33 @@
 
     .admin-body {
       padding: var(--space-5) var(--space-5) var(--space-10);
+    }
+
+    .admin-stat-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1120px) {
+    .admin-stat-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 720px) {
+    .admin-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Short windows: the rail keeps its exits reachable and drops the prose. */
+  @media (max-height: 760px) {
+    .admin-side-sub {
+      display: none;
+    }
+
+    .admin-side-title {
+      margin-top: 6px;
     }
 
     .admin-meta {
