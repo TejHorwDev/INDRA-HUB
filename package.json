@@ -1,6 +1,6 @@
 {
   "name": "indra-hub",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "private": true,
   "description": "INDRA HUB — desktop workspace",
   "author": "TejHorwDev",
@@ -15,7 +15,8 @@
     "dist": "npm run build && electron-builder --win",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.json",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "sim:update": "node scripts/updater-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -34,6 +35,7 @@
     "electron": "^45.3.1",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.5",
     "typescript": "^5.5.0",
     "vite": "^8.3.8"
