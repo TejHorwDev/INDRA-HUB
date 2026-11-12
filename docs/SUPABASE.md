@@ -34,6 +34,22 @@ policies exist yet, so the key can read nothing. That is the point.
 
 The app refuses to store a `service_role` key, and says why.
 
+### Why RLS is the whole lock
+
+Worth knowing before Stage 2: Supabase grants `SELECT` and `INSERT` on new
+`public` tables to `anon` and `authenticated` **by default**. So the tables are
+sealed by the *absence of policies*, not by the absence of privileges — RLS with
+zero policies matches zero rows, which is why the key reads nothing and writes
+nothing.
+
+The practical consequence is that every policy added in Stage 2 is a real, open
+door, and it opens for anyone holding the public key. When policies arrive:
+
+- Write them narrow (`auth.uid() = owner_id`, not `using (true)`).
+- Once per-user policies exist, `revoke all on public.indra_* from anon` is a
+  cheap second lock — but do it *after* the app's connection test has moved to
+  an authenticated read, otherwise the test turns into a permission error.
+
 ---
 
 ## Stage 2 — real accounts (not started)
