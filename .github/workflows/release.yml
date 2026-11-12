@@ -1,0 +1,68 @@
+name: Build Windows release
+
+# Two ways to start it:
+#   • push a tag like v1.0.1  → builds and publishes a GitHub Release
+#   • "Run workflow"          → builds and leaves the installer as a downloadable artifact
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# The release step needs to create a Release and upload the installer to it.
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Refuse to ship a release that does not compile
+        run: npm run typecheck
+
+      - name: Compile main, preload and renderer
+        run: npm run build
+
+      - name: Package the Windows installer
+        run: npx electron-builder --win --publish never
+
+      - name: Show what was produced
+        run: |
+          Get-ChildItem release | Select-Object Name, Length
+        shell: pwsh
+
+      # Tag pushes become a real Release with the installer attached.
+      - name: Publish the Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      # Manual runs still give a downloadable installer, attached to the run.
+      - name: Upload the installer as a run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: indra-hub-windows
+          path: release/*.exe
+          if-no-files-found: error

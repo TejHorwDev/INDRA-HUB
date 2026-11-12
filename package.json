@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "INDRA HUB — desktop workspace",
+  "author": "TejHorwDev",
   "main": "./out/main/index.js",
   "engines": {
     "node": ">=20"
@@ -11,6 +12,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "dist": "npm run build && electron-builder --win",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web"
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.3.1",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "tailwindcss": "^4.3.5",
     "typescript": "^5.5.0",

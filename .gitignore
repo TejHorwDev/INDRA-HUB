@@ -11,3 +11,6 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+
+# packaging output
+release/

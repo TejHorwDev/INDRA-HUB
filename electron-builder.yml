@@ -1,0 +1,40 @@
+appId: com.indra.hub
+productName: INDRA HUB
+copyright: Copyright © 2026 TejHorwDev
+
+# Installers are build artifacts, never committed.
+directories:
+  output: release
+  buildResources: build
+
+# Only the compiled app travels inside the installer — no sources, no tooling.
+files:
+  - out/**/*
+  - '!**/*.map'
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  # A real wizard, not a silent one-click blob: the user picks the folder and
+  # can find the install again from Add/Remove programs.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: INDRA HUB
+  # Uninstalling must never destroy the user's projects, accounts or keys.
+  deleteAppDataOnUninstall: false
+  artifactName: INDRA-HUB-Setup-${version}.${ext}
+
+portable:
+  artifactName: INDRA-HUB-Portable-${version}.${ext}
