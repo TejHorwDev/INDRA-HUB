@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AccountPanel from '../components/AccountPanel'
+import BackendPanel from '../components/BackendPanel'
 import UpdatesPanel from '../components/UpdatesPanel'
 import Page from '../components/Page'
 import { CheckIcon } from '../components/icons'
@@ -11,6 +12,7 @@ import type { ThemeMode } from '@shared/types'
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'account', label: 'Account' },
+  { id: 'backend', label: 'Backend' },
   { id: 'updates', label: 'Updates' },
   { id: 'about', label: 'About' }
 ] as const
@@ -40,6 +42,7 @@ export default function SettingsScreen() {
         <section className="settings-panel">
           {section === 'appearance' && <AppearanceSection />}
           {section === 'account' && <AccountSection />}
+          {section === 'backend' && <BackendPanel />}
           {section === 'updates' && <UpdatesPanel />}
           {section === 'about' && <AboutSection />}
         </section>

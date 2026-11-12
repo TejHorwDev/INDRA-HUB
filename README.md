@@ -60,6 +60,17 @@ setup screen asks for a Gmail address, a name and a password of at least 10 char
 administrator is created per installation; there are no default credentials and no way to create a
 second one. Administrator sign-in is rate-limited and audited.
 
+## Supabase (optional)
+
+The app needs no server. If you want a cloud copy, **Settings → Backend** stores a Supabase project
+URL and its **public** key, then proves the connection and tells you whether the schema has been
+applied. The tables, the security model and the staged plan are in [docs/SUPABASE.md](docs/SUPABASE.md)
+and [supabase/schema.sql](supabase/schema.sql).
+
+Nothing is synced yet: the schema is sealed by Row Level Security until authentication is designed,
+because a desktop app that stores a key must never be able to write to tables it does not own. The
+app refuses to store a `service_role` key at all.
+
 ## Updates
 
 An installed build updates itself from its GitHub Releases page. It checks shortly after launch and

@@ -24,6 +24,8 @@ import type {
   ProjectGraph,
   ProjectSummary,
   RegisterInput,
+  BackendConfigInput,
+  BackendStatus,
   SessionUser,
   UpdateState,
   UserSummary
@@ -141,6 +143,13 @@ export const api = {
     /** Live progress pushes from the main process. Returns an unsubscribe. */
     onState: (listener: (state: UpdateState) => void): (() => void) =>
       bridge().updates.onState(listener)
+  },
+  backend: {
+    status: (): Promise<BackendStatus> => unwrap(bridge().backend.status()),
+    test: (): Promise<BackendStatus> => unwrap(bridge().backend.test()),
+    save: (input: BackendConfigInput): Promise<BackendStatus> =>
+      unwrap(bridge().backend.save(input)),
+    clear: (): Promise<BackendStatus> => unwrap(bridge().backend.clear())
   },
   admin: {
     status: (): Promise<AdminStatus> => unwrap(bridge().admin.status()),

@@ -24,6 +24,8 @@ import type {
   ProjectGraph,
   ProjectSummary,
   RegisterInput,
+  BackendConfigInput,
+  BackendStatus,
   SessionUser,
   UpdateState,
   UserSummary
@@ -158,6 +160,14 @@ const api = {
       ipcRenderer.on('update:state', handler)
       return () => ipcRenderer.removeListener('update:state', handler)
     }
+  },
+
+  backend: {
+    status: (): Promise<ApiResult<BackendStatus>> => ipcRenderer.invoke('backend:status'),
+    test: (): Promise<ApiResult<BackendStatus>> => ipcRenderer.invoke('backend:test'),
+    save: (input: BackendConfigInput): Promise<ApiResult<BackendStatus>> =>
+      ipcRenderer.invoke('backend:save', input),
+    clear: (): Promise<ApiResult<BackendStatus>> => ipcRenderer.invoke('backend:clear')
   },
 
   admin: {
