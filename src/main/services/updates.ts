@@ -1,41 +1,59 @@
 import { app, BrowserWindow } from 'electron'
-import type { AppUpdater, ProgressInfo, UpdateInfo } from 'electron-updater'
+import { open, rename, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { UpdateState } from '@shared/types'
+import {
+  compareVersions,
+  hashFile,
+  payloadDir,
+  readPending,
+  runningVersion,
+  writePending
+} from '../lib/payload'
 
 /*
- * Self-update.
+ * In-app updates.
  *
- * An installed build checks the published release feed as it starts — the
- * check is part of opening the app, not something the user has to ask for —
- * and again when the window regains focus (at most hourly) and every few hours
- * regardless. A newer version downloads in the background and waits: the user
- * is only ever asked to restart, never forced to.
+ * A release publishes a manifest (`payload.json`) and a payload — the compiled
+ * app packed as one small `.asar`. This service fetches the manifest, downloads
+ * the payload, checks its size and SHA-256, and leaves it for the bootstrap to
+ * pick up at the next start. No installer is downloaded and no downloaded
+ * executable is ever run: applying an update is a restart.
  *
- * The updater lives in the main process because it must write to the app's
- * install directory. The renderer only ever sees `UpdateState`.
+ * The installer still exists, but only for the first install on a machine.
  */
 
-const STATE_CHANNEL = 'update:state'
-/** Long enough for the window and first paint; part of every launch. */
+const MANIFEST_URL = 'https://github.com/TejHorwDev/INDRA-HUB/releases/latest/download/payload.json'
 const FIRST_CHECK_DELAY_MS = 3_000
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
-/** A focus check is a bonus, not a poll — once an hour at most. */
 const FOCUS_CHECK_AFTER_MS = 60 * 60 * 1000
+const MANIFEST_TIMEOUT_MS = 15_000
+const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
+const STALL_TIMEOUT_MS = 45_000
+const PROGRESS_INTERVAL_MS = 250
 
 const packaged = app.isPackaged
 
-let updater: AppUpdater | null = null
+interface Manifest {
+  version: string
+  file: string
+  sha256: string
+  size: number
+  url?: string
+}
+
 let firstCheck: NodeJS.Timeout | null = null
 let interval: NodeJS.Timeout | null = null
 let lastAttempt = 0
+let running = false
 
 let state: UpdateState = {
   phase: packaged ? 'idle' : 'unsupported',
-  currentVersion: app.getVersion(),
+  currentVersion: runningVersion(),
   version: null,
   percent: 0,
   bytesPerSecond: 0,
-  message: packaged ? null : 'Self-update only runs in an installed build, not in development.',
+  message: packaged ? null : 'Updates only run in the installed app, not in development.',
   checkedAt: null,
   canCheck: packaged,
   canInstall: false
@@ -43,7 +61,7 @@ let state: UpdateState = {
 
 function broadcast(): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) window.webContents.send(STATE_CHANNEL, state)
+    if (!window.isDestroyed()) window.webContents.send('update:state', state)
   }
 }
 
@@ -53,157 +71,224 @@ function setState(patch: Partial<UpdateState>): void {
 }
 
 export function updateState(): UpdateState {
-  return state
+  // The version can change under us once a payload has booted.
+  return { ...state, currentVersion: runningVersion() }
 }
 
-/** Turns network and feed failures into something a person can act on. */
 function friendlyError(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error)
 
-  if (/\b404\b|not found|cannot find latest|ENOENT/i.test(text)) {
-    return 'No update feed was found at the release address. The repository that publishes releases must be publicly readable.'
+  if (/HTTP 404|not found/i.test(text)) {
+    return 'No in-app update was published for this release yet. Try again later.'
   }
-  if (/ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ECONNRESET|getaddrinfo|net::/i.test(text)) {
+  if (/HTTP 403|rate limit/i.test(text)) {
+    return 'GitHub is refusing requests for now. Try again later.'
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ECONNRESET|getaddrinfo|net::|fetch failed/i.test(text)) {
     return 'The update server could not be reached. Check the connection and try again.'
   }
-  if (/code signature|publisher/i.test(text)) {
-    return 'The downloaded update failed its signature check and was discarded.'
+  if (/checksum|size/i.test(text)) {
+    return 'The downloaded update was damaged and has been discarded. It will be tried again later.'
   }
   return 'The update could not be checked. Try again later.'
 }
 
-function ensureUpdater(): AppUpdater | null {
-  if (!packaged) return null
-  if (updater) return updater
+function manifestUrl(manifest: Manifest): string {
+  if (manifest.url) return manifest.url
+  return `https://github.com/TejHorwDev/INDRA-HUB/releases/latest/download/${manifest.file}`
+}
+
+async function fetchManifest(): Promise<Manifest> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), MANIFEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(MANIFEST_URL, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'cache-control': 'no-cache' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const body = (await response.json()) as Partial<Manifest>
+    if (
+      typeof body.version !== 'string' ||
+      typeof body.file !== 'string' ||
+      typeof body.sha256 !== 'string' ||
+      !/^[a-z0-9]{64}$/i.test(body.sha256) ||
+      !body.file.toLowerCase().endsWith('.asar')
+    ) {
+      throw new Error('the update manifest is not valid')
+    }
+    return { ...body, size: Number(body.size) || 0 } as Manifest
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Streams the payload to disk, reporting progress, and proves what arrived. */
+async function downloadPayload(manifest: Manifest): Promise<string> {
+  const target = join(payloadDir(), `${manifest.file}.part`)
+  const controller = new AbortController()
+  let stall: NodeJS.Timeout | undefined
+
+  const resetStall = (): void => {
+    clearTimeout(stall)
+    stall = setTimeout(() => controller.abort(), STALL_TIMEOUT_MS)
+  }
+  const overall = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS)
+  resetStall()
+
+  const handle = await open(target, 'w')
+  let received = 0
+  let windowStart = Date.now()
+  let windowBytes = 0
+  let lastProgress = 0
 
   try {
-    // Loaded lazily so a development session never pulls in the updater.
-    const { autoUpdater } = require('electron-updater') as typeof import('electron-updater')
-
-    // Download on its own, then wait for a restart. Never install under the
-    // user's hands mid-edit.
-    autoUpdater.autoDownload = true
-    autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.allowPrerelease = false
-    autoUpdater.logger = console
-
-    autoUpdater.on('checking-for-update', () => {
-      setState({ phase: 'checking', message: null })
+    const response = await fetch(manifestUrl(manifest), {
+      signal: controller.signal,
+      redirect: 'follow'
     })
+    if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
 
-    autoUpdater.on('update-available', (info: UpdateInfo) => {
-      setState({
-        phase: 'available',
-        version: info.version,
-        percent: 0,
-        canInstall: false,
-        message: `Version ${info.version} is downloading in the background.`
-      })
-    })
+    const total = Number(response.headers.get('content-length')) || manifest.size || 0
 
-    autoUpdater.on('update-not-available', () => {
+    for await (const chunk of response.body) {
+      resetStall()
+      await handle.write(chunk)
+      received += chunk.length
+      windowBytes += chunk.length
+
+      const now = Date.now()
+      if (now - lastProgress >= PROGRESS_INTERVAL_MS) {
+        lastProgress = now
+        const elapsed = Math.max(1, now - windowStart)
+        const speed = Math.round((windowBytes * 1000) / elapsed)
+        windowStart = now
+        windowBytes = 0
+        setState({
+          phase: 'downloading',
+          percent: total > 0 ? Math.min(99, Math.round((received / total) * 100)) : 0,
+          bytesPerSecond: speed
+        })
+      }
+    }
+  } finally {
+    clearTimeout(overall)
+    clearTimeout(stall)
+    await handle.close()
+  }
+
+  if (manifest.size > 0 && received !== manifest.size) {
+    await rm(target, { force: true })
+    throw new Error(`size mismatch: expected ${manifest.size}, received ${received}`)
+  }
+
+  const digest = hashFile(target)
+  if (digest.toLowerCase() !== manifest.sha256.toLowerCase()) {
+    await rm(target, { force: true })
+    throw new Error('checksum mismatch')
+  }
+
+  const final = join(payloadDir(), manifest.file)
+  await rm(final, { force: true })
+  await rename(target, final)
+  return manifest.file
+}
+
+export async function checkForUpdates(manual = false): Promise<UpdateState> {
+  if (!packaged) return updateState()
+  if (running) return updateState()
+
+  // Never interrupt a download that is already under way.
+  if (state.phase === 'downloading' || state.phase === 'ready') return updateState()
+
+  running = true
+  lastAttempt = Date.now()
+  setState({ phase: 'checking', message: manual ? 'Checking for updates…' : null })
+
+  try {
+    const manifest = await fetchManifest()
+    const current = runningVersion()
+
+    if (compareVersions(manifest.version, current) <= 0) {
       setState({
         phase: 'up-to-date',
         version: null,
         percent: 0,
         canInstall: false,
         checkedAt: new Date().toISOString(),
-        message: 'You are on the newest version.'
+        message: `You are on the newest version (${current}).`
       })
-    })
+      return updateState()
+    }
 
-    autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-      setState({
-        phase: 'downloading',
-        percent: Math.max(0, Math.min(100, Math.round(progress.percent))),
-        bytesPerSecond: Math.max(0, Math.round(progress.bytesPerSecond))
-      })
-    })
-
-    autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    // Already downloaded and waiting for a restart.
+    const pending = readPending()
+    if (pending && pending.version === manifest.version) {
       setState({
         phase: 'ready',
-        version: info.version,
+        version: pending.version,
         percent: 100,
         canInstall: true,
         checkedAt: new Date().toISOString(),
-        message: `Version ${info.version} is ready. Restart to install it.`
+        message: `Version ${pending.version} is ready. Restart to apply it.`
       })
-    })
+      return updateState()
+    }
 
-    autoUpdater.on('error', (error: Error) => {
-      setState({
-        phase: 'error',
-        message: friendlyError(error),
-        canInstall: state.phase === 'ready'
-      })
-    })
-
-    updater = autoUpdater
-    return updater
-  } catch (error) {
-    console.error('[updates] updater unavailable', error)
     setState({
-      phase: 'unsupported',
-      canCheck: false,
+      phase: 'available',
+      version: manifest.version,
+      percent: 0,
       canInstall: false,
-      message: 'The updater component is missing from this build.'
+      message: `Version ${manifest.version} is downloading.`
     })
-    return null
-  }
-}
 
-export async function checkForUpdates(manual = false): Promise<UpdateState> {
-  const instance = ensureUpdater()
-  if (!instance) return state
+    const file = await downloadPayload(manifest)
+    writePending({ version: manifest.version, file, sha256: manifest.sha256, size: manifest.size })
 
-  // Never interrupt a download that is already under way.
-  if (state.phase === 'downloading' || state.phase === 'ready') return state
-
-  lastAttempt = Date.now()
-  setState({
-    phase: 'checking',
-    message: manual ? 'Checking for updates…' : null
-  })
-
-  try {
-    await instance.checkForUpdates()
+    setState({
+      phase: 'ready',
+      version: manifest.version,
+      percent: 100,
+      bytesPerSecond: 0,
+      canInstall: true,
+      checkedAt: new Date().toISOString(),
+      message: `Version ${manifest.version} is ready. Restart to apply it.`
+    })
+    return updateState()
   } catch (error) {
     setState({
       phase: 'error',
       checkedAt: new Date().toISOString(),
+      canInstall: false,
       message: friendlyError(error)
     })
+    return updateState()
+  } finally {
+    running = false
   }
-
-  return state
-}
-
-export function installUpdate(): UpdateState {
-  if (!updater || state.phase !== 'ready') return state
-
-  // Let the IPC reply reach the renderer before the window disappears.
-  setImmediate(() => {
-    try {
-      // The first argument is `isSilent`. Passing false here ran the NSIS
-      // wizard in front of the user — which is exactly the "it downloaded an
-      // installer and ran it" experience this app is not supposed to have.
-      // Silent install replaces the files and relaunches into the new version;
-      // the user sees a restart, not an installer.
-      updater?.quitAndInstall(true, true)
-    } catch (error) {
-      console.error('[updates] install failed', error)
-      setState({ phase: 'error', message: 'The update could not be installed. Restart the app and try again.' })
-    }
-  })
-
-  return state
 }
 
 /**
- * Called when the window regains focus — someone who left the app open all day
- * should not have to find the Updates panel to learn a release exists.
+ * Applying an update is a restart.
+ *
+ * The payload is already on disk and verified; the bootstrap loads it on the
+ * way up. Nothing is spawned, nothing is installed, and a cancelled restart
+ * changes nothing.
  */
+export function installUpdate(): UpdateState {
+  if (state.phase !== 'ready') return updateState()
+
+  setImmediate(() => {
+    app.relaunch()
+    app.exit(0)
+  })
+
+  return updateState()
+}
+
+/** Called when the window regains focus — at most once an hour. */
 export function checkForUpdatesOnFocus(): void {
   if (!packaged) return
   if (Date.now() - lastAttempt < FOCUS_CHECK_AFTER_MS) return
@@ -214,7 +299,19 @@ export function checkForUpdatesOnFocus(): void {
 /** Called once at startup, after the database and IPC are ready. */
 export function initUpdates(): void {
   if (!packaged) return
-  if (!ensureUpdater()) return
+
+  // A payload downloaded in a previous session is already in place: the
+  // bootstrap is running it, so report that rather than looking for it again.
+  const pending = readPending()
+  if (pending) {
+    setState({
+      phase: 'ready',
+      version: pending.version,
+      percent: 100,
+      canInstall: true,
+      message: `Version ${pending.version} is ready. Restart to apply it.`
+    })
+  }
 
   firstCheck = setTimeout(() => void checkForUpdates(false), FIRST_CHECK_DELAY_MS)
   firstCheck.unref()

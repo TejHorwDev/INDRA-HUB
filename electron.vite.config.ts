@@ -8,7 +8,8 @@ export default defineConfig({
     // Everything the app needs at runtime travels inside `out/` (see the
     // `files` list in electron-builder.yml), so the sanitizer is bundled
     // instead of left as a bare `require` that would not resolve in the
-    // installed app.
+    // installed app. The same rule is what lets an in-app update payload be a
+    // single self-contained archive.
     plugins: [externalizeDepsPlugin({ exclude: ['sanitize-html'] })],
     resolve: {
       alias: {

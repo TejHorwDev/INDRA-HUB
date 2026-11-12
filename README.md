@@ -99,20 +99,35 @@ sign-in is handled by Supabase. The key is additionally sealed with the OS keyst
 ## Updates
 
 An installed build updates itself from its GitHub Releases page. It checks **as it starts**, again
-when the window regains focus (at most hourly), and every four hours while it stays open. A newer
-version downloads in the background and is applied on the next restart — either from **Restart and
-update** in *Settings → Updates*, or automatically when the app is quit.
+when the window regains focus (at most hourly), and every four hours while it stays open. An update
+takes effect on the next restart — from **Restart and update** in *Settings → Updates*, or whenever
+the app is next started.
 
-The update is an in-app restart, not a reinstall: Windows installers are replaced silently
-(`quitAndInstall(true)`), so no wizard, no next-next-finish, no download page. Nothing is installed
-while someone is working.
+**No installer is downloaded and no downloaded executable is ever run.** Each release publishes a
+*payload*: the compiled app packed as one `.asar`, about a megabyte, next to a manifest that names
+it, its size and its SHA-256. The app downloads the payload, verifies the hash, and leaves it in the
+user's data folder. On the next start, `out/main/bootstrap.js` — the entry point — runs that payload
+instead of the copy that came with the installer, falling back to the installed copy if anything is
+wrong with it:
 
-Updating requires releases to be **publicly readable**: GitHub refuses anonymous API and asset
-requests for a private repository, so a private repository would need a personal access token
-compiled into the app. The portable executable cannot update itself — use the installer for that.
+| Situation | What happens |
+|---|---|
+| No payload | The installed code runs |
+| Payload missing, wrong size or wrong hash | Discarded; the installed code runs |
+| Payload older than the installed app | Ignored, so an update can never downgrade |
+| Payload loads but the app never reaches ready, twice | Discarded automatically on the third start |
+| Payload loads fine | It keeps running, and reports its own version |
 
-The first release that contains the updater has to be installed by hand; every release after it
-arrives in the app.
+The bootstrap therefore makes the worst case *"the update did not take"*, never *"the app will not
+open"*. The Windows installer is still the way onto a machine, and still the file on the release
+page — it is simply not part of updating any more.
+
+Updating requires releases to be **publicly readable**: GitHub refuses anonymous requests for a
+private repository, so a private repository would need a personal access token compiled into the
+app.
+
+The first release containing this mechanism has to be installed by hand; every release after it
+arrives in the app as a payload.
 
 ## Recovery
 
