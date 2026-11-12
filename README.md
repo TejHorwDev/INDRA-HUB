@@ -88,8 +88,13 @@ URL and its **public** key, then proves the connection and tells you whether the
 applied. The tables, the security model and the staged plan are in [docs/SUPABASE.md](docs/SUPABASE.md)
 and [supabase/schema.sql](supabase/schema.sql).
 
-Nothing is synced yet: the schema is sealed by Row Level Security until authentication is designed,
-because a desktop app that stores a key must never be able to write to tables it does not own. The
+The identity layer is applied too — [supabase/auth.sql](supabase/auth.sql) adds member numbers, Google
+identities held by Supabase Auth, and 23 Row Level Security policies, so the database itself decides
+who may read which row. The app is not wired to it yet: accounts and documents still live locally,
+which means nothing is synced and nothing leaves the machine.
+
+That ordering is deliberate. A desktop app holding a public key is only safe if the *database*
+enforces the rules, so the rules had to exist and be proven before any client could use them. The
 app refuses to store a `service_role` key at all.
 
 The public key is not a secret and is safe to have in a client — Supabase expects it to be. What
