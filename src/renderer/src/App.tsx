@@ -63,7 +63,6 @@ function viewLabel(pathname: string): string {
   if (pathname.startsWith('/settings')) return 'Settings'
   if (pathname.startsWith('/admin')) return 'Administration'
   if (pathname.startsWith('/register')) return 'Create account'
-  if (pathname.startsWith('/admin')) return 'Administration'
   return 'Sign in'
 }
 
@@ -91,6 +90,21 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [inShell])
+
+  // Administration has no visible entry point once it is configured. The
+  // administrator opens it with Ctrl+Alt+A (Cmd+Alt+A on macOS); the gate
+  // behind it still demands the administrator email and password, and
+  // first-run setup stays reachable from the signed-out screen.
+  useEffect(() => {
+    function onAdminShortcut(event: KeyboardEvent) {
+      if (!event.altKey || !(event.ctrlKey || event.metaKey)) return
+      if (event.key.toLowerCase() !== 'a') return
+      event.preventDefault()
+      navigate('/admin')
+    }
+    window.addEventListener('keydown', onAdminShortcut)
+    return () => window.removeEventListener('keydown', onAdminShortcut)
+  }, [navigate])
 
   const commands = useMemo<Command[]>(() => {
     const destinations = [

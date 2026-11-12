@@ -51,10 +51,27 @@ Schema migrations run automatically on launch.
 
 ## First administrator
 
-Open **Settings → Administration** (or `#/admin`). On an installation with no administrator yet, the
+On a fresh installation, the sign-in screen offers **Set up the administrator**. After that the entry
+point disappears: ordinary users are never shown a way into the administration area. The
+administrator opens it with **Ctrl+Alt+A** (Cmd+Alt+A on macOS), or by visiting `#/admin`.
+
+On an installation with no administrator yet, the
 setup screen asks for a Gmail address, a name and a password of at least 10 characters. Exactly one
 administrator is created per installation; there are no default credentials and no way to create a
 second one. Administrator sign-in is rate-limited and audited.
+
+## Updates
+
+An installed build updates itself from its GitHub Releases page. It checks shortly after launch and
+every four hours, downloads a newer version in the background, and installs it when the user chooses
+**Restart and install** in *Settings → Updates*. Nothing is installed while someone is working.
+
+Updating requires releases to be **publicly readable**: GitHub refuses anonymous API and asset
+requests for a private repository, so a private repository would need a personal access token
+compiled into the app. The portable executable cannot update itself — use the installer for that.
+
+The first release that contains the updater has to be installed by hand; every release after it
+arrives in the app.
 
 ## Licensing
 

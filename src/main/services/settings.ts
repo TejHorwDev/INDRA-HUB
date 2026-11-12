@@ -36,11 +36,17 @@ export function readSettings(): AdminSettings {
 
 export function publicStatus(): AppPublicStatus {
   const settings = readSettings()
+  // Whether an administrator exists is not a secret — the database enforces
+  // that only one can ever be created. It tells signed-out screens whether to
+  // offer the one-time setup or to stay silent.
+  const admin = getDatabase().prepare('SELECT 1 FROM admin_users LIMIT 1').get()
+
   return {
     maintenanceMode: settings.maintenanceMode,
     maintenanceMessage: settings.maintenanceMessage,
     allowRegistration: settings.allowRegistration,
-    requireActivationKey: settings.requireActivationKey
+    requireActivationKey: settings.requireActivationKey,
+    adminConfigured: Boolean(admin)
   }
 }
 

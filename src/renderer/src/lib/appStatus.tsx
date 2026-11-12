@@ -7,7 +7,8 @@ const FALLBACK: AppPublicStatus = {
   maintenanceMode: false,
   maintenanceMessage: '',
   allowRegistration: true,
-  requireActivationKey: false
+  requireActivationKey: false,
+  adminConfigured: false
 }
 
 interface AppStatusValue {

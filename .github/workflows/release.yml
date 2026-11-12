@@ -55,7 +55,13 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.exe
+          # latest.yml is what installed copies read to notice a newer version;
+          # the blockmaps make the download incremental. Without them the
+          # installer works but nothing can update itself.
+          files: |
+            release/*.exe
+            release/*.yml
+            release/*.blockmap
           generate_release_notes: true
           fail_on_unmatched_files: true
 
@@ -64,5 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: indra-hub-windows
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/*.yml
           if-no-files-found: error
