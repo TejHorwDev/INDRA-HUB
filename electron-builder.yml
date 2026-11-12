@@ -14,6 +14,15 @@ files:
 
 asar: true
 
+# Where the updater looks for new versions. electron-builder turns this into
+# app-update.yml inside the installed app, and writes latest.yml next to the
+# installer so the running copy can compare versions.
+publish:
+  provider: github
+  owner: TejHorwDev
+  repo: INDRA-HUB
+  releaseType: release
+
 win:
   target:
     - target: nsis

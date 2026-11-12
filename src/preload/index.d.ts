@@ -24,6 +24,7 @@ import type {
   ProjectSummary,
   RegisterInput,
   SessionUser,
+  UpdateState,
   UserSummary
 } from '@shared/types'
 
@@ -112,6 +113,12 @@ export interface IndraBridge {
   }
   app: {
     status: () => Promise<ApiResult<AppPublicStatus>>
+  }
+  updates: {
+    state: () => Promise<ApiResult<UpdateState>>
+    check: () => Promise<ApiResult<UpdateState>>
+    install: () => Promise<ApiResult<UpdateState>>
+    onState: (listener: (state: UpdateState) => void) => () => void
   }
   admin: {
     status: () => Promise<ApiResult<AdminStatus>>

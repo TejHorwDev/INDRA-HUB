@@ -25,6 +25,7 @@ import type {
   ProjectSummary,
   RegisterInput,
   SessionUser,
+  UpdateState,
   UserSummary
 } from '@shared/types'
 
@@ -132,6 +133,14 @@ export const api = {
   },
   app: {
     status: (): Promise<AppPublicStatus> => unwrap(bridge().app.status())
+  },
+  updates: {
+    state: (): Promise<UpdateState> => unwrap(bridge().updates.state()),
+    check: (): Promise<UpdateState> => unwrap(bridge().updates.check()),
+    install: (): Promise<UpdateState> => unwrap(bridge().updates.install()),
+    /** Live progress pushes from the main process. Returns an unsubscribe. */
+    onState: (listener: (state: UpdateState) => void): (() => void) =>
+      bridge().updates.onState(listener)
   },
   admin: {
     status: (): Promise<AdminStatus> => unwrap(bridge().admin.status()),

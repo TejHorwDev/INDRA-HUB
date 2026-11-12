@@ -345,6 +345,40 @@ export interface AppPublicStatus {
   maintenanceMessage: string
   allowRegistration: boolean
   requireActivationKey: boolean
+  /**
+   * False only on a fresh installation. Signed-out screens use it to offer the
+   * one-time administrator setup; afterwards the entry point is hidden from
+   * ordinary users on purpose.
+   */
+  adminConfigured: boolean
+}
+
+/* ---------------- self-update ---------------- */
+
+export type UpdatePhase =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'up-to-date'
+  | 'error'
+
+export interface UpdateState {
+  phase: UpdatePhase
+  /** Version currently running. */
+  currentVersion: string
+  /** Version being downloaded or waiting to install. */
+  version: string | null
+  /** 0–100 while downloading. */
+  percent: number
+  bytesPerSecond: number
+  /** Human-readable explanation for `error`, or a note otherwise. */
+  message: string | null
+  checkedAt: string | null
+  canCheck: boolean
+  canInstall: boolean
 }
 
 /* ---------------- local activation keys ---------------- */

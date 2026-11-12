@@ -1,0 +1,190 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { UpdateState } from '@shared/types'
+import { api, errorMessage } from '../lib/api'
+import { useToast } from './ToastProvider'
+
+/**
+ * Settings → Updates.
+ *
+ * The main process owns the updater and pushes progress here; this panel only
+ * renders what it reports and offers the two actions a person needs: check
+ * now, and restart once a download has finished.
+ */
+export default function UpdatesPanel() {
+  const toast = useToast()
+  const [state, setState] = useState<UpdateState | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  /** Guards against re-announcing the same ready version on every re-render. */
+  const announced = useRef<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    api.updates
+      .state()
+      .then((initial) => {
+        if (active) setState(initial)
+      })
+      .catch(() => {
+        // The panel simply stays empty; nothing here is critical.
+      })
+
+    const unsubscribe = api.updates.onState((next) => {
+      if (active) setState(next)
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!state || state.phase !== 'ready' || !state.version) return
+    if (announced.current === state.version) return
+    announced.current = state.version
+    toast.success(`Version ${state.version} downloaded — restart to install it.`)
+  }, [state, toast])
+
+  const check = useCallback(async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      setState(await api.updates.check())
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  const install = useCallback(async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.updates.install()
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setBusy(false)
+    }
+  }, [])
+
+  const phase = state?.phase ?? 'idle'
+  const downloading = phase === 'downloading' || phase === 'available'
+  const ready = phase === 'ready'
+  const upToDate = phase === 'up-to-date'
+  const failed = phase === 'error'
+  const unsupported = phase === 'unsupported'
+
+  const headline = ((): string => {
+    switch (phase) {
+      case 'unsupported':
+        return 'Updates are unavailable in this build.'
+      case 'checking':
+        return 'Checking for updates…'
+      case 'available':
+        return state?.version ? `Version ${state.version} is downloading…` : 'An update is downloading…'
+      case 'downloading':
+        return state?.version ? `Downloading version ${state.version}…` : 'Downloading the update…'
+      case 'ready':
+        return state?.version ? `Version ${state.version} is ready to install.` : 'An update is ready.'
+      case 'up-to-date':
+        return 'You are on the newest version.'
+      case 'error':
+        return 'The update could not be completed.'
+      default:
+        return state && state.checkedAt ? 'No updates were found.' : 'Not checked yet.'
+    }
+  })()
+
+  const detail = failed
+    ? (error ?? state?.message ?? 'Try again later.')
+    : (state?.message ?? (unsupported ? 'Install the app to receive updates.' : null))
+
+  const percent = state?.percent ?? 0
+  const speed = state?.bytesPerSecond ?? 0
+
+  return (
+    <div className="account-section">
+      <h3 className="account-subhead">Application updates</h3>
+
+      <p className="account-note">
+        INDRA HUB updates itself from its release page. A new version downloads quietly in the
+        background; it is installed only when you choose to restart. Your projects, accounts and
+        activation keys are never touched by an update.
+      </p>
+
+      <dl className="account-meta">
+        <div>
+          <dt>Installed version</dt>
+          <dd className="update-version">{state?.currentVersion ?? '—'}</dd>
+        </div>
+        <div>
+          <dt>{ready ? 'Ready to install' : 'Last checked'}</dt>
+          <dd>
+            {ready && state?.version
+              ? state.version
+              : state?.checkedAt
+                ? new Date(state.checkedAt).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                  })
+                : '—'}
+          </dd>
+        </div>
+      </dl>
+
+      {downloading && (
+        <div>
+          <div
+            className="update-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-label="Update download progress"
+          >
+            <div className="update-progress-bar" style={{ width: `${percent}%` }} />
+          </div>
+          <p className="update-hint">
+            {percent}%
+            {speed > 0 ? ` · ${formatSpeed(speed)}` : ''} · you can keep working
+          </p>
+        </div>
+      )}
+
+      <p className={`update-hint${failed ? ' update-hint--error' : ''}`} role={failed ? 'alert' : undefined}>
+        {headline}
+        {detail && detail !== headline ? ` ${detail}` : ''}
+      </p>
+
+      <div className="account-actions">
+        {ready ? (
+          <button type="button" className="btn btn-primary w-auto" onClick={() => void install()} disabled={busy}>
+            {busy && <span className="spinner" aria-hidden="true" />}
+            {busy ? 'Restarting…' : 'Restart and install'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-ghost w-auto"
+            onClick={() => void check()}
+            disabled={busy || unsupported || downloading || !state?.canCheck}
+          >
+            {busy || phase === 'checking' ? <span className="spinner" aria-hidden="true" /> : null}
+            {busy || phase === 'checking' ? 'Checking…' : 'Check for updates'}
+          </button>
+        )}
+
+        {upToDate && <span className="badge badge--accent">Up to date</span>}
+      </div>
+    </div>
+  )
+}
+
+function formatSpeed(bytesPerSecond: number): string {
+  const megabytes = bytesPerSecond / (1024 * 1024)
+  if (megabytes >= 1) return `${megabytes.toFixed(1)} MB/s`
+  return `${Math.max(1, Math.round(bytesPerSecond / 1024))} KB/s`
+}

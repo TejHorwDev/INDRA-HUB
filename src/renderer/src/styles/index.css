@@ -3211,3 +3211,47 @@ body,
   height: 0;
   display: none;
 }
+
+/* ------------------------------------------------------------------ *
+ * Self-update panel
+ * ------------------------------------------------------------------ */
+.update-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.update-version {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.update-progress {
+  position: relative;
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background-color: var(--surface-subtle);
+  overflow: hidden;
+}
+
+.update-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background-color: var(--accent);
+  transition: width 220ms var(--ease);
+}
+
+.update-hint {
+  margin-top: 10px;
+  font-size: var(--fs-sm);
+  color: var(--ink-tertiary);
+  line-height: 1.55;
+}
+
+.update-hint--error {
+  color: var(--danger);
+}

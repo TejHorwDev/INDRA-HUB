@@ -142,11 +142,13 @@ export default function RegisterScreen() {
           </Link>
         </p>
 
-        <p className="auth-alt auth-alt--admin">
-          <Link to="/admin" className="link">
-            Administrator access
-          </Link>
-        </p>
+        {!status.adminConfigured && (
+          <p className="auth-alt auth-alt--admin">
+            <Link to="/admin" className="link">
+              Set up the administrator
+            </Link>
+          </p>
+        )}
       </AuthLayout>
     )
   }
@@ -260,11 +262,13 @@ export default function RegisterScreen() {
         </Link>
       </p>
 
-      <p className="auth-alt auth-alt--admin">
-        <Link to="/admin" className="link">
-          Administrator access
-        </Link>
-      </p>
+      {!status.adminConfigured && (
+        <p className="auth-alt auth-alt--admin">
+          <Link to="/admin" className="link">
+            Set up the administrator
+          </Link>
+        </p>
+      )}
     </AuthLayout>
   )
 }

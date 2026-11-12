@@ -72,6 +72,7 @@ import {
   updateSettings
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
+import { checkForUpdates, installUpdate, updateState } from '../services/updates'
 import type { AdminLoginInput, AdminSettings, AdminSetupInput } from '@shared/types'
 
 /** Every project call resolves the caller here, never from the renderer. */
@@ -109,6 +110,12 @@ export function registerIpcHandlers(): void {
   /* ---------------- public app status ---------------- */
   // Signed-out screens need these two switches to render honestly.
   ipcMain.handle('app:status', () => toResult(() => publicStatus()))
+
+  /* ---------------- self-update ---------------- */
+  // Readable by any renderer: the state is only a version number and progress.
+  ipcMain.handle('updates:state', () => toResult(() => updateState()))
+  ipcMain.handle('updates:check', () => toResult(() => checkForUpdates(true)))
+  ipcMain.handle('updates:install', () => toResult(() => installUpdate()))
 
   /* ---------------- accounts ---------------- */
   ipcMain.handle('auth:register', (_event, input: RegisterInput) =>

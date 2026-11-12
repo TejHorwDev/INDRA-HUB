@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electr
 import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
+import { initUpdates } from './services/updates'
 
 const isDev = !app.isPackaged
 
@@ -63,6 +64,9 @@ app.whenReady().then(() => {
   // Open (and migrate) the database before any IPC call can reach it.
   getDatabase()
   registerIpcHandlers()
+
+  // An installed build looks for a newer release in the background.
+  initUpdates()
 
   // Window controls. Every handler resolves the window from its own sender so
   // no renderer can drive a window it does not belong to.

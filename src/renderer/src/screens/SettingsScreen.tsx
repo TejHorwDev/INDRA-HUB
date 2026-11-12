@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import AccountPanel from '../components/AccountPanel'
+import UpdatesPanel from '../components/UpdatesPanel'
 import Page from '../components/Page'
 import { CheckIcon } from '../components/icons'
 import { useSession } from '../lib/session'
@@ -10,7 +11,7 @@ import type { ThemeMode } from '@shared/types'
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'account', label: 'Account' },
-  { id: 'admin', label: 'Administration' },
+  { id: 'updates', label: 'Updates' },
   { id: 'about', label: 'About' }
 ] as const
 
@@ -39,7 +40,7 @@ export default function SettingsScreen() {
         <section className="settings-panel">
           {section === 'appearance' && <AppearanceSection />}
           {section === 'account' && <AccountSection />}
-          {section === 'admin' && <AdminSection />}
+          {section === 'updates' && <UpdatesPanel />}
           {section === 'about' && <AboutSection />}
         </section>
       </div>
@@ -133,24 +134,6 @@ function AccountSection() {
           </button>
         </div>
       </div>
-    </>
-  )
-}
-
-function AdminSection() {
-  return (
-    <>
-      <SectionHeading title="Administration" />
-
-      <p className="mt-4 max-w-[440px] text-sm text-[var(--ink-secondary)]">
-        The administration panel manages this installation and its AI provider settings. It is not
-        part of any normal account: it asks for the administrator Gmail and password, and it keeps
-        its own separate session.
-      </p>
-
-      <Link to="/admin" className="btn btn-ghost mt-5 w-auto">
-        Open administration
-      </Link>
     </>
   )
 }
