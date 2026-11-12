@@ -329,6 +329,8 @@ export type AdminAuditAction =
   | 'keys_created'
   | 'key_revoked'
   | 'key_deleted'
+  | 'appearance_updated'
+  | 'appearance_removed'
 
 export interface AdminAuditEntry {
   id: string
@@ -359,6 +361,40 @@ export interface AppPublicStatus {
    * ordinary users on purpose.
    */
   adminConfigured: boolean
+}
+
+/* ---------------- appearance ---------------- */
+
+/**
+ * A file the administrator installed for the signed-out screens. The bytes
+ * live in the app's media folder; this record is the database row that points
+ * at them, and `url` is the indra-media:// address the renderer plays.
+ */
+export interface LoginBackground {
+  id: string
+  url: string
+  mime: string
+  originalName: string
+  bytes: number
+  createdAt: string
+}
+
+/** How the video is treated so text stays readable on top of it. */
+export interface AppearanceTreatment {
+  /** 0 = sharp, 40 = heavily blurred. */
+  blur: number
+  /** 0 = untouched, 92 = almost black. */
+  dim: number
+}
+
+export interface LoginAppearance extends AppearanceTreatment {
+  background: LoginBackground | null
+}
+
+/** What a signed-out screen may know: the address, never the file name. */
+export interface PublicAppearance extends AppearanceTreatment {
+  url: string | null
+  mime: string | null
 }
 
 /* ---------------- self-update ---------------- */
@@ -492,6 +528,7 @@ export interface AdminOverview {
   activationKeys: ActivationKeyRow[]
   audit: AdminAuditEntry[]
   settings: AdminSettings
+  appearance: LoginAppearance
   system: AdminSystemInfo
 }
 

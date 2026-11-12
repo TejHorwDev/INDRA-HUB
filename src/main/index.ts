@@ -1,9 +1,19 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  protocol,
+  session,
+  shell
+} from 'electron'
 import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
 import { markHealthy, runningVersion } from './lib/payload'
 import { ensureBuiltInAdmin, resetAdminIdentity } from './services/admin'
+import { handleMediaRequest, MEDIA_SCHEME } from './services/appearance'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
 const isDev = !app.isPackaged
@@ -19,6 +29,18 @@ const isDev = !app.isPackaged
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 }
+
+/*
+ * Administrator-installed media is served from a private scheme rather than a
+ * file:// path: the renderer gets an address, never a filesystem location, and
+ * the handler resolves it through the database.
+ */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: MEDIA_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
 
 app.on('second-instance', () => {
   const [existing] = BrowserWindow.getAllWindows()
@@ -107,6 +129,9 @@ app.whenReady().then(() => {
   // Open (and migrate) the database before any IPC call can reach it.
   getDatabase()
 
+  // Background video for the signed-out screens.
+  protocol.handle(MEDIA_SCHEME, handleMediaRequest)
+
   // A fresh installation has exactly one administrator, created here — before
   // any window exists, so nothing has to offer to create one.
   ensureBuiltInAdmin()
@@ -175,7 +200,7 @@ app.whenReady().then(() => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' indra-media:; font-src 'self' data:"
           ]
         }
       })

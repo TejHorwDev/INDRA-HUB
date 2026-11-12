@@ -13,12 +13,15 @@ import type {
   AdminSetupInput,
   AdminStatus,
   AppPublicStatus,
+  AppearanceTreatment,
   ChangePasswordInput,
   CreateActivationKeyInput,
   CreatedActivationKey,
   DeleteAccountInput,
+  LoginAppearance,
   LoginInput,
   ProfileInput,
+  PublicAppearance,
   PresentationDetail,
   PresentationSummary,
   ProjectDetail,
@@ -45,6 +48,10 @@ const api = {
     node: process.versions.node
   },
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
+
+  appearance: {
+    read: (): Promise<ApiResult<PublicAppearance>> => ipcRenderer.invoke('app:appearance')
+  },
 
   auth: {
     register: (input: RegisterInput): Promise<ApiResult<SessionUser>> =>
@@ -224,7 +231,13 @@ const api = {
       newPassword: string
     }): Promise<ApiResult<null>> => ipcRenderer.invoke('admin:password:change', payload),
     updateIdentity: (payload: AdminIdentityInput): Promise<ApiResult<AdminAccount>> =>
-      ipcRenderer.invoke('admin:identity:update', payload)
+      ipcRenderer.invoke('admin:identity:update', payload),
+    chooseLoginVideo: (): Promise<ApiResult<LoginAppearance | null>> =>
+      ipcRenderer.invoke('admin:appearance:choose-video'),
+    removeLoginVideo: (): Promise<ApiResult<LoginAppearance>> =>
+      ipcRenderer.invoke('admin:appearance:remove-video'),
+    updateAppearanceTreatment: (input: AppearanceTreatment): Promise<ApiResult<LoginAppearance>> =>
+      ipcRenderer.invoke('admin:appearance:treatment', input)
   },
 
   window: {

@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { basename } from 'node:path'
 import type {
   ChangePasswordInput,
   CreateProjectInput,
@@ -70,11 +71,15 @@ import {
   signOutAccount,
   signOutAllAccounts,
   transferProject,
+  clearAppearanceVideo,
+  installAppearanceVideo,
   requireAdmin,
   updateAdminIdentity,
+  updateAppearanceTreatment,
   updateSettings
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
+import { publicAppearance } from '../services/appearance'
 import { checkForUpdates, diagnoseConnection, installUpdate, updateState } from '../services/updates'
 import {
   backendStatus,
@@ -87,6 +92,8 @@ import type {
   AdminLoginInput,
   AdminSettings,
   AdminSetupInput,
+  AppearanceTreatment,
+  LoginAppearance,
   BackendConfigInput
 } from '@shared/types'
 
@@ -125,6 +132,13 @@ export function registerIpcHandlers(): void {
   /* ---------------- public app status ---------------- */
   // Signed-out screens need these two switches to render honestly.
   ipcMain.handle('app:status', () => toResult(() => publicStatus()))
+
+  /*
+   * What the signed-out screens look like. Public by design — the sign-in
+   * screen has to draw itself before anyone has identified themselves — but it
+   * carries an address and two numbers, never a file name or a path.
+   */
+  ipcMain.handle('app:appearance', () => toResult(() => publicAppearance()))
 
   /* ---------------- optional Supabase connection ---------------- */
   // Machine-level configuration: an administrator decision, not a user one.
@@ -515,6 +529,41 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('admin:settings:update', (_event, input: AdminSettings) =>
     toResult(() => updateSettings(input))
+  )
+
+  /*
+   * The video is chosen with the native file picker and copied by the main
+   * process. The renderer never receives a filesystem path, and a dismissed
+   * dialog returns null so the panel can tell "cancelled" from "failed".
+   */
+  ipcMain.handle('admin:appearance:choose-video', (event) =>
+    toResult(async (): Promise<LoginAppearance | null> => {
+      requireAdmin()
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options: Electron.OpenDialogOptions = {
+        title: 'Choose a background video',
+        buttonLabel: 'Use this video',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Video', extensions: ['mp4', 'm4v', 'webm', 'ogv'] },
+          { name: 'All files', extensions: ['*'] }
+        ]
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      const chosen = result.canceled ? null : (result.filePaths[0] ?? null)
+      if (!chosen) return null
+      return installAppearanceVideo(chosen, basename(chosen))
+    })
+  )
+
+  ipcMain.handle('admin:appearance:remove-video', () =>
+    toResult(() => clearAppearanceVideo())
+  )
+
+  ipcMain.handle('admin:appearance:treatment', (_event, input: AppearanceTreatment) =>
+    toResult(() => updateAppearanceTreatment(input))
   )
 
   ipcMain.handle(

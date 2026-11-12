@@ -1,5 +1,6 @@
 import type {
   ApiResult,
+  AppearanceTreatment,
   CreateProjectInput,
   DocumentDetail,
   DocumentSummary,
@@ -16,7 +17,9 @@ import type {
   CreateActivationKeyInput,
   CreatedActivationKey,
   DeleteAccountInput,
+  LoginAppearance,
   LoginInput,
+  PublicAppearance,
   ProfileInput,
   PresentationDetail,
   PresentationSummary,
@@ -40,6 +43,9 @@ export interface IndraBridge {
     node: string
   }
   getAppVersion: () => Promise<string>
+  appearance: {
+    read: () => Promise<ApiResult<PublicAppearance>>
+  }
   auth: {
     register: (input: RegisterInput) => Promise<ApiResult<SessionUser>>
     login: (input: LoginInput) => Promise<ApiResult<SessionUser>>
@@ -163,6 +169,9 @@ export interface IndraBridge {
       newPassword: string
     }) => Promise<ApiResult<null>>
     updateIdentity: (payload: AdminIdentityInput) => Promise<ApiResult<AdminAccount>>
+    chooseLoginVideo: () => Promise<ApiResult<LoginAppearance | null>>
+    removeLoginVideo: () => Promise<ApiResult<LoginAppearance>>
+    updateAppearanceTreatment: (input: AppearanceTreatment) => Promise<ApiResult<LoginAppearance>>
   }
   window: {
     minimize: () => void
