@@ -50,7 +50,9 @@ const api = {
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),
 
   appearance: {
-    read: (): Promise<ApiResult<PublicAppearance>> => ipcRenderer.invoke('app:appearance')
+    read: (): Promise<ApiResult<PublicAppearance>> => ipcRenderer.invoke('app:appearance'),
+    video: (): Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>> =>
+      ipcRenderer.invoke('app:appearance:video')
   },
 
   auth: {
@@ -237,7 +239,10 @@ const api = {
     removeLoginVideo: (): Promise<ApiResult<LoginAppearance>> =>
       ipcRenderer.invoke('admin:appearance:remove-video'),
     updateAppearanceTreatment: (input: AppearanceTreatment): Promise<ApiResult<LoginAppearance>> =>
-      ipcRenderer.invoke('admin:appearance:treatment', input)
+      ipcRenderer.invoke('admin:appearance:treatment', input),
+    appearanceHealth: (): Promise<
+      ApiResult<{ present: boolean; readable: boolean; bytes: number; mime: string | null }>
+    > => ipcRenderer.invoke('admin:appearance:health')
   },
 
   window: {

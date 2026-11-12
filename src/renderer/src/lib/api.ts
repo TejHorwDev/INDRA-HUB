@@ -164,7 +164,9 @@ export const api = {
     clear: (): Promise<BackendStatus> => unwrap(bridge().backend.clear())
   },
   appearance: {
-    read: (): Promise<PublicAppearance> => unwrap(bridge().appearance.read())
+    read: (): Promise<PublicAppearance> => unwrap(bridge().appearance.read()),
+    video: (): Promise<{ bytes: Uint8Array; mime: string } | null> =>
+      unwrap(bridge().appearance.video())
   },
 
   admin: {
@@ -206,7 +208,13 @@ export const api = {
       unwrap(bridge().admin.chooseLoginVideo()),
     removeLoginVideo: (): Promise<LoginAppearance> => unwrap(bridge().admin.removeLoginVideo()),
     updateAppearanceTreatment: (input: AppearanceTreatment): Promise<LoginAppearance> =>
-      unwrap(bridge().admin.updateAppearanceTreatment(input))
+      unwrap(bridge().admin.updateAppearanceTreatment(input)),
+    appearanceHealth: (): Promise<{
+      present: boolean
+      readable: boolean
+      bytes: number
+      mime: string | null
+    }> => unwrap(bridge().admin.appearanceHealth())
   }
 }
 

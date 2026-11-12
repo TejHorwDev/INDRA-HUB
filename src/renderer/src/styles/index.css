@@ -2910,6 +2910,56 @@
     -webkit-backdrop-filter: blur(6px);
   }
 
+  /* Playback check: one quiet strip that reports facts about the installed
+     file, and turns green or red once it has some. */
+  .admin-check {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    margin-top: 14px;
+    padding: 7px 12px 7px 7px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background-color: var(--surface-subtle);
+  }
+
+  .admin-check-result,
+  .admin-check-hint {
+    font-size: var(--fs-xs);
+    line-height: 1.5;
+  }
+
+  .admin-check-result {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-secondary);
+  }
+
+  .admin-check-result::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background-color: currentColor;
+  }
+
+  .admin-check-result--good {
+    color: var(--success);
+  }
+
+  .admin-check-result--bad {
+    color: var(--danger);
+  }
+
+  .admin-check-hint {
+    color: var(--ink-tertiary);
+  }
+
   .admin-facts {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

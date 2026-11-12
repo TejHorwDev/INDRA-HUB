@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.5.1
-  Latest release:     v1.5.1 (GitHub, public)
+  Version:            1.5.2
+  Latest release:     v1.5.2 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,7 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0, v1.5.1.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -64,7 +64,11 @@ the administrator's message, the session facts, an activity track and one
 action — instead of a bare text column. 1.5.0 added the administrator-installed
 sign-in background video and rebuilt the administration panel around it;
 1.5.1 fixed that panel's layout, which had landed inside the older gate wrapper
-and squeezed it into a second, unreadable rail.
+and squeezed it into a second, unreadable rail. 1.5.2 made that video actually
+play: the bytes now travel over IPC and are played from a Blob URL instead of a
+custom indra-media:// scheme, H.265 / HEVC files are refused when the
+administrator picks them, and the panel gained a "Check playback" line that
+reports the file, its pixels, its duration and whether it is running.
 
 
 3. STACK
@@ -215,8 +219,10 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     - Access & controls: app-wide switches (allow registration, maintenance
       mode + message, require activation key); change the administrator's
       email, display name and password
-    - Appearance: install / replace / remove the sign-in background video and
-      tune its blur and dim against a live preview of the sign-in card
+    - Appearance: install / replace / remove the sign-in background video,
+      tune its blur and dim against a live preview of the sign-in card, and ask
+      "Check playback" for the facts (file readable, size, codec, pixels,
+      duration, playing or paused)
     - Backend: Supabase project URL + public key, "Save and test",
       "Test again", "Disconnect" (administrator-only; the main process refuses
       backend:* without an admin session)
@@ -256,7 +262,8 @@ number of migrations.
   media_assets       id, kind, file_name, original_name, mime, bytes,
                      created_at — the database record for administrator-
                      installed media; the bytes themselves live in
-                     <userData>/media and are served over indra-media://
+                     <userData>/media, are read by the main process and handed
+                     to the renderer over IPC, which plays them from a Blob URL
   app_state          key/value store: session, admin session, throttle records,
                      update state
 
@@ -355,8 +362,9 @@ Tests for this exist and must keep passing:
   npm run sim:maintenance  proves sign-in and registration still work during
                        maintenance while data calls are refused
   npm run sim:appearance   proves the background-video pipeline: install,
-                       copy, indra-media serving with ranges, refusal of fake
-                       or oversized files, replacement, clamping, removal
+                       copy, the exact bytes handed to the renderer, refusal of
+                       fake, empty, H.265 and oversized files, the playback
+                       health check, replacement, clamping, removal
 
 
 9. BUILD AND RELEASE
@@ -521,7 +529,8 @@ them is a regression, not a design choice.
   src/main/services/updates.ts the updater: check, download, verify, diagnose
   src/main/services/admin.ts   administrator identity, audits, every admin action
   src/main/services/appearance.ts sign-in background: media folder, install /
-                               remove, treatment, indra-media:// handler
+                               remove, container + codec validation, bytes for
+                               the renderer, treatment, health check
   src/main/services/auth.ts    registration, sign in, sessions, throttling
   src/main/services/documents.ts / presentations.ts / projects.ts / graph.ts
   src/main/lib/convert.ts      deterministic document → deck conversion
@@ -529,6 +538,7 @@ them is a regression, not a design choice.
   src/main/db/schema.ts        tables and migrations
   src/shared/types.ts          every IPC shape and constant
   src/renderer/src/screens/*   the screens; admin screens in screens/admin/
+  src/renderer/src/lib/loginVideo.ts  IPC bytes → Blob URL, one per asset
   scripts/updater-sim.mjs      end-to-end updater simulation (npm run sim:update)
   scripts/admin-sim.mjs        administrator seeding/sign-in test (npm run sim:admin)
   scripts/appearance-sim.mjs   background-video pipeline test (npm run sim:appearance)

@@ -368,11 +368,10 @@ export interface AppPublicStatus {
 /**
  * A file the administrator installed for the signed-out screens. The bytes
  * live in the app's media folder; this record is the database row that points
- * at them, and `url` is the indra-media:// address the renderer plays.
+ * at them.
  */
 export interface LoginBackground {
   id: string
-  url: string
   mime: string
   originalName: string
   bytes: number
@@ -391,10 +390,17 @@ export interface LoginAppearance extends AppearanceTreatment {
   background: LoginBackground | null
 }
 
-/** What a signed-out screen may know: the address, never the file name. */
+/**
+ * What a signed-out screen may know: whether there is a video, its type and
+ * size, and the two treatment numbers — never a file name or a path. The bytes
+ * arrive separately, over IPC, and are played from a Blob URL.
+ */
 export interface PublicAppearance extends AppearanceTreatment {
-  url: string | null
+  /** Opaque id, used only to key the renderer's Blob cache. */
+  assetId: string | null
+  hasVideo: boolean
   mime: string | null
+  bytes: number
 }
 
 /* ---------------- self-update ---------------- */

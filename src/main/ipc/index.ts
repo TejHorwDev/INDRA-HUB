@@ -79,7 +79,11 @@ import {
   updateSettings
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
-import { publicAppearance } from '../services/appearance'
+import {
+  backgroundHealth,
+  publicAppearance,
+  readLoginBackgroundFile
+} from '../services/appearance'
 import { checkForUpdates, diagnoseConnection, installUpdate, updateState } from '../services/updates'
 import {
   backendStatus,
@@ -136,9 +140,21 @@ export function registerIpcHandlers(): void {
   /*
    * What the signed-out screens look like. Public by design — the sign-in
    * screen has to draw itself before anyone has identified themselves — but it
-   * carries an address and two numbers, never a file name or a path.
+   * carries a flag, a mime type and two numbers, never a file name or a path.
    */
   ipcMain.handle('app:appearance', () => toResult(() => publicAppearance()))
+
+  /*
+   * The bytes themselves, played from a Blob URL in the renderer. Also public:
+   * the sign-in screen needs them before anyone has signed in.
+   */
+  ipcMain.handle('app:appearance:video', () =>
+    toResult(() => {
+      const file = readLoginBackgroundFile()
+      if (!file) return null
+      return { bytes: file.bytes, mime: file.mime }
+    })
+  )
 
   /* ---------------- optional Supabase connection ---------------- */
   // Machine-level configuration: an administrator decision, not a user one.
@@ -564,6 +580,15 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('admin:appearance:treatment', (_event, input: AppearanceTreatment) =>
     toResult(() => updateAppearanceTreatment(input))
+  )
+
+  // What the panel uses for its playback check: is the file there, and can the
+  // main process still read it back?
+  ipcMain.handle('admin:appearance:health', () =>
+    toResult(() => {
+      requireAdmin()
+      return backgroundHealth()
+    })
   )
 
   ipcMain.handle(
