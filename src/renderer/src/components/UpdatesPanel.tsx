@@ -156,6 +156,17 @@ export default function UpdatesPanel() {
           <dd className="update-version">{state?.currentVersion ?? '—'}</dd>
         </div>
         <div>
+          <dt>Installed build</dt>
+          <dd>
+            {state?.installedVersion ?? '—'}
+            {state && state.currentVersion !== state.installedVersion && (
+              <span className="badge badge--muted" title="An in-app update is running; the installer on disk is older">
+                running {state.currentVersion}
+              </span>
+            )}
+          </dd>
+        </div>
+        <div>
           <dt>{ready ? 'Ready to install' : 'Last checked'}</dt>
           <dd>
             {ready && state?.version
