@@ -175,6 +175,25 @@ const MIGRATIONS: string[] = [
 
   INSERT INTO app_settings (key, value, updated_at)
   VALUES ('require_activation_key', 'false', datetime('now'));
+  `,
+
+  /* 6 — administrator-installed media for the signed-out screens */ `
+  CREATE TABLE media_assets (
+    id            TEXT PRIMARY KEY,
+    kind          TEXT NOT NULL,
+    file_name     TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime          TEXT NOT NULL,
+    bytes         INTEGER NOT NULL,
+    created_at    TEXT NOT NULL
+  );
+
+  CREATE INDEX media_assets_kind_idx ON media_assets(kind, created_at);
+
+  INSERT INTO app_settings (key, value, updated_at) VALUES
+    ('login_background_asset', '', datetime('now')),
+    ('login_background_blur', '18', datetime('now')),
+    ('login_background_dim', '46', datetime('now'));
   `
 ]
 

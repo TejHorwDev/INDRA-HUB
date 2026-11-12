@@ -17,6 +17,7 @@ export type AdminSectionId =
   | 'content'
   | 'keys'
   | 'access'
+  | 'appearance'
   | 'backend'
   | 'activity'
   | 'system'
@@ -77,6 +78,8 @@ export const AUDIT_LABELS: Record<AdminAuditAction, string> = {
   document_deleted: 'Document deleted',
   presentation_deleted: 'Presentation deleted',
   settings_updated: 'Settings updated',
+  appearance_updated: 'Appearance updated',
+  appearance_removed: 'Appearance reset',
   keys_created: 'Activation keys created',
   key_revoked: 'Activation key revoked',
   key_deleted: 'Activation key deleted'

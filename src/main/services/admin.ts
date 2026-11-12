@@ -16,8 +16,10 @@ import type {
   AdminSettings,
   AdminStatus,
   AdminSystemInfo,
+  AppearanceTreatment,
   CreateActivationKeyInput,
-  CreatedActivationKey
+  CreatedActivationKey,
+  LoginAppearance
 } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { runningVersion } from '../lib/payload'
@@ -25,6 +27,12 @@ import { errors } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { EMAIL_PATTERN, normalizeEmail, validateProjectInput } from '../lib/validation'
 import { activeSessionUserId, signOut } from './auth'
+import {
+  installLoginBackground,
+  readLoginAppearance,
+  removeLoginBackground,
+  writeTreatment
+} from './appearance'
 import { readSettings, writeSettings } from './settings'
 import {
   createActivationKeys,
@@ -542,6 +550,7 @@ export function adminOverview(): AdminOverview {
     activationKeys: listActivationKeys(),
     audit: listAudit(),
     settings: readSettings(),
+    appearance: readLoginAppearance(),
     system: systemInfo()
   }
 }
@@ -961,4 +970,42 @@ export function resetAdminIdentity(): { reset: boolean } {
   // operator sets the administrator they want, from the administration area.
   writeState(SEED_SUPPRESSED_KEY, true)
   return { reset: true }
+}
+
+/* ------------------------------------------------------------------ */
+/* Appearance                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Only the administrator can change what the signed-out screens look like,
+ * and every change is written to the activity log — like the other switches,
+ * the renderer is never trusted to apply it on its own.
+ */
+
+export function installAppearanceVideo(sourcePath: string, originalName: string): LoginAppearance {
+  const admin = requireAdmin()
+  const next = installLoginBackground(sourcePath, originalName)
+  audit(
+    'appearance_updated',
+    `Sign-in background video set to ${next.background?.originalName ?? 'a new file'} (${next.background?.mime ?? 'video'}).`,
+    admin.id
+  )
+  return next
+}
+
+export function clearAppearanceVideo(): LoginAppearance {
+  const admin = requireAdmin()
+  const next = removeLoginBackground()
+  audit('appearance_removed', 'Sign-in background video removed.', admin.id)
+  return next
+}
+
+export function updateAppearanceTreatment(input: AppearanceTreatment): LoginAppearance {
+  const admin = requireAdmin()
+  if (!Number.isFinite(input?.blur) || !Number.isFinite(input?.dim)) {
+    throw errors.validation('Blur and dim must be numbers.')
+  }
+  const next = writeTreatment(input)
+  audit('appearance_updated', `Background treatment: ${next.blur}px blur, ${next.dim}% dim.`, admin.id)
+  return next
 }

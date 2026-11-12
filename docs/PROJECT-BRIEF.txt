@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.4.3
-  Latest release:     v1.4.3 (GitHub, public)
+  Version:            1.5.0
+  Latest release:     v1.5.0 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,7 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3.
+v1.4.2, v1.4.3, v1.5.0.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -61,7 +61,8 @@ ordinary Sign in screen; 1.4.2 changed maintenance mode so it closes the
 workspace and not the sign-in screen; 1.4.3 redesigned the maintenance screen
 itself (see section 6) so a signed-in account meets a composed status card —
 the administrator's message, the session facts, an activity track and one
-action — instead of a bare text column.
+action — instead of a bare text column. 1.5.0 added the administrator-installed
+sign-in background video and rebuilt the administration panel around it.
 
 
 3. STACK
@@ -194,7 +195,11 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 5.8 Administration panel (behind Ctrl+Alt+A or #/admin)
   Separate identity, separate table (admin_users), separate session key, 12-hour
   session, rate-limited sign-in, and an audit row for every action.
-  Sections:
+  1.5.0 rebuilt the panel as a full-height control room: a grouped navigation
+  rail (Workspace / Control / Platform) with per-section counts, a sticky
+  status bar of live chips (workspace open, registration open, sign-in video)
+  that jumps to the section that owns each switch, and one scrolling column of
+  cards. Sections:
     - Overview: counts (accounts, projects, memberships, documents,
       presentations, slides), recent activity, system state
     - Accounts: list, suspend / restore, reset password, sign out everywhere,
@@ -205,6 +210,8 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     - Access & controls: app-wide switches (allow registration, maintenance
       mode + message, require activation key); change the administrator's
       email, display name and password
+    - Appearance: install / replace / remove the sign-in background video and
+      tune its blur and dim against a live preview of the sign-in card
     - Backend: Supabase project URL + public key, "Save and test",
       "Test again", "Disconnect" (administrator-only; the main process refuses
       backend:* without an admin session)
@@ -218,7 +225,7 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 
 6. DATA MODEL (SQLite)
 ----------------------
-Twelve tables, created by ordered migrations in src/main/db/schema.ts; the
+Thirteen tables, created by ordered migrations in src/main/db/schema.ts; the
 schema version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the
 number of migrations.
 
@@ -238,7 +245,13 @@ number of migrations.
   admin_users        id, email, display_name, password_hash, password_salt,
                      created_at, last_sign_in_at
   admin_audit        id, admin_id, action, detail, created_at
-  app_settings       singleton row of app-wide switches
+  app_settings       singleton row of app-wide switches (registration,
+                     maintenance, activation keys, login background asset id,
+                     background blur and dim)
+  media_assets       id, kind, file_name, original_name, mime, bytes,
+                     created_at — the database record for administrator-
+                     installed media; the bytes themselves live in
+                     <userData>/media and are served over indra-media://
   app_state          key/value store: session, admin session, throttle records,
                      update state
 
@@ -336,6 +349,9 @@ Tests for this exist and must keep passing:
                        administrator
   npm run sim:maintenance  proves sign-in and registration still work during
                        maintenance while data calls are refused
+  npm run sim:appearance   proves the background-video pipeline: install,
+                       copy, indra-media serving with ranges, refusal of fake
+                       or oversized files, replacement, clamping, removal
 
 
 9. BUILD AND RELEASE
@@ -499,6 +515,8 @@ them is a regression, not a design choice.
   src/main/lib/payload.ts      payload storage, verification, adoption, backups
   src/main/services/updates.ts the updater: check, download, verify, diagnose
   src/main/services/admin.ts   administrator identity, audits, every admin action
+  src/main/services/appearance.ts sign-in background: media folder, install /
+                               remove, treatment, indra-media:// handler
   src/main/services/auth.ts    registration, sign in, sessions, throttling
   src/main/services/documents.ts / presentations.ts / projects.ts / graph.ts
   src/main/lib/convert.ts      deterministic document → deck conversion
@@ -508,6 +526,7 @@ them is a regression, not a design choice.
   src/renderer/src/screens/*   the screens; admin screens in screens/admin/
   scripts/updater-sim.mjs      end-to-end updater simulation (npm run sim:update)
   scripts/admin-sim.mjs        administrator seeding/sign-in test (npm run sim:admin)
+  scripts/appearance-sim.mjs   background-video pipeline test (npm run sim:appearance)
   supabase/schema.sql          cloud tables (applied)
   supabase/auth.sql            identity + RLS layer (applied)
   docs/SUPABASE.md             the staged Supabase plan and what is proven

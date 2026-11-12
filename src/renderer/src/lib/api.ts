@@ -8,6 +8,7 @@ import type {
   AdminStatus,
   ApiResult,
   AppPublicStatus,
+  AppearanceTreatment,
   ChangePasswordInput,
   CreateActivationKeyInput,
   CreateProjectInput,
@@ -17,7 +18,9 @@ import type {
   DocumentSummary,
   DocumentVersionSummary,
   ErrorCode,
+  LoginAppearance,
   LoginInput,
+  PublicAppearance,
   PresentationDetail,
   PresentationSummary,
   ProfileInput,
@@ -160,6 +163,10 @@ export const api = {
       unwrap(bridge().backend.save(input)),
     clear: (): Promise<BackendStatus> => unwrap(bridge().backend.clear())
   },
+  appearance: {
+    read: (): Promise<PublicAppearance> => unwrap(bridge().appearance.read())
+  },
+
   admin: {
     status: (): Promise<AdminStatus> => unwrap(bridge().admin.status()),
     setup: (input: AdminSetupInput): Promise<AdminAccount> => unwrap(bridge().admin.setup(input)),
@@ -194,7 +201,12 @@ export const api = {
     changePassword: (currentPassword: string, newPassword: string): Promise<null> =>
       unwrap(bridge().admin.changePassword({ currentPassword, newPassword })),
     updateIdentity: (input: AdminIdentityInput): Promise<AdminAccount> =>
-      unwrap(bridge().admin.updateIdentity(input))
+      unwrap(bridge().admin.updateIdentity(input)),
+    chooseLoginVideo: (): Promise<LoginAppearance | null> =>
+      unwrap(bridge().admin.chooseLoginVideo()),
+    removeLoginVideo: (): Promise<LoginAppearance> => unwrap(bridge().admin.removeLoginVideo()),
+    updateAppearanceTreatment: (input: AppearanceTreatment): Promise<LoginAppearance> =>
+      unwrap(bridge().admin.updateAppearanceTreatment(input))
   }
 }
 

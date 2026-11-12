@@ -308,3 +308,45 @@ export function MoonIcon({ size = 15, className }: IconProps) {
     </svg>
   )
 }
+
+export function VideoIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <rect x="2.8" y="6.2" width="13.4" height="11.6" rx="2.4" />
+      <path d="m16.2 11 4-2.4v6.8l-4-2.4Z" />
+    </svg>
+  )
+}
+
+export function PaletteIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M12 3.4a8.6 8.6 0 0 0 0 17.2c1.2 0 1.9-.8 1.9-1.8 0-.5-.2-.9-.5-1.3-.3-.3-.4-.7-.4-1.1 0-1 .8-1.8 1.9-1.8h1.3a4.4 4.4 0 0 0 4.4-4.4c0-3.8-3.9-6.8-8.6-6.8Z" />
+      <circle cx="8.4" cy="9.6" r="1.1" />
+      <circle cx="12" cy="7.8" r="1.1" />
+      <circle cx="15.6" cy="9.6" r="1.1" />
+      <circle cx="7.6" cy="13.6" r="1.1" />
+    </svg>
+  )
+}
+
+export function UploadIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M12 16V4.6" />
+      <path d="m7.8 8.8 4.2-4.2 4.2 4.2" />
+      <path d="M4.6 15.4v2.6a2 2 0 0 0 2 2h10.8a2 2 0 0 0 2-2v-2.6" />
+    </svg>
+  )
+}
+
+export function TrashIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M4.6 7.2h14.8" />
+      <path d="M9.4 7.2V5.6a1.4 1.4 0 0 1 1.4-1.4h2.4a1.4 1.4 0 0 1 1.4 1.4v1.6" />
+      <path d="M6.6 7.2 7.4 19a1.6 1.6 0 0 0 1.6 1.4h6a1.6 1.6 0 0 0 1.6-1.4l.8-11.8" />
+      <path d="M10.4 10.8v6M13.6 10.8v6" />
+    </svg>
+  )
+}
