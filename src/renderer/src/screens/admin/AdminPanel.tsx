@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { AdminAccount, AdminOverview } from '@shared/types'
 import AccessSection from './AccessSection'
 import AccountsSection from './AccountsSection'
+import BackendPanel from '../../components/BackendPanel'
 import ActivitySection from './ActivitySection'
 import ContentSection from './ContentSection'
 import KeysSection from './KeysSection'
@@ -23,6 +24,7 @@ const NAV: Array<{ id: AdminSectionId; label: string }> = [
   { id: 'content', label: 'Content' },
   { id: 'keys', label: 'Activation keys' },
   { id: 'access', label: 'Access & controls' },
+  { id: 'backend', label: 'Backend' },
   { id: 'activity', label: 'Activity' },
   { id: 'system', label: 'System' }
 ]
@@ -70,6 +72,11 @@ export default function AdminPanel({ admin, overview, refresh }: AdminPanelProps
         {section === 'content' && <ContentSection overview={overview} refresh={refresh} />}
         {section === 'keys' && <KeysSection overview={overview} refresh={refresh} />}
         {section === 'access' && <AccessSection overview={overview} refresh={refresh} />}
+        {section === 'backend' && (
+          // Machine-level configuration: only reachable behind the admin gate,
+          // and the main process refuses these calls without an admin session.
+          <BackendPanel />
+        )}
         {section === 'activity' && <ActivitySection overview={overview} refresh={refresh} />}
         {section === 'system' && <SystemSection overview={overview} refresh={refresh} />}
       </div>

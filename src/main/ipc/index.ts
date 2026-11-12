@@ -69,11 +69,12 @@ import {
   signOutAccount,
   signOutAllAccounts,
   transferProject,
+  requireAdmin,
   updateAdminIdentity,
   updateSettings
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
-import { checkForUpdates, installUpdate, updateState } from '../services/updates'
+import { checkForUpdates, diagnoseConnection, installUpdate, updateState } from '../services/updates'
 import {
   backendStatus,
   clearBackendConfig,
@@ -125,32 +126,33 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:status', () => toResult(() => publicStatus()))
 
   /* ---------------- optional Supabase connection ---------------- */
-  // Machine-level configuration, so it is only reachable once someone is
-  // signed in — never from the signed-out screens.
+  // Machine-level configuration: an administrator decision, not a user one.
+  // The panel only exists behind the admin gate, and the main process refuses
+  // these calls outright without an admin session — hiding a tab is not a lock.
   ipcMain.handle('backend:status', () =>
     toResult(() => {
-      actor()
+      requireAdmin()
       return backendStatus()
     })
   )
 
   ipcMain.handle('backend:test', () =>
     toResult(() => {
-      actor()
+      requireAdmin()
       return testBackendConnection()
     })
   )
 
   ipcMain.handle('backend:save', (_event, input: BackendConfigInput) =>
     toResult(() => {
-      actor()
+      requireAdmin()
       return saveBackendConfig(input ?? { url: '', key: '' })
     })
   )
 
   ipcMain.handle('backend:clear', () =>
     toResult(() => {
-      actor()
+      requireAdmin()
       return clearBackendConfig()
     })
   )
@@ -160,6 +162,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('updates:state', () => toResult(() => updateState()))
   ipcMain.handle('updates:check', () => toResult(() => checkForUpdates(true)))
   ipcMain.handle('updates:install', () => toResult(() => installUpdate()))
+  // Proves the path works rather than only explaining a failure.
+  ipcMain.handle('updates:diagnose', () => toResult(() => diagnoseConnection()))
 
   /* ---------------- accounts ---------------- */
   ipcMain.handle('auth:register', (_event, input: RegisterInput) =>

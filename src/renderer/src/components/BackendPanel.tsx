@@ -6,11 +6,13 @@ import { useToast } from './ToastProvider'
 import TextField from './TextField'
 
 /**
- * Settings → Backend.
+ * Admin → Backend.
  *
  * Stores the Supabase project URL and its public key, then proves they work.
- * Nothing but the configured project is sent anywhere from here — syncing
- * arrives with authentication, see docs/SUPABASE.md.
+ * This is machine-wide configuration rather than a user preference, so it lives
+ * behind the administrator gate — and `backend:*` in the main process refuses
+ * every call without an admin session, so moving the panel cannot be undone
+ * from the renderer.
  */
 export default function BackendPanel() {
   const toast = useToast()
@@ -98,9 +100,9 @@ export default function BackendPanel() {
       <h3 className="account-subhead">Supabase</h3>
 
       <p className="account-note">
-        Optional. INDRA HUB keeps every account, project and document in a local database on this
-        machine, and it works with no connection at all. Connecting a Supabase project adds a
-        cloud copy — the app will not depend on it.
+        Administrator setting, and only for this machine. INDRA HUB keeps every account, project
+        and document in a local database here, and it works with no connection at all. Connecting a
+        Supabase project adds a cloud copy — the app will not depend on it.
       </p>
 
       <dl className="account-meta">

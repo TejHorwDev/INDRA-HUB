@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { UpdateState } from '@shared/types'
+import type { UpdateDiagnostics, UpdateState } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
 import { useToast } from './ToastProvider'
+import { CheckIcon, XIcon } from './icons'
 
 /**
  * Settings → Updates.
@@ -15,6 +16,9 @@ export default function UpdatesPanel() {
   const [state, setState] = useState<UpdateState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** The on-demand report, so "does it work?" is answered rather than hoped. */
+  const [diagnostics, setDiagnostics] = useState<UpdateDiagnostics | null>(null)
+  const [testing, setTesting] = useState(false)
   /** Guards against re-announcing the same ready version on every re-render. */
   const announced = useRef<string | null>(null)
 
@@ -56,6 +60,19 @@ export default function UpdatesPanel() {
       setError(errorMessage(failure))
     } finally {
       setBusy(false)
+    }
+  }, [])
+
+  const test = useCallback(async () => {
+    setTesting(true)
+    setError(null)
+    try {
+      setDiagnostics(await api.updates.diagnose())
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setDiagnostics(null)
+    } finally {
+      setTesting(false)
     }
   }, [])
 
@@ -210,8 +227,45 @@ export default function UpdatesPanel() {
           </button>
         )}
 
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm w-auto"
+          onClick={() => void test()}
+          disabled={testing || unsupported || !state?.canCheck}
+          title="Make the same requests an update would make, and show what came back"
+        >
+          {testing ? <span className="spinner" aria-hidden="true" /> : null}
+          {testing ? 'Testing…' : 'Test connection'}
+        </button>
+
         {upToDate && <span className="badge badge--accent">Up to date</span>}
       </div>
+
+      {diagnostics && (
+        <div className="update-diagnostics">
+          <h4 className="update-diagnostics-title">
+            {diagnostics.ok ? 'The update path works' : 'The update path is blocked'}
+          </h4>
+          <ul className="update-diagnostics-list">
+            {diagnostics.steps.map((step) => (
+              <li key={step.label} className={step.ok ? 'is-ok' : 'is-bad'}>
+                <span className="update-diagnostics-mark" aria-hidden="true">
+                  {step.ok ? <CheckIcon size={11} /> : <XIcon size={11} />}
+                </span>
+                <span className="update-diagnostics-label">{step.label}</span>
+                <span className="update-diagnostics-detail">{step.detail}</span>
+                <span className="sr-only">{step.ok ? 'ok' : 'failed'}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="update-hint">{diagnostics.summary}</p>
+          <p className="update-hint update-technical">
+            {new Date(diagnostics.checkedAt).toLocaleString()} · running{' '}
+            {diagnostics.currentVersion}
+            {diagnostics.latestVersion ? ` · newest ${diagnostics.latestVersion}` : ''}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

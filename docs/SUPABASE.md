@@ -13,7 +13,10 @@ tracks where we are.
 3. Copy two values from **Project Settings → API**:
    - **Project URL** — looks like `https://abcdefgh.supabase.co`
    - **anon / public key** — the long one labelled `anon`
-4. Put them into the app: **Settings → Backend**, then press **Save and test**.
+4. Put them into the app: open the administrator area (**Ctrl+Alt+A**, or `#/admin`), choose
+   **Backend**, then press **Save and test**. The panel is administrator-only by design — it is
+   absent from Settings for ordinary users, and the main process rejects `backend:*` without an
+   admin session.
 
 A successful test says *"Connected — the schema is in place."* If the tables are
 missing it says so explicitly, which means step 2 did not run against that
@@ -36,7 +39,7 @@ The app refuses to store a `service_role` key, and says why.
 
 The public key is still not left lying around: it is encrypted with the operating system keystore
 (DPAPI on Windows, Keychain on macOS, libsecret on Linux) before it is written to the local
-database, and the interface only ever shows its last four characters. *Settings → Backend* marks a
+database, and the interface only ever shows its last four characters. *Admin → Backend* marks a
 sealed key with a small `sealed` badge; if the OS cannot provide a keystore, the app stores the
 value unsealed and says so rather than pretending.
 

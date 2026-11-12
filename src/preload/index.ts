@@ -28,6 +28,7 @@ import type {
   BackendConfigInput,
   BackendStatus,
   SessionUser,
+  UpdateDiagnostics,
   UpdateState,
   UserSummary
 } from '@shared/types'
@@ -155,6 +156,7 @@ const api = {
     state: (): Promise<ApiResult<UpdateState>> => ipcRenderer.invoke('updates:state'),
     check: (): Promise<ApiResult<UpdateState>> => ipcRenderer.invoke('updates:check'),
     install: (): Promise<ApiResult<UpdateState>> => ipcRenderer.invoke('updates:install'),
+    diagnose: (): Promise<ApiResult<UpdateDiagnostics>> => ipcRenderer.invoke('updates:diagnose'),
     /** Main-process progress pushes; returns an unsubscribe function. */
     onState: (listener: (state: UpdateState) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, next: UpdateState): void => listener(next)

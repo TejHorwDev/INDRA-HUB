@@ -1,12 +1,12 @@
 import { app, BrowserWindow, net } from 'electron'
 import { open, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { UpdateState } from '@shared/types'
+import type { UpdateDiagnostics, UpdateState } from '@shared/types'
 import {
   compareVersions,
   hashFile,
   payloadDir,
-  readPending,
+  readVerifiedPending,
   runningVersion,
   writePending
 } from '../lib/payload'
@@ -26,7 +26,9 @@ import {
  * networks is the whole difference between a two-second check and a timeout.
  */
 
-const MANIFEST_URL = 'https://github.com/TejHorwDev/INDRA-HUB/releases/latest/download/payload.json'
+const REPO = 'TejHorwDev/INDRA-HUB'
+const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/payload.json`
+const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`
 const FIRST_CHECK_DELAY_MS = 3_000
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 const FOCUS_CHECK_AFTER_MS = 60 * 60 * 1000
@@ -209,6 +211,87 @@ async function diagnose(): Promise<Diagnosis> {
   return { text, verdict: null }
 }
 
+/**
+ * Proves the update path end to end, on demand.
+ *
+ * The failure path can only explain what went wrong; this is the other half —
+ * a report that says the download host answers, which is what makes an update
+ * a certainty rather than a hope. Three real requests, the same ones a check
+ * makes, each reported with what came back.
+ */
+export async function diagnoseConnection(): Promise<UpdateDiagnostics> {
+  const steps: UpdateDiagnostics['steps'] = []
+  let latestVersion: string | null = null
+
+  const run = async (label: string, probe: () => Promise<string>): Promise<boolean> => {
+    try {
+      steps.push({ label, ok: true, detail: await probe() })
+      return true
+    } catch (error) {
+      steps.push({ label, ok: false, detail: technical(error) })
+      return false
+    }
+  }
+
+  const apiOk = await run('GitHub API', async () => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10_000)
+    try {
+      const response = await request(API_URL, {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: { accept: 'application/vnd.github+json' }
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const body = (await response.json()) as { tag_name?: string }
+      latestVersion = typeof body.tag_name === 'string' ? body.tag_name.replace(/^v/i, '') : null
+      return latestVersion ? `newest release is ${latestVersion}` : 'reachable'
+    } finally {
+      clearTimeout(timer)
+    }
+  })
+
+  const manifestOk = await run('Update manifest', async () => {
+    const manifest = await fetchManifest()
+    if (!latestVersion) latestVersion = manifest.version
+    return `version ${manifest.version}, payload ${Math.round(manifest.size / 1024)} KB`
+  })
+
+  const downloadOk = await run('Payload download', async () => {
+    const manifest = await fetchManifest()
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15_000)
+    try {
+      // One byte is enough: this proves the host serves the file, not just that
+      // the URL exists.
+      const response = await request(manifestUrl(manifest), {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: { range: 'bytes=0-0' }
+      })
+      if (!response.ok && response.status !== 206) throw new Error(`HTTP ${response.status}`)
+      const type = response.headers.get('content-type') ?? 'unknown type'
+      return `${type} served`
+    } finally {
+      clearTimeout(timer)
+    }
+  })
+
+  const ok = apiOk && manifestOk && downloadOk
+  const failed = steps.find((step) => !step.ok)
+
+  return {
+    checkedAt: new Date().toISOString(),
+    currentVersion: runningVersion(),
+    latestVersion,
+    ok,
+    summary: ok
+      ? `Everything works. Version ${latestVersion ?? runningVersion()} is reachable and could be installed.`
+      : `${failed?.label ?? 'The update server'} could not be reached — ${failed?.detail ?? 'no details'}.`,
+    steps
+  }
+}
+
 function manifestUrl(manifest: Manifest): string {
   if (manifest.url) return manifest.url
   return `https://github.com/TejHorwDev/INDRA-HUB/releases/latest/download/${manifest.file}`
@@ -370,7 +453,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
     }
 
     // Already downloaded and waiting for a restart.
-    const pending = readPending()
+    const pending = readVerifiedPending()
     if (pending && pending.version === manifest.version) {
       setState({
         phase: 'ready',
@@ -453,6 +536,19 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
 export function installUpdate(): UpdateState {
   if (state.phase !== 'ready') return updateState()
 
+  // Restarting into a download that is no longer on disk would look like a
+  // restart that did nothing. Say so instead.
+  if (!readVerifiedPending()) {
+    setState({
+      phase: 'up-to-date',
+      version: null,
+      percent: 0,
+      canInstall: false,
+      message: 'That update is no longer on disk. Check again to fetch it.'
+    })
+    return updateState()
+  }
+
   setImmediate(() => {
     app.relaunch()
     app.exit(0)
@@ -475,7 +571,7 @@ export function initUpdates(): void {
 
   // A payload downloaded in a previous session is already in place: the
   // bootstrap is running it, so report that rather than looking for it again.
-  const pending = readPending()
+  const pending = readVerifiedPending()
   if (pending) {
     setState({
       phase: 'ready',

@@ -27,6 +27,7 @@ import type {
   BackendConfigInput,
   BackendStatus,
   SessionUser,
+  UpdateDiagnostics,
   UpdateState,
   UserSummary
 } from '@shared/types'
@@ -121,6 +122,7 @@ export interface IndraBridge {
     state: () => Promise<ApiResult<UpdateState>>
     check: () => Promise<ApiResult<UpdateState>>
     install: () => Promise<ApiResult<UpdateState>>
+    diagnose: () => Promise<ApiResult<UpdateDiagnostics>>
     onState: (listener: (state: UpdateState) => void) => () => void
   }
   backend: {
