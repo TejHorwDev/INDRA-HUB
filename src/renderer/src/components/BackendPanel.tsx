@@ -100,9 +100,11 @@ export default function BackendPanel() {
       <h3 className="account-subhead">Supabase</h3>
 
       <p className="account-note">
-        Administrator setting, and only for this machine. INDRA HUB keeps every account, project
-        and document in a local database here, and it works with no connection at all. Connecting a
-        Supabase project adds a cloud copy — the app will not depend on it.
+        This build ships with the INDRA HUB workspace endpoint, so every PC follows the same
+        administrator settings without anyone configuring anything. The connection below overrides
+        it — use that only for your own deployment of the project. Disconnecting detaches this
+        machine from the shared settings; accounts, projects and documents stay local either way,
+        and the app keeps working with no connection at all.
       </p>
 
       <dl className="account-meta">

@@ -7,7 +7,9 @@ import type {
   LoginInput,
   ProfileInput,
   RegisterInput,
-  SessionUser
+  SessionUser,
+  WorkspaceClaimInput,
+  WorkspaceCredentialsInput
 } from '@shared/types'
 import { toResult } from '../lib/errors'
 import { validateSearchQuery } from '../lib/validation'
@@ -79,6 +81,18 @@ import {
   updateSettings
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
+import {
+  claimWorkspace,
+  discardPending,
+  markWorkspaceOptOut,
+  push,
+  queuePush,
+  workspaceState,
+  reconcile,
+  signInWorkspace,
+  signOutWorkspace,
+  signUpWorkspace
+} from '../services/workspace'
 import {
   backgroundHealth,
   publicAppearance,
@@ -177,6 +191,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('backend:save', (_event, input: BackendConfigInput) =>
     toResult(() => {
       requireAdmin()
+      // A deliberate endpoint is also an opt-in: the built-in one is no longer
+      // forced on this machine.
+      markWorkspaceOptOut(false)
       return saveBackendConfig(input ?? { url: '', key: '' })
     })
   )
@@ -184,7 +201,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('backend:clear', () =>
     toResult(() => {
       requireAdmin()
-      return clearBackendConfig()
+      const next = clearBackendConfig()
+      // Without this the compiled-in endpoint would be put back on the next
+      // launch, and "disconnect" would be a button that does nothing.
+      markWorkspaceOptOut(true)
+      return next
     })
   )
 
@@ -544,7 +565,12 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('admin:settings:update', (_event, input: AdminSettings) =>
-    toResult(() => updateSettings(input))
+    toResult(() => {
+      const next = updateSettings(input)
+      // Every installation, including a new one, follows this row.
+      queuePush()
+      return next
+    })
   )
 
   /*
@@ -570,16 +596,84 @@ export function registerIpcHandlers(): void {
         : await dialog.showOpenDialog(options)
       const chosen = result.canceled ? null : (result.filePaths[0] ?? null)
       if (!chosen) return null
-      return installAppearanceVideo(chosen, basename(chosen))
+      const next = installAppearanceVideo(chosen, basename(chosen))
+      // The bytes are published by the workspace client, which uploads them
+      // before it updates the row.
+      queuePush()
+      return next
     })
   )
 
   ipcMain.handle('admin:appearance:remove-video', () =>
-    toResult(() => clearAppearanceVideo())
+    toResult(() => {
+      const next = clearAppearanceVideo()
+      queuePush()
+      return next
+    })
   )
 
   ipcMain.handle('admin:appearance:treatment', (_event, input: AppearanceTreatment) =>
-    toResult(() => updateAppearanceTreatment(input))
+    toResult(() => {
+      const next = updateAppearanceTreatment(input)
+      queuePush()
+      return next
+    })
+  )
+
+  /* ---------------- cloud workspace ---------------- */
+  /*
+   * Everything here is administrator-only, including the read: it carries the
+   * account email and what the machine is doing. The renderer never sees a
+   * token, and no call here can be made without an administrator session.
+   */
+  ipcMain.handle('admin:workspace:state', () =>
+    toResult(() => {
+      requireAdmin()
+      return workspaceState()
+    })
+  )
+
+  ipcMain.handle('admin:workspace:sign-in', (_event, input: WorkspaceCredentialsInput) =>
+    toResult(() => {
+      requireAdmin()
+      return signInWorkspace(input)
+    })
+  )
+
+  ipcMain.handle('admin:workspace:sign-up', (_event, input: WorkspaceCredentialsInput) =>
+    toResult(() => {
+      requireAdmin()
+      return signUpWorkspace(input)
+    })
+  )
+
+  ipcMain.handle('admin:workspace:sign-out', () =>
+    toResult(() => {
+      requireAdmin()
+      return signOutWorkspace()
+    })
+  )
+
+  ipcMain.handle('admin:workspace:claim', (_event, input: WorkspaceClaimInput) =>
+    toResult(() => {
+      requireAdmin()
+      return claimWorkspace(input?.code ?? '')
+    })
+  )
+
+  ipcMain.handle('admin:workspace:sync', () =>
+    toResult(async () => {
+      requireAdmin()
+      await reconcile()
+      return push()
+    })
+  )
+
+  ipcMain.handle('admin:workspace:discard', () =>
+    toResult(async () => {
+      requireAdmin()
+      return discardPending()
+    })
   )
 
   // What the panel uses for its playback check: is the file there, and can the

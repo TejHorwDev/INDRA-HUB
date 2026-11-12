@@ -28,6 +28,9 @@ import type {
   ProjectGraph,
   ProjectSummary,
   RegisterInput,
+  WorkspaceClaimInput,
+  WorkspaceCredentialsInput,
+  WorkspaceState,
   BackendConfigInput,
   BackendStatus,
   SessionUser,
@@ -243,6 +246,28 @@ const api = {
     appearanceHealth: (): Promise<
       ApiResult<{ present: boolean; readable: boolean; bytes: number; mime: string | null }>
     > => ipcRenderer.invoke('admin:appearance:health')
+  },
+
+  /*
+   * The shared workspace. Everything is administrator-only, and nothing here
+   * ever hands the renderer a token or a key: only state, and answers.
+   */
+  workspace: {
+    state: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:state'),
+    signIn: (input: WorkspaceCredentialsInput): Promise<ApiResult<WorkspaceState>> =>
+      ipcRenderer.invoke('admin:workspace:sign-in', input),
+    signUp: (input: WorkspaceCredentialsInput): Promise<ApiResult<WorkspaceState>> =>
+      ipcRenderer.invoke('admin:workspace:sign-up', input),
+    signOut: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:sign-out'),
+    claim: (input: WorkspaceClaimInput): Promise<ApiResult<WorkspaceState>> =>
+      ipcRenderer.invoke('admin:workspace:claim', input),
+    sync: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:sync'),
+    discard: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:discard'),
+    onChange: (listener: (state: WorkspaceState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: WorkspaceState): void => listener(state)
+      ipcRenderer.on('workspace:changed', handler)
+      return () => ipcRenderer.removeListener('workspace:changed', handler)
+    }
   },
 
   window: {

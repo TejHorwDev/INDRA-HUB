@@ -49,7 +49,11 @@ function backupBeforeMigrate(file: string, db: DatabaseSync): void {
 export function getDatabase(): DatabaseSync {
   if (database) return database
 
-  const file = join(app.getPath('userData'), 'indra-hub.db')
+  const profile = app.getPath('userData')
+  // A profile folder that is missing (fresh Windows account, a cleaned-up
+  // temp profile) should be created rather than fail to open.
+  mkdirSync(profile, { recursive: true })
+  const file = join(profile, 'indra-hub.db')
   const db = new DatabaseSync(file)
   db.exec('PRAGMA journal_mode = WAL')
   db.exec('PRAGMA foreign_keys = ON')

@@ -68,6 +68,18 @@ export default function AdminScreen() {
     void refresh()
   }, [refresh])
 
+  /*
+   * The workspace can change from another machine while this panel is open.
+   * Re-reading the overview is what updates the switches, the chips and the
+   * appearance section — without disturbing the section being looked at.
+   */
+  useEffect(() => {
+    const off = api.workspace.onChange(() => {
+      void refresh().catch(() => undefined)
+    })
+    return off
+  }, [refresh])
+
   async function handleSignOut() {
     try {
       await api.admin.signOut()

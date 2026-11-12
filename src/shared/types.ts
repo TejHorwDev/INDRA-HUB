@@ -473,6 +473,49 @@ export interface BackendConfigInput {
   key: string
 }
 
+/* ---------------- cloud workspace ---------------- */
+
+/**
+ * What the panel shows about the connection to the shared workspace.
+ *
+ * `realtime` is how the mirror is being kept honest: `live` means a socket is
+ * subscribed to the row, `polling` means the socket is unavailable and a short
+ * interval is asking instead, `offline` means neither is working right now and
+ * the machine is running on its local mirror.
+ */
+export type WorkspaceTransport = 'live' | 'polling' | 'offline'
+
+export interface WorkspaceState {
+  /** A workspace endpoint is configured (usually the one built into the app). */
+  configured: boolean
+  /** True when that endpoint is the one compiled into this build. */
+  builtIn: boolean
+  url: string | null
+  signedIn: boolean
+  email: string | null
+  /** True when this account owns the workspace row and may change it. */
+  owner: boolean
+  /** The row still has no owner and can be claimed with the setup code. */
+  claimable: boolean
+  revision: number | null
+  /** The revision whose settings this machine is currently running on. */
+  appliedRevision: number | null
+  lastSyncAt: string | null
+  lastError: string | null
+  transport: WorkspaceTransport
+  /** A local change is waiting to be published. */
+  pending: boolean
+}
+
+export interface WorkspaceCredentialsInput {
+  email: string
+  password: string
+}
+
+export interface WorkspaceClaimInput {
+  code: string
+}
+
 /* ---------------- local activation keys ---------------- */
 
 export type ActivationKeyStatus = 'unused' | 'used' | 'revoked' | 'expired'
