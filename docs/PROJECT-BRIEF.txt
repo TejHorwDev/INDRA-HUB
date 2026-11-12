@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.5.0
-  Latest release:     v1.5.0 (GitHub, public)
+  Version:            1.5.1
+  Latest release:     v1.5.1 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,7 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -62,7 +62,9 @@ workspace and not the sign-in screen; 1.4.3 redesigned the maintenance screen
 itself (see section 6) so a signed-in account meets a composed status card —
 the administrator's message, the session facts, an activity track and one
 action — instead of a bare text column. 1.5.0 added the administrator-installed
-sign-in background video and rebuilt the administration panel around it.
+sign-in background video and rebuilt the administration panel around it;
+1.5.1 fixed that panel's layout, which had landed inside the older gate wrapper
+and squeezed it into a second, unreadable rail.
 
 
 3. STACK
@@ -199,7 +201,10 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   rail (Workspace / Control / Platform) with per-section counts, a sticky
   status bar of live chips (workspace open, registration open, sign-in video)
   that jumps to the section that owns each switch, and one scrolling column of
-  cards. Sections:
+  cards. The console is `.admin-console` and lives inside the gate wrapper
+  `.admin-shell`; the rail pins its identity and its two exits to the bottom so
+  a 960x660 window never loses them, and the metric strip splits 6 / 3 / 2
+  columns so a row is never left half empty. Sections:
     - Overview: counts (accounts, projects, memberships, documents,
       presentations, slides), recent activity, system state
     - Accounts: list, suspend / restore, reset password, sign out everywhere,

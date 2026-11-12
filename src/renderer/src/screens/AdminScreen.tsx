@@ -6,29 +6,26 @@ import Button from '../components/Button'
 import Notice from '../components/Notice'
 import PasswordField from '../components/PasswordField'
 import TextField from '../components/TextField'
-import { ChevronLeftIcon, InfoIcon, SignOutIcon } from '../components/icons'
+import { ChevronLeftIcon, InfoIcon } from '../components/icons'
 import { ApiError, api, errorCode, errorMessage } from '../lib/api'
 import AdminPanel from './admin/AdminPanel'
 
 type Phase = 'loading' | 'setup' | 'login' | 'panel'
 
-function AdminBar({ signedIn, onSignOut }: { signedIn: boolean; onSignOut: () => void }) {
+/**
+ * Slim bar for the gate screens only. Once the administrator is signed in the
+ * console draws its own identity and exits in the rail, so this would be a
+ * second header saying the same thing.
+ */
+function AdminBar() {
   return (
     <header className="admin-topbar">
-      <span className="admin-scope">
-        {signedIn ? 'Administrator session' : 'Restricted area'}
-      </span>
+      <span className="admin-scope">Restricted area</span>
       <div className="admin-topbar-actions">
         <Link to="/dashboard" className="admin-exit">
           <ChevronLeftIcon size={13} />
           Back to app
         </Link>
-        {signedIn && (
-          <button type="button" className="admin-exit" onClick={onSignOut}>
-            <SignOutIcon size={13} />
-            Sign out
-          </button>
-        )}
       </div>
     </header>
   )
@@ -84,9 +81,11 @@ export default function AdminScreen() {
 
   return (
     <div className="admin-shell">
-      <AdminBar signedIn={phase === 'panel'} onSignOut={() => void handleSignOut()} />
+      {/* The console carries its own identity and actions once signed in; the
+          gate screens keep the slim bar. */}
+      {phase !== 'panel' && <AdminBar />}
 
-      <div className="admin-scroll">
+      <div className={`admin-scroll${phase === 'panel' ? ' admin-scroll--flush' : ''}`}>
         {phase === 'loading' && (
           <div className="admin-gate" aria-busy="true" aria-label="Checking administrator access">
             <span className="spinner" aria-hidden="true" />
@@ -112,7 +111,12 @@ export default function AdminScreen() {
         )}
 
         {phase === 'panel' && admin && overview && (
-          <AdminPanel admin={admin} overview={overview} refresh={refresh} />
+          <AdminPanel
+            admin={admin}
+            overview={overview}
+            refresh={refresh}
+            onSignOut={() => void handleSignOut()}
+          />
         )}
 
         {phase === 'panel' && (!admin || !overview) && (
