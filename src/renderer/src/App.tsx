@@ -70,15 +70,27 @@ export default function App() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useSession()
-  const { status } = useAppStatus()
+  const { status, refresh: refreshStatus } = useAppStatus()
   const { theme, setTheme } = useTheme()
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   const signedIn = Boolean(user)
   const inShell = signedIn && SHELL_PATHS.some((path) => pathname.startsWith(path))
   const label = viewLabel(pathname)
-  // Administration stays reachable during maintenance so it can be lifted.
-  const maintenance = status.maintenanceMode && !pathname.startsWith('/admin')
+  /*
+   * Maintenance closes the workspace, not the door. Signing in and registering
+   * always work; what a session then finds is this screen. The administration
+   * panel is exempt so maintenance can be lifted from inside it.
+   */
+  const maintenance = status.maintenanceMode
+  const workspaceClosed = maintenance && signedIn && !pathname.startsWith('/admin')
+
+  // A fresh session re-reads the switches before it renders anything: a user who
+  // signs in during maintenance must land on the maintenance screen, not on a
+  // dashboard whose data calls are about to be refused.
+  useEffect(() => {
+    if (signedIn) void refreshStatus()
+  }, [signedIn, refreshStatus])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -156,13 +168,18 @@ export default function App() {
     <div className="flex h-full flex-col">
       <TitleBar
         label={label}
-        showSearch={inShell && !maintenance}
+        showSearch={inShell && !workspaceClosed}
         onOpenPalette={() => setPaletteOpen(true)}
       />
 
       <div className="min-h-0 flex-1">
-        {maintenance ? (
-          <MaintenanceScreen message={status.maintenanceMessage} />
+        {workspaceClosed ? (
+          <MaintenanceScreen
+            message={status.maintenanceMessage}
+            onSignOut={() => {
+              void signOut().then(() => navigate('/login', { replace: true }))
+            }}
+          />
         ) : (
         <Routes>
           <Route
@@ -232,7 +249,7 @@ export default function App() {
         )}
       </div>
 
-      {inShell && !maintenance && (
+      {inShell && !workspaceClosed && (
         <CommandPalette
           open={paletteOpen}
           commands={commands}

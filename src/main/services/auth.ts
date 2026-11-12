@@ -70,7 +70,8 @@ function lockMessage(minutes: number): string {
 
 export function register(input: RegisterInput): SessionUser {
   const settings = readSettings()
-  if (settings.maintenanceMode) throw errors.maintenance()
+  // Maintenance closes the workspace, never the front door: an account created
+  // during it simply lands on the maintenance screen like everyone else.
   if (!settings.allowRegistration) throw errors.registrationClosed()
 
   const { username, displayName, email } = validateRegistration(input)
@@ -125,10 +126,13 @@ export function register(input: RegisterInput): SessionUser {
 }
 
 export function signIn(input: LoginInput): SessionUser {
-  // The administrator can close the app to ordinary users; the check lives
-  // here rather than in the renderer so it cannot be bypassed.
-  if (readSettings().maintenanceMode) throw errors.maintenance()
-
+  /*
+   * Signing in always works, including during maintenance. Refusing here left
+   * people staring at a wall with no way to prove who they were, and it made
+   * the maintenance screen the only thing they could reach. What maintenance
+   * closes is the workspace, and that is enforced by requireUser() for every
+   * data call — below this, not in front of it.
+   */
   const identifier = (input.identifier ?? '').trim()
   const password = input.password ?? ''
   if (!identifier || !password) {
