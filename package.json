@@ -1,6 +1,6 @@
 {
   "name": "indra-hub",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "description": "INDRA HUB — desktop workspace",
   "author": "TejHorwDev",
@@ -17,7 +17,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "sim:update": "node scripts/updater-sim.mjs",
-    "sim:admin": "node scripts/admin-sim.mjs"
+    "sim:admin": "node scripts/admin-sim.mjs",
+    "sim:maintenance": "node scripts/maintenance-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

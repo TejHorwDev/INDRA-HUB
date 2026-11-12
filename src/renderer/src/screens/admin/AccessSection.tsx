@@ -191,7 +191,7 @@ export default function AccessSection({ overview, refresh }: SectionProps) {
             checked={maintenanceMode}
             onChange={setMaintenanceMode}
             label="Maintenance mode"
-            description="When on, ordinary users cannot sign in or use the workspace, and their open screens are replaced with your message. The administration panel stays available."
+            description="When on, the workspace is closed: every signed-in account sees your message instead of their projects. Signing in and registering still work, and the administration panel stays available."
             disabled={saving}
           />
 
@@ -203,7 +203,7 @@ export default function AccessSection({ overview, refresh }: SectionProps) {
               onChange={(event) => setMessage(event.target.value.slice(0, 280))}
               hint={
                 <p className="field-hint">
-                  {280 - message.length} characters left · shown on every ordinary screen while
+                  {280 - message.length} characters left · shown to every signed-in account while
                   maintenance is on.
                 </p>
               }

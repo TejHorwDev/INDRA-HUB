@@ -1,10 +1,20 @@
-import { Link } from 'react-router-dom'
+import type { ReactNode } from 'react'
 
 /**
- * Shown instead of the workspace while the administrator has maintenance on.
- * The gate is also enforced in the main process for every data call.
+ * Shown to a signed-in account while the administrator has maintenance on.
+ *
+ * It appears *after* signing in, never instead of signing in: the front door is
+ * always open, and this is what a session finds on the other side of it. There
+ * is no route from here to the administration area — the panel is reached by
+ * someone who already knows the shortcut.
  */
-export default function MaintenanceScreen({ message }: { message: string }) {
+export default function MaintenanceScreen({
+  message,
+  onSignOut
+}: {
+  message: string
+  onSignOut?: () => void
+}): ReactNode {
   return (
     <div className="maintenance-canvas">
       <div className="maintenance-panel stagger">
@@ -14,12 +24,14 @@ export default function MaintenanceScreen({ message }: { message: string }) {
           {message || 'INDRA HUB is temporarily unavailable while maintenance is carried out.'}
         </p>
         <p className="maintenance-note">
-          Your account, projects and documents are untouched. This screen clears itself as soon as
-          the administrator reopens the app.
+          You are signed in. Your account, projects and documents are untouched, and this screen
+          clears itself as soon as the administrator reopens the app.
         </p>
-        <Link to="/admin" className="link maintenance-link">
-          Administrator sign-in
-        </Link>
+        {onSignOut && (
+          <button type="button" className="link maintenance-link" onClick={onSignOut}>
+            Sign out
+          </button>
+        )}
       </div>
     </div>
   )
