@@ -42,6 +42,22 @@ import {
  * Every mutation below re-checks the admin session and writes an audit row.
  */
 
+/**
+ * The built-in administrator.
+ *
+ * This installation ships with one administrator identity so that a fresh copy
+ * is never left without a way into the administration area, and so that nothing
+ * on the sign-in screen has to advertise one. The password is hashed with scrypt
+ * before it is ever written — the database never holds the plain text — and it
+ * can be replaced from Admin → Access & controls at any time, which is what to
+ * do before handing a copy of the app to anyone else.
+ */
+const BUILT_IN_ADMIN_EMAIL = 'admintej@gmail.com'
+const BUILT_IN_ADMIN_PASSWORD = 'AAaa1234@$'
+const BUILT_IN_ADMIN_NAME = 'Administrator'
+/** Set by an explicit reset, so the built-in account is not resurrected behind it. */
+const SEED_SUPPRESSED_KEY = 'admin_seed_suppressed'
+
 const SESSION_KEY = 'admin_session'
 const THROTTLE_KEY = 'admin_throttle'
 const SESSION_HOURS = 12
@@ -145,6 +161,33 @@ function readSession(): AdminSessionRecord | null {
 function writeSession(adminId: string): void {
   const expiresAt = new Date(Date.now() + SESSION_HOURS * 3_600_000).toISOString()
   writeState(SESSION_KEY, { adminId, expiresAt } satisfies AdminSessionRecord)
+}
+
+/**
+ * Creates the built-in administrator if this installation has none.
+ *
+ * Runs once, at startup, before any window exists. An installation that already
+ * has an administrator — including one an operator created or replaced — is left
+ * exactly as it is. Called again after `--reset-admin` it does nothing, because
+ * that flag means "let me choose", not "put the shipped account back".
+ */
+export function ensureBuiltInAdmin(): boolean {
+  if (adminRow() || readState<boolean>(SEED_SUPPRESSED_KEY)) return false
+
+  const { hash, salt } = hashPassword(BUILT_IN_ADMIN_PASSWORD)
+  const id = randomUUID()
+  const now = new Date().toISOString()
+
+  getDatabase()
+    .prepare(
+      `INSERT INTO admin_users
+         (id, email, display_name, password_hash, password_salt, created_at, last_sign_in_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL)`
+    )
+    .run(id, BUILT_IN_ADMIN_EMAIL, BUILT_IN_ADMIN_NAME, hash, salt, now)
+
+  audit('setup', `Built-in administrator ${BUILT_IN_ADMIN_EMAIL} created.`, id)
+  return true
 }
 
 export function adminStatus(): AdminStatus {
@@ -892,5 +935,8 @@ export function resetAdminIdentity(): { reset: boolean } {
   // The audit trail stays; its author becomes unknown, as it was before.
   db.prepare('UPDATE admin_audit SET admin_id = NULL WHERE admin_id = ?').run(row.id)
   db.prepare('DELETE FROM admin_users WHERE id = ?').run(row.id)
+  // Do not silently recreate the shipped account: after a deliberate reset the
+  // operator sets the administrator they want, from the administration area.
+  writeState(SEED_SUPPRESSED_KEY, true)
   return { reset: true }
 }

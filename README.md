@@ -70,16 +70,23 @@ The database is a local SQLite file in the app's user-data folder:
 
 Schema migrations run automatically on launch.
 
-## First administrator
+## The administrator
 
-On a fresh installation, the sign-in screen offers **Set up the administrator**. After that the entry
-point disappears: ordinary users are never shown a way into the administration area. The
-administrator opens it with **Ctrl+Alt+A** (Cmd+Alt+A on macOS), or by visiting `#/admin`.
+Every installation ships with exactly one administrator, created on first launch:
 
-On an installation with no administrator yet, the
-setup screen asks for a Gmail address, a name and a password of at least 10 characters. Exactly one
-administrator is created per installation; there are no default credentials and no way to create a
-second one. Administrator sign-in is rate-limited and audited.
+| | |
+| --- | --- |
+| Email | `admintej@gmail.com` |
+| Password | `AAaa1234@$` |
+
+Nothing on the sign-in or registration screens mentions it. The administration area opens with
+**Ctrl+Alt+A** (Cmd+Alt+A on macOS), or at `#/admin`, and asks for that email and password. A
+different email is refused, and five failures lock the gate for fifteen minutes.
+
+The password is stored as a scrypt hash — the database never holds the plain text — but it does
+travel inside the application files, so it is a starting credential, not a secret. Change it from
+**Admin → Access & controls** before giving a copy of the app to anyone else; the administrator
+email and password can be replaced there, and only there.
 
 ## Supabase (optional)
 
@@ -147,8 +154,9 @@ Two things can go wrong that no interface should be able to fix by itself.
   & "$env:LOCALAPPDATA\Programs\indra-hub\INDRA HUB.exe" --reset-admin
   ```
 
-  This removes the administrator identity on this installation and asks for a new one. Projects,
-  documents, accounts and activation keys are untouched. It is deliberately not a button in the
+  This removes the administrator identity on this installation and asks for a new one; the shipped
+  account is deliberately not recreated behind a reset. Projects, documents, accounts and
+  activation keys are untouched. It is deliberately not a button in the
   interface: recovering access requires control of the machine, which is the same bar as opening
   the database file.
 - **A failed upgrade.** Before any schema migration runs, the database is copied to
