@@ -23,12 +23,12 @@ publish:
   repo: INDRA-HUB
   releaseType: release
 
+# One download only: the installer. A portable build was shipped before, but
+# two files confuse people and a portable copy can never update itself, so the
+# installer is the single way in.
 win:
   target:
     - target: nsis
-      arch:
-        - x64
-    - target: portable
       arch:
         - x64
 
@@ -44,6 +44,3 @@ nsis:
   # Uninstalling must never destroy the user's projects, accounts or keys.
   deleteAppDataOnUninstall: false
   artifactName: INDRA-HUB-Setup-${version}.${ext}
-
-portable:
-  artifactName: INDRA-HUB-Portable-${version}.${ext}

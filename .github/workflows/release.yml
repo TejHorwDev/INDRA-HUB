@@ -74,7 +74,7 @@ jobs:
           # installer works but nothing can update itself.
           files: |
             release/*.exe
-            release/*.yml
+            release/latest.yml
             release/*.blockmap
           generate_release_notes: true
           fail_on_unmatched_files: true
