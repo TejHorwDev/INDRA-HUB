@@ -381,6 +381,28 @@ export interface UpdateState {
   canInstall: boolean
 }
 
+/* ---------------- backend connection ---------------- */
+
+/**
+ * Where the optional Supabase project lives, and what the last connection test
+ * said. The key itself is never sent back to the renderer — only its last four
+ * characters, so the panel can confirm something is stored.
+ */
+export interface BackendStatus {
+  configured: boolean
+  url: string | null
+  keyHint: string | null
+  /** null until a test has run in this session. */
+  reachable: boolean | null
+  message: string | null
+  checkedAt: string | null
+}
+
+export interface BackendConfigInput {
+  url: string
+  key: string
+}
+
 /* ---------------- local activation keys ---------------- */
 
 export type ActivationKeyStatus = 'unused' | 'used' | 'revoked' | 'expired'

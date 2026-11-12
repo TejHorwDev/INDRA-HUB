@@ -73,7 +73,13 @@ import {
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
 import { checkForUpdates, installUpdate, updateState } from '../services/updates'
-import type { AdminLoginInput, AdminSettings, AdminSetupInput } from '@shared/types'
+import {
+  backendStatus,
+  clearBackendConfig,
+  saveBackendConfig,
+  testBackendConnection
+} from '../services/backend'
+import type { AdminLoginInput, AdminSettings, AdminSetupInput, BackendConfigInput } from '@shared/types'
 
 /** Every project call resolves the caller here, never from the renderer. */
 function actor(): SessionUser {
@@ -110,6 +116,37 @@ export function registerIpcHandlers(): void {
   /* ---------------- public app status ---------------- */
   // Signed-out screens need these two switches to render honestly.
   ipcMain.handle('app:status', () => toResult(() => publicStatus()))
+
+  /* ---------------- optional Supabase connection ---------------- */
+  // Machine-level configuration, so it is only reachable once someone is
+  // signed in — never from the signed-out screens.
+  ipcMain.handle('backend:status', () =>
+    toResult(() => {
+      actor()
+      return backendStatus()
+    })
+  )
+
+  ipcMain.handle('backend:test', () =>
+    toResult(() => {
+      actor()
+      return testBackendConnection()
+    })
+  )
+
+  ipcMain.handle('backend:save', (_event, input: BackendConfigInput) =>
+    toResult(() => {
+      actor()
+      return saveBackendConfig(input ?? { url: '', key: '' })
+    })
+  )
+
+  ipcMain.handle('backend:clear', () =>
+    toResult(() => {
+      actor()
+      return clearBackendConfig()
+    })
+  )
 
   /* ---------------- self-update ---------------- */
   // Readable by any renderer: the state is only a version number and progress.

@@ -23,6 +23,8 @@ import type {
   ProjectGraph,
   ProjectSummary,
   RegisterInput,
+  BackendConfigInput,
+  BackendStatus,
   SessionUser,
   UpdateState,
   UserSummary
@@ -119,6 +121,12 @@ export interface IndraBridge {
     check: () => Promise<ApiResult<UpdateState>>
     install: () => Promise<ApiResult<UpdateState>>
     onState: (listener: (state: UpdateState) => void) => () => void
+  }
+  backend: {
+    status: () => Promise<ApiResult<BackendStatus>>
+    test: () => Promise<ApiResult<BackendStatus>>
+    save: (input: BackendConfigInput) => Promise<ApiResult<BackendStatus>>
+    clear: () => Promise<ApiResult<BackendStatus>>
   }
   admin: {
     status: () => Promise<ApiResult<AdminStatus>>
