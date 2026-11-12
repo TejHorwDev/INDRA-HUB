@@ -58,18 +58,55 @@ door, and it opens for anyone holding the public key. When policies arrive:
 
 ---
 
-## Stage 2 — real accounts (not started)
+## Stage 2 — accounts in Postgres (database done, app pending)
 
-Supabase Auth replaces the local password table, with `auth_user_id` linking
-`auth.users` to `indra_users`.
+`supabase/auth.sql` is applied. Identities are Google accounts held by Supabase Auth; the app never
+sees or stores a password.
 
-Two consequences to decide before this starts:
+### What the database now does
 
-- Existing passwords are **scrypt** hashes in SQLite. They cannot be moved to
-  Supabase Auth, so existing accounts either get migrated on first sign-in or
-  are reset once.
-- The app currently works with no internet at all. Sign-in would become an
-  online action unless a cached session is designed in.
+| | |
+|---|---|
+| **Member numbers** | `IH-<year>-<running total>`, e.g. `IH-2026-000001`. Minted **once**, by the database, when the account is created — not derived from a login date, which would change daily and be worthless as an identifier. |
+| **Profile on sign-up** | A trigger on `auth.users` creates the matching `indra_users` row (handle from the address, name from Google). It can never block a sign-in: a failure is logged and `indra_ensure_profile()` repairs it on first launch. |
+| **23 RLS policies** | Every table is readable only by the people on that project. Writes are narrower still: only an owner changes membership or deletes a project. |
+| **Column grants** | A policy says which *rows* you may write; the grants say which *columns*. `role`, `member_no` and `auth_user_id` cannot be written by a client at all. |
+| **Team lookups** | `indra_find_member(query)` and `indra_project_roster(project_id)` return the picker fields and **never an email address**. |
+| **Administrator** | `indra_claim_admin()` — the first signed-in person takes it, everyone after gets `false`. No default credential exists. |
+
+### What was proven, not assumed
+
+Run against the live project, in transactions that were rolled back afterwards:
+
+- an `authenticated` session with an unknown id reads **0** rows from all seven tables
+- `anon` reads **0** rows from all seven tables
+- the owner of a probe project saw exactly **1** project and **1** document — its own
+- a second signed-in user saw **0** projects, **0** documents, and could not read the other user's
+  document **even by id**
+- that user adding themselves to the project → `new row violates row-level security policy`
+- a user promoting themselves to `admin` → `permission denied for table indra_users`
+- a new `auth.users` row produced `IH-2026-000001` through the trigger
+
+### What is still missing
+
+1. **A Google OAuth client.** Create one in Google Cloud Console (OAuth consent screen → Credentials
+   → OAuth client ID → *Desktop app*), then paste the client id and secret into Supabase
+   *Authentication → Providers → Google*, and enable the provider. Until this exists, no Google
+   sign-in can succeed.
+2. **The app side.** Browser + loopback callback (PKCE), encrypted refresh-token storage, and the
+   cloud data layer. Google blocks OAuth inside embedded webviews, so the sign-in opens the real
+   browser and returns to `http://127.0.0.1:<port>`.
+3. **Activation keys.** With sign-up going through Google, the key must be checked by an Edge
+   Function holding the `service_role` secret — never by the app.
+
+### Decisions taken
+
+- **Offline-first.** A cached session keeps the app usable without a connection; SQLite stays as the
+  local cache and outbox, and Postgres becomes the source of truth.
+- **Member number at sign-up**, not at login.
+- **Existing local accounts cannot be migrated** — scrypt hashes do not become Google identities,
+  and an address that was never verified cannot be trusted. Data can be attached to the first
+  Google account that claims it; the accounts themselves start fresh.
 
 ---
 
