@@ -51,6 +51,8 @@ const api = {
       ipcRenderer.invoke('auth:register', input),
     login: (input: LoginInput): Promise<ApiResult<SessionUser>> =>
       ipcRenderer.invoke('auth:login', input),
+    adminLogin: (input: { identifier: string; password: string }): Promise<ApiResult<AdminAccount | null>> =>
+      ipcRenderer.invoke('auth:admin-login', input),
     logout: (): Promise<ApiResult<null>> => ipcRenderer.invoke('auth:logout'),
     current: (): Promise<ApiResult<SessionUser | null>> => ipcRenderer.invoke('auth:session'),
     updateProfile: (input: ProfileInput): Promise<ApiResult<SessionUser>> =>

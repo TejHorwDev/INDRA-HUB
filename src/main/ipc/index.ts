@@ -66,6 +66,7 @@ import {
   revokeKey,
   setAccountSuspended,
   setupAdmin,
+  signInAdminFromLogin,
   signOutAccount,
   signOutAllAccounts,
   transferProject,
@@ -172,6 +173,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('auth:login', (_event, input: LoginInput) =>
     toResult(() => signIn(input ?? ({} as LoginInput)))
+  )
+
+  // The same screen signs the administrator in; the answer is null for anyone
+  // who is not the administrator, so nothing about them is revealed.
+  ipcMain.handle(
+    'auth:admin-login',
+    (_event, input: { identifier?: string; password?: string }) =>
+      toResult(() => signInAdminFromLogin(input ?? {}))
   )
 
   ipcMain.handle('auth:logout', () =>

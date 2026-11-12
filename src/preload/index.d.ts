@@ -43,6 +43,7 @@ export interface IndraBridge {
   auth: {
     register: (input: RegisterInput) => Promise<ApiResult<SessionUser>>
     login: (input: LoginInput) => Promise<ApiResult<SessionUser>>
+    adminLogin: (input: { identifier: string; password: string }) => Promise<ApiResult<AdminAccount | null>>
     logout: () => Promise<ApiResult<null>>
     current: () => Promise<ApiResult<SessionUser | null>>
     updateProfile: (input: ProfileInput) => Promise<ApiResult<SessionUser>>
