@@ -384,6 +384,8 @@ export interface UpdateState {
   bytesPerSecond: number
   /** Human-readable explanation for `error`, or a note otherwise. */
   message: string | null
+  /** The technical reason behind `message`, shown small — never a substitute for it. */
+  detail: string | null
   checkedAt: string | null
   canCheck: boolean
   canInstall: boolean
