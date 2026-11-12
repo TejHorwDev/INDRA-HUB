@@ -1,0 +1,511 @@
+================================================================================
+INDRA HUB — FULL PROJECT BRIEF
+Version 1.4.0 · Windows desktop app · Electron + React + TypeScript + SQLite
+Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
+Written: 2026-11-12
+================================================================================
+
+HOW TO USE THIS DOCUMENT
+------------------------
+This is a complete, self-contained description of the INDRA HUB project: what it
+is, every feature that exists, how it is built, how it ships, what is proven,
+and what is still missing. Read it as the full context for the codebase. It is
+written so that nothing else is needed to start working on the project.
+
+If you are an AI assistant receiving this: treat the "RULES THAT MUST NOT BE
+BROKEN" section as hard constraints, and treat the "KNOWN LIMITATIONS" section as
+the honest list of what is unfinished. Do not describe features that are not in
+this document — they do not exist.
+
+
+1. WHAT IT IS
+-------------
+INDRA HUB is a local-first desktop workspace for writing documents and turning
+them into presentations. It runs entirely on the user's machine: accounts,
+projects, documents, decks and settings all live in a single SQLite file. It
+works with no network connection and needs no server.
+
+Around that core sit three things:
+  - teams: projects with an owner and members, with per-project access checks
+  - an administration panel: a separate identity with its own session, able to
+    manage accounts, projects, content, activation keys, app-wide switches and
+    an audit log
+  - a self-updater: the installed app updates itself from GitHub Releases by
+    replacing a small code payload, without ever downloading or running an
+    installer
+
+The product constraint that shaped everything: the user installs a Windows
+installer ONCE. Every later update must arrive inside the running app. The user
+explicitly rejected "downloads the new installer and runs it".
+
+
+2. CURRENT STATE
+----------------
+  Version:            1.4.0
+  Latest release:     v1.4.0 (GitHub, public)
+  Platform:           Windows (NSIS installer, per-user install)
+  Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
+  Update channel:     GitHub Releases, public repository, tag-triggered CI
+  Cloud:              optional Supabase connection — database prepared, client
+                      not wired yet (see section 10)
+
+Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
+v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0.
+
+Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
+spent fixing it (see section 8 — the asar problem is worth knowing about).
+Version 1.4.0 removed every public entry point to administrator creation and
+shipped a built-in administrator account.
+
+
+3. STACK
+--------
+  Runtime:        Electron 45 (main process, preload, renderer)
+  UI:             React 19, React Router 7, Tailwind CSS 4
+  Language:       TypeScript 5.5, strict; two tsconfigs (node + web)
+  Build:         electron-vite 6 + a separate Vite build for the bootstrap
+  Packaging:     electron-builder 26, NSIS target for Windows
+  Database:       Node's built-in node:sqlite (DatabaseSync), WAL mode,
+                  foreign keys on, busy_timeout 3000
+  Sanitising:     sanitize-html with a tag/attribute allowlist
+  Passwords:      scrypt (node:crypto) with a per-record salt
+  Secrets at rest: Electron safeStorage (DPAPI on Windows)
+
+Dependencies are deliberately few. There is no ORM, no state library, no UI
+component library, no HTTP client beyond Electron's net/fetch.
+
+
+4. ARCHITECTURE
+---------------
+Three processes, one rule: the renderer never touches the filesystem or the
+database directly.
+
+  src/main/index.ts        main process: window, menu, IPC registration, CSP,
+                           single-instance lock, --reset-admin handling
+  src/main/bootstrap.ts    the entry point of the packaged app (see section 8):
+                           decides whether to run the installed code or a
+                           downloaded payload
+  src/main/ipc/index.ts    every IPC handler; each one validates its input and
+                           resolves the caller itself (never trusts the renderer)
+  src/main/services/*      business logic, one module per area:
+                           auth, projects, users, documents, presentations,
+                           graph, admin, activation, backend, settings, updates
+  src/main/lib/*           payload (update storage + bootstrap), convert
+                           (document → deck), sanitize, password, validation,
+                           errors
+  src/main/db/*            schema.ts (tables + migrations), database.ts
+                           (connection, pre-migration backups)
+  src/preload/index.ts     the typed bridge; the only surface the UI can call
+  src/renderer/src/...     React UI
+  src/shared/types.ts      the single source of truth for every shape crossing
+                           IPC, and for constants like theme lists
+
+Renderer isolation: sandbox on, contextIsolation on, nodeIntegration off, and a
+Content Security Policy in the packaged app. The renderer talks to the main
+process only through `window.indra`, defined in the preload; every call returns
+`{ ok: true, data }` or `{ ok: false, error }` and the UI unwraps it in
+`src/renderer/src/lib/api.ts`.
+
+59 IPC channels exist, all namespaced: app:*, auth:*, projects:*, documents:*,
+presentations:*, graph:*, updates:*, backend:*, admin:*.
+
+
+5. FEATURE INVENTORY
+--------------------
+
+5.1 Accounts and sessions
+  - Local registration with username, display name, email, password
+  - Sign in with username OR email
+  - scrypt hashing with per-record salt; constant-time verification
+  - Sessions remembered for 30 days in the local database
+  - Login throttling: 5 failed attempts locks sign-in for 15 minutes
+  - Self-service: change display name / email, change password, delete account
+    (password-confirmed)
+  - Registration can be closed by the administrator
+  - Registration can require an activation key
+  - Maintenance mode: signed-out users see a maintenance screen with the
+    administrator's message
+
+5.2 Projects and teams
+  - Create, rename, delete projects; each has a description
+  - Owner/member model stored in project_members
+  - Add members by searching existing users (username, display name, email —
+    email only shown to project members)
+  - Membership checks on every read and write in the service layer
+  - Project dashboard: overview, members, documents, presentations, activity
+  - Project workspace: a combined view of the project's material
+
+5.3 Document Studio
+  - Block editor with these block kinds: heading1, heading2, heading3,
+    paragraph (inline rich text), bulleted list, numbered list, quote, code,
+    divider, table (first row is the header), image (embedded source with alt
+    text)
+  - Autosave with a debounce; explicit save also available
+  - Word and character counts
+  - Version history: the last 30 versions per document, with restore
+  - Every write passes through the sanitiser allowlist (see section 7)
+
+5.4 Presentation Studio
+  - Create a blank deck, or convert a document into a deck in one click
+  - Nine slide layouts: title, section, text, bullets, process, quote, table,
+    image, closing; per-slide speaker notes
+  - Reorder slides, edit, delete
+  - Six themes: minimal, academic, corporate, editorial, research, dark
+  - "Stale source" detection: if the source document changed after conversion,
+    the deck says so and can be re-converted
+  - Conversion is deterministic and offline (src/main/lib/convert.ts): fixed
+    rules over headings, paragraphs, lists and tables; same document always
+    produces the same deck. No AI, no network, no randomness.
+
+5.5 Project Intelligence
+  - A data graph of the project built from real rows only: owner, members,
+    documents, presentations, and document → presentation links
+  - Rendered as an interactive node view with an inspector panel
+
+5.6 Activation keys
+  - Optional single-use keys that gate registration
+  - Generation, labelling, optional expiry, revocation, deletion
+  - Only a SHA-256 digest of each key is stored; the plaintext code is shown
+    exactly once, when it is created
+  - Bulk copy of freshly generated codes
+
+5.7 Settings (ordinary user)
+  - Appearance: light / dark theme, remembered per device
+  - Account: profile, password, sign out
+  - Updates: installed build, running build, update state, "Check for updates",
+    "Test connection" (see section 8), copyable technical detail on failure
+  - About: app version, Electron, Chromium, Node
+
+5.8 Administration panel (behind Ctrl+Alt+A or #/admin)
+  Separate identity, separate table (admin_users), separate session key, 12-hour
+  session, rate-limited sign-in, and an audit row for every action.
+  Sections:
+    - Overview: counts (accounts, projects, memberships, documents,
+      presentations, slides), recent activity, system state
+    - Accounts: list, suspend / restore, reset password, sign out everywhere,
+      delete
+    - Projects: list with owner and counts; rename, transfer ownership, delete
+    - Content: every document and presentation across all projects; delete
+    - Activation keys: create, revoke, delete, see status
+    - Access & controls: app-wide switches (allow registration, maintenance
+      mode + message, require activation key); change the administrator's
+      email, display name and password
+    - Backend: Supabase project URL + public key, "Save and test",
+      "Test again", "Disconnect" (administrator-only; the main process refuses
+      backend:* without an admin session)
+    - Activity: the audit log
+    - System: database path and size, versions, platform, uptime
+
+5.9 Developer and credits screens
+  - /developers: notes for this build
+  - /credits: attribution
+
+
+6. DATA MODEL (SQLite)
+----------------------
+Twelve tables, created by ordered migrations in src/main/db/schema.ts; the
+schema version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the
+number of migrations.
+
+  users              id, username, display_name, email, password_hash,
+                     password_salt, created_at, suspended_at
+  projects           id, name, description, owner_id, created_at, updated_at
+  project_members    project_id, user_id, added_at
+  documents          id, project_id, title, content (JSON blocks), version,
+                     created_by, created_at, updated_at
+  document_versions  id, document_id, version, content, created_at
+  presentations      id, project_id, title, theme, conversion_mode,
+                     source_document_id, created_by, timestamps
+  presentation_slides id, presentation_id, position, layout, title, body,
+                     bullets, table, image, notes
+  activation_keys    id, code_hash, masked_code, label, created_at, expires_at,
+                     used_at, used_by
+  admin_users        id, email, display_name, password_hash, password_salt,
+                     created_at, last_sign_in_at
+  admin_audit        id, admin_id, action, detail, created_at
+  app_settings       singleton row of app-wide switches
+  app_state          key/value store: session, admin session, throttle records,
+                     update state
+
+Before any migration that changes an existing database, the file is copied to
+`backups/` beside it (five most recent kept). A fresh install copies nothing.
+
+
+7. SECURITY MODEL
+-----------------
+Everything the app renders is treated as hostile, because a document is a file
+that can be shared.
+
+  - Editor markup is allowlisted on write AND on read (src/main/lib/sanitize.ts).
+    Scripts, event handlers, javascript: URLs, iframes and inline styles are
+    discarded, including in documents written before the allowlist existed.
+  - The renderer has no filesystem or database access: sandbox, contextIsolation,
+    no nodeIntegration, typed IPC only, CSP in the packaged app.
+  - Every IPC handler re-validates its input and resolves the caller itself.
+    Actor identity never comes from the renderer.
+  - Administrator identity is a separate table and session; an admin session
+    never grants access to project data through ordinary services, and a user
+    session has no path to admin queries. backend:* and admin:* refuse to run
+    without an admin session.
+  - Admin sign-in is rate-limited (5 failures, 15 minutes) and audited.
+  - Sessions live in the local database with an expiry (30 days user, 12 hours
+    admin).
+  - The optional Supabase public key is sealed with the OS keystore before it is
+    stored, and the renderer only ever sees its last four characters.
+  - Single-instance lock: a second launch focuses the existing window instead of
+    opening a second writer on the same database.
+  - Links in documents open in the default browser; the app shell never
+    navigates away from itself.
+  - The app refuses to store a Supabase service_role key at all, and says why.
+
+
+8. THE SELF-UPDATER (the unusual part)
+--------------------------------------
+Constraint: the installer is used once, on a new machine. After that, updates
+must happen inside the app, and no installer or downloaded executable may ever
+be run.
+
+Mechanism:
+  - Each release publishes, besides the installer, a payload: the compiled app
+    packed as one .asar (about 1 MB) plus payload.json naming it, its size and
+    its SHA-256.
+  - The running app fetches payload.json from
+    https://github.com/<owner>/<repo>/releases/latest/download/payload.json,
+    compares versions, downloads the payload to
+    %APPDATA%\indra-hub\update\, verifies size and SHA-256, and records it in
+    pending.json.
+  - Applying an update is a restart. Bootstrap (out/main/bootstrap.js, the
+    "main" entry in package.json) reads the record on the next start and, if the
+    payload verifies, requires its main/index.js instead of the installed copy.
+    Nothing is spawned and nothing is installed.
+  - Checks run at startup (3 s delay), on window focus (at most hourly), every
+    4 hours while open, and 10 minutes after a failure.
+
+Failure behaviour — the point of the design:
+  no payload                        → installed code runs
+  wrong size or hash                → discarded, installed code runs
+  payload older than the app        → ignored (never a downgrade)
+  payload loads but never ready twice → dropped automatically on the third start
+  everything fine                   → payload keeps running and reports its own
+                                      version (runningVersion() reads the record,
+                                      because app.getVersion() still reports the
+                                      installed build)
+
+Settings → Updates shows the installed build and the running build side by side;
+when they differ, an in-app update is running.
+
+THE ASAR TRAP — read this before touching fs in the updater
+Electron's asar layer claims EVERY filesystem path that contains the string
+".asar", not only the archive the app is loaded from
+(lib/node/asar-fs-wrapper.ts, v45). It wraps stat, statSync, lstat, lstatSync,
+readFile, readFileSync, access, accessSync, exists, existsSync, realpath,
+readdir (and their promises forms), and hooks the open/read/fstat/close bindings.
+Consequences that cost several releases:
+  1. A temporary download named "<payload>.asar.part" is read as an entry INSIDE
+     the archive and fails with "Invalid package <path>".
+  2. fs.rm / fs.rmSync are built on lstat, so deleting a payload path throws the
+     same error — the delete that precedes the rename broke every download.
+  3. Stat-ing or hashing the payload archive itself is intercepted unless
+     process.noAsar is true.
+Fixes in place: downloads are written as "incoming-<name>.download" (no ".asar"
+substring) and renamed only after verification; deleting uses unlink rather than
+rm; raw reads and stats of payload files run inside a synchronous
+`asPlainFile()` helper that sets process.noAsar and restores it. Rename and
+unlink are not intercepted.
+
+Tests for this exist and must keep passing:
+  npm run sim:update   bundles the real updater, serves a real .asar over HTTP,
+                       runs the check under a faithful copy of the asar layer,
+                       then asks bootstrap whether it would adopt the result
+  npm run sim:admin    seeds a throwaway database and signs in as the
+                       administrator
+
+
+9. BUILD AND RELEASE
+--------------------
+Development:        npm install, npm run dev, npm run typecheck, npm run build
+Production build:   electron-vite build, then a separate Vite build that emits
+                    out/main/bootstrap.js
+Release:            pushing a tag v* triggers .github/workflows/release.yml on
+                    windows-latest:
+                      - npm ci, typecheck, build
+                      - pack out/ into payload/, then into
+                        release/INDRA-HUB-Payload-<version>.asar
+                      - assert the archive contains main/index.js and
+                        renderer/index.html (a payload without them would fail
+                        silently at the next start)
+                      - assert app-update.yml exists in the packaged app
+                      - electron-builder --win → NSIS installer + blockmap
+                      - write payload.json {version, file, sha256, size, url}
+                      - publish a GitHub Release with: the .exe, latest.yml,
+                        the .blockmap, the payload .asar, payload.json
+                    Assets per release:
+                      INDRA-HUB-Setup-<version>.exe        ~123 MB
+                      INDRA-HUB-Setup-<version>.exe.blockmap ~130 KB
+                      INDRA-HUB-Payload-<version>.asar       ~1.0 MB
+                      latest.yml, payload.json
+                    A run takes about 4–5 minutes.
+
+The installer is unsigned, so Windows SmartScreen shows "Windows protected your
+PC" on first install; "More info → Run anyway" gets past it. Code signing needs
+a certificate the project does not have.
+
+Updating requires the repository to be public: GitHub refuses anonymous requests
+for a private repository's releases, and the alternative — a token compiled into
+the app — is not acceptable.
+
+
+10. SUPABASE (optional cloud, partially done)
+---------------------------------------------
+The app is local-first. Supabase is an optional cloud copy, configured by an
+administrator in Admin → Backend with the project URL and the PUBLIC key. The
+panel proves the connection and reports whether the schema is in place.
+
+Project: ref cztyznuoferktewdhyji, region ap-northeast-2, PostgreSQL 17.
+Public key: sb_publishable_RVaLkA8l6LOJ4ARqa38tzA_tFuCQqDA
+The service_role / secret key is NEVER allowed in the app: it bypasses Row Level
+Security, and anyone who unpacked the installer would own the whole database.
+
+Stage 1 — database (DONE): supabase/schema.sql creates the cloud tables.
+Stage 2 — identity (DATABASE DONE, CLIENT PENDING): supabase/auth.sql adds
+  - member numbers: IH-<YYYY>-<6 digits>, minted once from a sequence at profile
+    creation, never writable by a client
+  - Supabase Auth with Google as the intended provider
+  - 23 Row Level Security policies across 7 tables, a trigger on auth.users, and
+    security-definer helpers: indra_find_member (max 5 results, never returns
+    email), indra_project_roster, indra_ensure_profile, indra_claim_admin
+  - column-level grants so a user may update only their own username and
+    display_name; self-promotion to admin is refused by the database
+  Proven by rolled-back probes: an unknown auth id reads 0 rows in all 7 tables;
+  anon reads 0; an owner sees exactly their own project and document; a second
+  user sees nothing and `in_project` is false; a self-add to a project is refused
+  by policy; a self-promotion is refused by grant; a new auth row mints
+  IH-2026-000001.
+
+What is NOT done: the desktop client is not wired to Supabase Auth. Accounts,
+sessions and documents are still local. Nothing is synced and nothing leaves the
+machine. Sign-in by Google must happen in the SYSTEM BROWSER with PKCE and a
+loopback redirect — Google refuses OAuth inside embedded webviews
+(disallowed_useragent), and Firebase's signInWithPopup is a web API that does not
+exist in Electron.
+
+The order was deliberate: a client holding a public key is only safe if the
+database enforces the rules, so the rules had to exist and be proven first.
+
+
+11. THE ADMINISTRATOR
+---------------------
+Every installation ships with exactly one administrator, created at startup
+before any window exists:
+
+  Email:     admintej@gmail.com
+  Password:  AAaa1234@$
+
+  - Stored as a scrypt hash; the database never holds the plain text.
+  - Created once. A second start, or an installation that already has an
+    administrator, changes nothing.
+  - Reached only at Ctrl+Alt+A (Cmd+Alt+A on macOS) or #/admin. Nothing on the
+    Sign in or Register screens mentions it — that invitation was removed in
+    1.4.0.
+  - Any other email is refused; five failures lock the gate for 15 minutes.
+  - The password travels inside the application files, so it is a starting
+    credential, not a secret. Admin → Access & controls replaces the email, the
+    display name and the password; do that before distributing the app.
+  - `INDRA HUB.exe --reset-admin` removes the identity and deliberately does not
+    recreate the shipped account, so a reset means the operator chooses. It is
+    command-line only on purpose: recovering access should require control of
+    the machine, the same bar as opening the database file.
+
+
+12. KNOWN LIMITATIONS / UNFINISHED WORK
+---------------------------------------
+Honest list; none of these are hidden:
+  - The desktop client is not connected to Supabase Auth. No accounts, projects
+    or documents are synced to the cloud. Google sign-in does not exist yet in
+    the app, and no OAuth client has been configured.
+  - The app is not wired to any hosted licensing service; activation keys are
+    local rows in the local database.
+  - The Windows installer is unsigned (SmartScreen warning).
+  - Document autosave does not flush on window close, so the last edits of the
+    final few seconds can be lost if the app is killed rather than closed.
+  - Version history keeps 30 versions and rewrites the whole JSON content per
+    save; fine at current document sizes, not tuned for very large ones.
+  - Client-side ids are used as primary keys; there is no conflict resolution
+    story for a future multi-device sync.
+  - The rule-based converter fabricates no attributions, but quote slides keep
+    whatever attribution the document gives; there is no citation model.
+  - `overview.counts.documents` and a few dashboard numbers are computed with
+    simple COUNT(*) queries and have shown 0 in some views; the source of truth
+    is the counting code in src/main/services/admin.ts.
+  - Admin → System reports file size only, not table-level growth.
+  - No automated test suite beyond the two simulations (sim:update, sim:admin);
+    everything else is verified by typecheck, build and manual runs.
+  - Nothing in the app is localised; English only.
+
+
+13. RULES THAT MUST NOT BE BROKEN
+---------------------------------
+These were decided deliberately and the user has rejected alternatives. Breaking
+them is a regression, not a design choice.
+
+  1. No installer during an update. The installed app replaces its own code with
+     a verified payload and restarts. Never download or execute an .exe.
+  2. The service_role / secret key never enters the desktop app. Only the
+     publishable key.
+  3. The renderer never touches the filesystem or the database; everything goes
+     through typed IPC, and the main process resolves the caller itself.
+  4. Administrator access is never advertised and never reachable from an
+     ordinary user's screen; the main process refuses admin:* and backend:*
+     without an admin session.
+  5. Document HTML is allowlisted on write AND on read. Never render unsanitised
+     markup.
+  6. The updater must never be able to prevent the app from starting: a bad
+     payload is discarded and the installed code runs.
+  7. A payload that stops verifying is deleted, not retried forever.
+  8. Releases are tag-driven; the workflow asserts the payload contains
+     main/index.js and renderer/index.html before publishing.
+  9. Platform conventions: no window.prompt, no native dialogs for app flows,
+     no second instance of the app.
+ 10. Do not reintroduce the asar mistakes in section 8: no fs call in the update
+     path may touch a path containing ".asar" except through the helpers, and
+     "npm run sim:update" must pass.
+
+
+14. FILE MAP (the ones that matter)
+-----------------------------------
+  package.json                 scripts, version, entry point (out/main/bootstrap.js)
+  electron-builder.yml         appId com.indra.hub, productName "INDRA HUB",
+                               NSIS, artifactName INDRA-HUB-Setup-${version}.${ext}
+  .github/workflows/release.yml the whole release pipeline, with payload asserts
+  vite.bootstrap.config.mjs    separate build for the bootstrap
+  src/main/bootstrap.ts        entry: installed code or downloaded payload
+  src/main/lib/payload.ts      payload storage, verification, adoption, backups
+  src/main/services/updates.ts the updater: check, download, verify, diagnose
+  src/main/services/admin.ts   administrator identity, audits, every admin action
+  src/main/services/auth.ts    registration, sign in, sessions, throttling
+  src/main/services/documents.ts / presentations.ts / projects.ts / graph.ts
+  src/main/lib/convert.ts      deterministic document → deck conversion
+  src/main/lib/sanitize.ts     the tag/attribute allowlist
+  src/main/db/schema.ts        tables and migrations
+  src/shared/types.ts          every IPC shape and constant
+  src/renderer/src/screens/*   the screens; admin screens in screens/admin/
+  scripts/updater-sim.mjs      end-to-end updater simulation (npm run sim:update)
+  scripts/admin-sim.mjs        administrator seeding/sign-in test (npm run sim:admin)
+  supabase/schema.sql          cloud tables (applied)
+  supabase/auth.sql            identity + RLS layer (applied)
+  docs/SUPABASE.md             the staged Supabase plan and what is proven
+
+
+15. WHERE THIS IS GOING NEXT
+----------------------------
+The natural next step is wiring the desktop client to Supabase Auth (Stage 3):
+system-browser Google sign-in with PKCE and a loopback listener, refresh token
+sealed with safeStorage, member numbers surfaced in the UI, and team adding by
+member number. The database side of that already exists and is proven.
+
+After that: sync of projects and documents, an OAuth client in the cloud console,
+and the licensing service that replaces local activation keys.
+
+================================================================================
+END OF BRIEF
+================================================================================
