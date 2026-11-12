@@ -520,7 +520,8 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
     // Ask where it broke before apologising, so the panel can say something
     // specific. Never let the diagnosis become the failure.
     let verdict: string | null = null
-    let detail = technical(error)
+    // The build identifies every future screenshot of this panel.
+    let detail = `build ${runningVersion()} · ${technical(error)}`
     try {
       const diagnosis = await diagnose()
       verdict = diagnosis.verdict
