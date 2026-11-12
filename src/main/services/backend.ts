@@ -1,3 +1,4 @@
+import { safeStorage } from 'electron'
 import type { BackendConfigInput, BackendStatus } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
@@ -15,6 +16,52 @@ import { errors } from '../lib/errors'
 const URL_KEY = 'backend_url'
 const ANON_KEY = 'backend_anon_key'
 const TIMEOUT_MS = 8_000
+
+/*
+ * The key at rest.
+ *
+ * The anon key is not a secret — it ships in every Supabase client and RLS is
+ * what protects the data (see docs/SUPABASE.md). Storing it as plain text in a
+ * SQLite file is still sloppy: the file is readable by anything running as the
+ * user, and users reuse keys across projects. So it is sealed with the OS
+ * keystore (DPAPI on Windows, Keychain on macOS, libsecret on Linux), and the
+ * app degrades honestly when the OS cannot provide one.
+ */
+const SEALED_PREFIX = 'enc:v1:'
+const PLAIN_PREFIX = 'plain:v1:'
+
+function canSeal(): boolean {
+  try {
+    return safeStorage.isEncryptionAvailable()
+  } catch {
+    return false
+  }
+}
+
+function seal(secret: string): string {
+  if (!canSeal()) return PLAIN_PREFIX + secret
+  try {
+    return SEALED_PREFIX + safeStorage.encryptString(secret).toString('base64')
+  } catch {
+    return PLAIN_PREFIX + secret
+  }
+}
+
+/** Returns the key, and whether it came out of a sealed value. */
+function unseal(stored: string): { key: string; sealed: boolean } {
+  if (stored.startsWith(SEALED_PREFIX)) {
+    try {
+      const key = safeStorage.decryptString(Buffer.from(stored.slice(SEALED_PREFIX.length), 'base64'))
+      return { key, sealed: true }
+    } catch {
+      // Keystore changed or the profile was copied to another machine: the
+      // stored value is unreadable, which is the same as not configured.
+      return { key: '', sealed: false }
+    }
+  }
+  if (stored.startsWith(PLAIN_PREFIX)) return { key: stored.slice(PLAIN_PREFIX.length), sealed: false }
+  return { key: stored, sealed: false }
+}
 
 interface TestResult {
   reachable: boolean | null
@@ -42,6 +89,29 @@ function writeValue(key: string, value: string): void {
 
 function deleteValue(key: string): void {
   getDatabase().prepare('DELETE FROM app_settings WHERE key = ?').run(key)
+}
+
+interface StoredKey {
+  key: string
+  sealed: boolean
+}
+
+/** Reads the key and quietly upgrades a plain-text value left by 1.1.0. */
+function readKey(): StoredKey {
+  const stored = readValue(ANON_KEY)
+  if (!stored) return { key: '', sealed: false }
+
+  const result = unseal(stored)
+  if (!result.key) return result
+
+  if (!result.sealed && canSeal()) {
+    const upgraded = seal(result.key)
+    if (upgraded.startsWith(SEALED_PREFIX)) {
+      writeValue(ANON_KEY, upgraded)
+      return { key: result.key, sealed: true }
+    }
+  }
+  return result
 }
 
 /** Reads the role claim out of a JWT-shaped Supabase key, if it is one. */
@@ -103,13 +173,14 @@ function describeFailure(error: unknown): string {
 
 export function backendStatus(): BackendStatus {
   const url = readValue(URL_KEY)
-  const key = readValue(ANON_KEY)
+  const { key, sealed } = readKey()
   const configured = Boolean(url && key)
 
   return {
     configured,
     url,
     keyHint: key ? `••••${key.slice(-4)}` : null,
+    keySealed: sealed,
     reachable: configured ? lastTest.reachable : null,
     message: configured
       ? lastTest.message
@@ -120,7 +191,7 @@ export function backendStatus(): BackendStatus {
 
 export async function testBackendConnection(): Promise<BackendStatus> {
   const url = readValue(URL_KEY)
-  const key = readValue(ANON_KEY)
+  const { key } = readKey()
   if (!url || !key) return backendStatus()
 
   const controller = new AbortController()
@@ -205,7 +276,7 @@ export async function saveBackendConfig(input: BackendConfigInput): Promise<Back
   const key = validateKey(input?.key ?? '')
 
   writeValue(URL_KEY, url)
-  writeValue(ANON_KEY, key)
+  writeValue(ANON_KEY, seal(key))
   lastTest = { reachable: null, message: null, checkedAt: null }
 
   // Save then immediately prove it, so the panel never shows a stored config

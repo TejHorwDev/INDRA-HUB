@@ -392,6 +392,8 @@ export interface BackendStatus {
   configured: boolean
   url: string | null
   keyHint: string | null
+  /** True when the stored key is sealed with the OS keystore. */
+  keySealed: boolean
   /** null until a test has run in this session. */
   reachable: boolean | null
   message: string | null
