@@ -7,6 +7,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync
 } from 'node:fs'
 import { join } from 'node:path'
@@ -112,11 +113,22 @@ function writeJson(path: string, value: unknown): void {
   }
 }
 
+/**
+ * Deletes a file, and never through `rm`.
+ *
+ * `fs.rm`/`rmSync` are built on `lstat`, which the asar layer answers for any
+ * path containing ".asar" — deleting a payload would throw "Invalid package"
+ * instead of removing the file. `unlink` goes straight to the binding.
+ */
 function remove(path: string): void {
   try {
-    rmSync(path, { force: true })
+    unlinkSync(path)
   } catch {
-    // Nothing to do: a file we cannot delete is a file we will simply ignore.
+    try {
+      rmSync(path, { force: true, recursive: true })
+    } catch {
+      // Nothing to do: a file we cannot delete is a file we will simply ignore.
+    }
   }
 }
 
@@ -143,6 +155,11 @@ export function readPending(): StoredPayload | null {
     size: Number(state.size) || 0,
     attempts: 0
   }
+}
+
+/** Removes a payload file by name, safely even when the name ends in `.asar`. */
+export function removePayloadFile(name: string): void {
+  remove(join(folder(), name))
 }
 
 /**

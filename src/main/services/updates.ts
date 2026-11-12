@@ -8,6 +8,7 @@ import {
   payloadDir,
   prunePayloadDir,
   readVerifiedPending,
+  removePayloadFile,
   runningVersion,
   writePending
 } from '../lib/payload'
@@ -436,7 +437,13 @@ async function downloadPayload(manifest: Manifest): Promise<string> {
   }
 
   const final = join(payloadDir(), name)
-  await rm(final, { force: true })
+
+  /*
+   * Not `rm`: it is built on `lstat`, which the asar layer answers for any path
+   * containing ".asar" — so deleting the old payload would throw
+   * "Invalid package" and abort the download. `unlink` goes to the binding.
+   */
+  removePayloadFile(name)
   await rename(target, final)
   return name
 }
