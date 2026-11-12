@@ -171,11 +171,21 @@ export async function testBackendConnection(): Promise<BackendStatus> {
             'Connected — the schema is in place. Tables stay sealed until sign-in is handled by Supabase (Stage 2).',
           checkedAt: new Date().toISOString()
         }
-      : {
-          reachable: true,
-          message: `Connected, but the schema check answered HTTP ${schema.status}.`,
-          checkedAt: new Date().toISOString()
-        }
+      : schema.status === 401 || schema.status === 403
+        ? {
+            // Happens if someone locks the tables down harder than RLS (for
+            // example revoking the default anon grants). The schema is fine;
+            // this read is simply not allowed any more.
+            reachable: true,
+            message:
+              'Connected, but the key is not allowed to read the tables. If you revoked the anon grants, the connection test needs an authenticated read instead.',
+            checkedAt: new Date().toISOString()
+          }
+        : {
+            reachable: true,
+            message: `Connected, but the schema check answered HTTP ${schema.status}.`,
+            checkedAt: new Date().toISOString()
+          }
 
     return backendStatus()
   } catch (error) {
