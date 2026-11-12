@@ -21,6 +21,7 @@ import AccountsSection from './AccountsSection'
 import AppearanceSection from './AppearanceSection'
 import ActivitySection from './ActivitySection'
 import BackendPanel from '../../components/BackendPanel'
+import WorkspacePanel from '../../components/WorkspacePanel'
 import ContentSection from './ContentSection'
 import KeysSection from './KeysSection'
 import OverviewSection from './OverviewSection'
@@ -67,7 +68,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: 'Platform',
     items: [
-      { id: 'backend', label: 'Backend', icon: <WindowIcon size={15} /> },
+      { id: 'backend', label: 'Cloud & sync', icon: <WindowIcon size={15} /> },
       { id: 'activity', label: 'Activity', icon: <BellIcon size={15} /> },
       { id: 'system', label: 'System', icon: <InfoIcon size={15} /> }
     ]
@@ -202,7 +203,10 @@ export default function AdminPanel({ admin, overview, refresh, onSignOut }: Admi
           {section === 'backend' && (
             // Machine-level configuration: only reachable behind the admin gate,
             // and the main process refuses these calls without an admin session.
-            <BackendPanel />
+            <>
+              <WorkspacePanel />
+              <BackendPanel />
+            </>
           )}
           {section === 'activity' && <ActivitySection overview={overview} refresh={refresh} />}
           {section === 'system' && <SystemSection overview={overview} refresh={refresh} />}

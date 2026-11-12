@@ -33,7 +33,10 @@ import type {
   SessionUser,
   UpdateDiagnostics,
   UpdateState,
-  UserSummary
+  UserSummary,
+  WorkspaceClaimInput,
+  WorkspaceCredentialsInput,
+  WorkspaceState
 } from '@shared/types'
 
 /** A typed failure coming from the main process. */
@@ -215,6 +218,20 @@ export const api = {
       bytes: number
       mime: string | null
     }> => unwrap(bridge().admin.appearanceHealth())
+  },
+
+  workspace: {
+    state: (): Promise<WorkspaceState> => unwrap(bridge().workspace.state()),
+    signIn: (input: WorkspaceCredentialsInput): Promise<WorkspaceState> =>
+      unwrap(bridge().workspace.signIn(input)),
+    signUp: (input: WorkspaceCredentialsInput): Promise<WorkspaceState> =>
+      unwrap(bridge().workspace.signUp(input)),
+    signOut: (): Promise<WorkspaceState> => unwrap(bridge().workspace.signOut()),
+    claim: (input: WorkspaceClaimInput): Promise<WorkspaceState> => unwrap(bridge().workspace.claim(input)),
+    sync: (): Promise<WorkspaceState> => unwrap(bridge().workspace.sync()),
+    discard: (): Promise<WorkspaceState> => unwrap(bridge().workspace.discard()),
+    onChange: (listener: (state: WorkspaceState) => void): (() => void) =>
+      bridge().workspace.onChange(listener)
   }
 }
 

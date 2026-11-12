@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.5.2
-  Latest release:     v1.5.2 (GitHub, public)
+  Version:            1.6.0
+  Latest release:     v1.6.0 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,7 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -68,7 +68,11 @@ and squeezed it into a second, unreadable rail. 1.5.2 made that video actually
 play: the bytes now travel over IPC and are played from a Blob URL instead of a
 custom indra-media:// scheme, H.265 / HEVC files are refused when the
 administrator picks them, and the panel gained a "Check playback" line that
-reports the file, its pixels, its duration and whether it is running.
+reports the file, its pixels, its duration and whether it is running. 1.6.0
+put the administrator's switches in one shared cloud row: maintenance,
+registration, activation keys, the sign-in video and its treatment now apply to
+every PC within seconds, and a fresh installation starts with them instead of
+with defaults.
 
 
 3. STACK
@@ -223,9 +227,12 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
       tune its blur and dim against a live preview of the sign-in card, and ask
       "Check playback" for the facts (file readable, size, codec, pixels,
       duration, playing or paused)
-    - Backend: Supabase project URL + public key, "Save and test",
-      "Test again", "Disconnect" (administrator-only; the main process refuses
-      backend:* without an admin session)
+    - Cloud & sync: the shared workspace. Who is signed in, whether this
+      account owns the row, the published and running revision, the transport
+      (live socket / polling / offline), a one-time setup code field until the
+      row is claimed, "Sync now", and the connection fields (project URL +
+      publishable key, "Save and test", "Disconnect"). Every IPC call behind
+      this section refuses without an administrator session.
     - Activity: the audit log
     - System: database path and size, versions, platform, uptime
 
@@ -365,6 +372,56 @@ Tests for this exist and must keep passing:
                        copy, the exact bytes handed to the renderer, refusal of
                        fake, empty, H.265 and oversized files, the playback
                        health check, replacement, clamping, removal
+  npm run sim:workspace    proves the shared workspace against a faithful fake
+                       of GoTrue, PostgREST, Storage and Realtime: fresh
+                       install, live change, claim, publish, video transfer,
+                       stale write, hostile payload, offline, disconnect
+
+
+8.5 THE SHARED WORKSPACE (1.6.0)
+--------------------------------
+  Storage          one row: public.indra_workspace, id 'primary', in the
+                   project this build points at
+  Constants        src/shared/workspace.ts — WORKSPACE_URL, WORKSPACE_KEY
+                   (publishable key only; RLS is what protects the row)
+  Schema           supabase/workspace.sql — table, trigger, RLS, the claim
+                   function, the public view, the storage bucket and policies,
+                   the Realtime publication
+  Client           src/main/services/workspace.ts — mirror, reconcile, publish,
+                   Realtime socket with a polling fallback
+  Panel            Admin → Cloud & sync (components/WorkspacePanel.tsx)
+
+  What is shared: allow_registration, maintenance (+ message),
+  require_activation_key, and the sign-in background (asset id, mime, bytes,
+  storage path, blur, dim).
+
+  How it stays right:
+    - The row is the source of truth. Every local edit is published with an
+      optimistic revision filter; if another machine got there first, the
+      patch updates nothing, this machine adopts their row and says so.
+    - Every row this machine receives is untrusted input: blur and dim are
+      clamped, the message is truncated, and only the four playable video types
+      are accepted. A background that cannot be fetched or played leaves the
+      previous one on screen and reports why; it never blocks the switches.
+    - The renderer never sees a token, a URL or a key. Sessions are sealed with
+      the OS keystore; all writes go through an administrator session.
+    - No connection means the local mirror answers. The app opens, signs in and
+      runs maintenance exactly as the last row said.
+    - Realtime is a WebSocket subscription when the platform provides one, an
+      eight-second poll when it does not, and a sixty-second reconcile either
+      way. Windows are told to re-read through `workspace:changed`.
+    - A setup code, stored only as a SHA-256, decides which account may claim
+      the row; it is cleared when used. `anon` has no UPDATE grant at all.
+
+  Fresh installs: the endpoint is compiled in, so a machine that has never been
+  configured mirrors the row before the first sign-in screen is painted (and
+  re-reads it the moment it lands). "Disconnect" in the panel is remembered in
+  `workspace_opt_out`, so the next launch does not undo it.
+
+  Known boundary: this shares *configuration*, not user data. Projects,
+  documents and presentations are still local to each machine; shipping them
+  to the cloud is the next step, and it needs the per-user identity work in
+  docs/SUPABASE.md.
 
 
 9. BUILD AND RELEASE
@@ -531,6 +588,12 @@ them is a regression, not a design choice.
   src/main/services/appearance.ts sign-in background: media folder, install /
                                remove, container + codec validation, bytes for
                                the renderer, treatment, health check
+  src/main/services/workspace.ts the shared row: mirror, reconcile, publish,
+                               realtime socket, claim, session
+  src/shared/workspace.ts      the endpoint compiled into the build, the row
+                               shape and the limits
+  supabase/workspace.sql       the table, policies, claim function, view,
+                               bucket and Realtime publication
   src/main/services/auth.ts    registration, sign in, sessions, throttling
   src/main/services/documents.ts / presentations.ts / projects.ts / graph.ts
   src/main/lib/convert.ts      deterministic document → deck conversion

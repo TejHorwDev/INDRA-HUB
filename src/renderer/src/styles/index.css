@@ -3531,6 +3531,40 @@
     color: var(--accent);
   }
 
+  .admin-status--good {
+    background-color: var(--success-soft);
+    color: var(--success);
+  }
+
+  .admin-status--alert {
+    background-color: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  /* A change that is applied here but not yet published. */
+
+  /* Explanations inside a panel form need air before the first field. */
+  .admin-form .admin-hint {
+    margin-bottom: var(--space-3);
+  }
+
+  .admin-callout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--accent);
+    border-radius: var(--radius);
+    background-color: var(--accent-soft);
+    color: var(--ink-secondary);
+    font-size: var(--fs-xs);
+    line-height: 1.6;
+  }
+
   .admin-divider {
     height: 1px;
     margin: var(--space-4) 0;

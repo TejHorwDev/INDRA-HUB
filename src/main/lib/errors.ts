@@ -32,7 +32,8 @@ export const errors = {
   maintenance: () =>
     new AppError('MAINTENANCE', 'INDRA HUB is in maintenance mode. Try again shortly.'),
   registrationClosed: () =>
-    new AppError('REGISTRATION_CLOSED', 'New account creation is currently closed.')
+    new AppError('REGISTRATION_CLOSED', 'New account creation is currently closed.'),
+  cloud: (message: string) => new AppError('UNKNOWN', message)
 }
 
 /**

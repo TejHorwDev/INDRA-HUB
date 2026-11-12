@@ -4,6 +4,11 @@ import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
 import { markHealthy, runningVersion } from './lib/payload'
 import { ensureBuiltInAdmin, resetAdminIdentity } from './services/admin'
+import {
+  ensureBuiltInWorkspace,
+  startWorkspaceSync,
+  stopWorkspaceSync
+} from './services/workspace'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
 const isDev = !app.isPackaged
@@ -107,6 +112,15 @@ app.whenReady().then(() => {
   // Open (and migrate) the database before any IPC call can reach it.
   getDatabase()
 
+  /*
+   * The shared workspace: put the compiled-in endpoint in place when this
+   * installation has never been configured, then start mirroring the row.
+   * A fresh install therefore inherits the administrator's switches — and the
+   * sign-in background — without anyone having to set anything up on it.
+   */
+  ensureBuiltInWorkspace()
+  startWorkspaceSync()
+
   // A fresh installation has exactly one administrator, created here — before
   // any window exists, so nothing has to offer to create one.
   ensureBuiltInAdmin()
@@ -194,5 +208,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
+  stopWorkspaceSync()
   closeDatabase()
 })

@@ -35,16 +35,24 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    api.appearance
-      .read()
-      .then((value) => {
-        if (active) setAppearance(value)
-      })
-      .catch(() => {
-        // No video is a perfectly good answer; the canvas stands on its own.
-      })
+    const read = (): void => {
+      api.appearance
+        .read()
+        .then((value) => {
+          if (active) setAppearance(value)
+        })
+        .catch(() => {
+          // No video is a perfectly good answer; the canvas stands on its own.
+        })
+    }
+
+    read()
+    // A video installed from the panel on any machine arrives here without a
+    // reload; the plain canvas is replaced in place.
+    const off = api.workspace.onChange(read)
     return () => {
       active = false
+      off()
     }
   }, [])
 

@@ -131,3 +131,51 @@ workspace: every document open, every autosave and every keystroke-triggered
 save would become a network round trip, and the app would stop working on a
 plane, in a basement, or when Supabase has an incident. Stage 3 gets the same
 sharing without giving that up.
+
+---
+
+## Stage 2.5 — the shared workspace (shipped in 1.6.0)
+
+Everything in the administrator panel that is machine-wide lives in **one row**
+(`public.indra_workspace`, id `primary`) in this project:
+
+| Column | What it controls |
+| --- | --- |
+| `allow_registration` | whether new accounts can be created |
+| `maintenance` / `maintenance_message` | maintenance mode and what the screen says |
+| `require_activation_key` | whether registration needs a key |
+| `background_asset_id` / `_mime` / `_bytes` / `_path` | the sign-in video, in the `indra-media` bucket |
+| `background_blur` / `_dim` | how that video is treated behind the form |
+| `revision` | bumped by a trigger on every update; the tie-breaker for every client |
+
+Every installation mirrors the row into its own SQLite database. The mirror is
+what the app reads, so the sign-in screen, the maintenance screen and the IPC
+guards work with no connection; the row catches up over a Realtime socket (or a
+short poll) and each change is applied and broadcast to the open windows.
+
+**Who may write.** Row Level Security allows `SELECT` for everyone (the row is
+public configuration) and `UPDATE` only for the one account named in
+`owner_uid`. The `anon` role has no `UPDATE` grant at all, so even a policy
+mistake could not let a client write. Ownership is claimed once, with a setup
+code whose SHA-256 is seeded into `claim_hash`; `indra_claim_workspace()` clears
+it in the same statement that sets `owner_uid`, so the code is single-use.
+
+**Where the endpoint comes from.** `WORKSPACE_URL` and `WORKSPACE_KEY` in
+`src/shared/workspace.ts` are compiled into the build, which is why a fresh
+install inherits the administrator's settings instead of defaults. The key is
+the *publishable* one: it can read the row and nothing else. The secret /
+`service_role` key is never in the app. An administrator can point a machine at
+a different project in Admin → Cloud & sync, and "Disconnect" is remembered so
+the built-in endpoint is not put back on the next launch.
+
+**Applying it.** `supabase/workspace.sql` is the whole thing, idempotent, with
+the setup-code instructions at the bottom. The project this app points at
+already has it applied (migrations `workspace_settings_realtime` and
+`workspace_public_view`).
+
+**Proved.** `npm run sim:workspace` runs the shipped client against a faithful
+fake of GoTrue, PostgREST, Storage and Realtime: a fresh install adopting the
+row, a published change reaching a machine that never signed in, claiming,
+publishing, a video travelling between machines, a stale write losing to the
+newer row, hostile payloads clamped or refused, offline behaviour, and a
+disconnect surviving a restart.

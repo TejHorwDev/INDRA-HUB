@@ -1,4 +1,7 @@
 import type {
+  WorkspaceClaimInput,
+  WorkspaceCredentialsInput,
+  WorkspaceState,
   ApiResult,
   AppearanceTreatment,
   CreateProjectInput,
@@ -138,6 +141,16 @@ export interface IndraBridge {
     test: () => Promise<ApiResult<BackendStatus>>
     save: (input: BackendConfigInput) => Promise<ApiResult<BackendStatus>>
     clear: () => Promise<ApiResult<BackendStatus>>
+  }
+  workspace: {
+    state: () => Promise<ApiResult<WorkspaceState>>
+    signIn: (input: WorkspaceCredentialsInput) => Promise<ApiResult<WorkspaceState>>
+    signUp: (input: WorkspaceCredentialsInput) => Promise<ApiResult<WorkspaceState>>
+    signOut: () => Promise<ApiResult<WorkspaceState>>
+    claim: (input: WorkspaceClaimInput) => Promise<ApiResult<WorkspaceState>>
+    sync: () => Promise<ApiResult<WorkspaceState>>
+    discard: () => Promise<ApiResult<WorkspaceState>>
+    onChange: (listener: (state: WorkspaceState) => void) => () => void
   }
   admin: {
     status: () => Promise<ApiResult<AdminStatus>>

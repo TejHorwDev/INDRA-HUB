@@ -1,7 +1,8 @@
-import { safeStorage } from 'electron'
 import type { BackendConfigInput, BackendStatus } from '@shared/types'
+import { normaliseUrl } from '@shared/workspace'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
+import { canSeal, sealSecret, unsealSecret } from '../lib/seal'
 
 /*
  * Optional Supabase connection.
@@ -27,42 +28,6 @@ const TIMEOUT_MS = 8_000
  * keystore (DPAPI on Windows, Keychain on macOS, libsecret on Linux), and the
  * app degrades honestly when the OS cannot provide one.
  */
-const SEALED_PREFIX = 'enc:v1:'
-const PLAIN_PREFIX = 'plain:v1:'
-
-function canSeal(): boolean {
-  try {
-    return safeStorage.isEncryptionAvailable()
-  } catch {
-    return false
-  }
-}
-
-function seal(secret: string): string {
-  if (!canSeal()) return PLAIN_PREFIX + secret
-  try {
-    return SEALED_PREFIX + safeStorage.encryptString(secret).toString('base64')
-  } catch {
-    return PLAIN_PREFIX + secret
-  }
-}
-
-/** Returns the key, and whether it came out of a sealed value. */
-function unseal(stored: string): { key: string; sealed: boolean } {
-  if (stored.startsWith(SEALED_PREFIX)) {
-    try {
-      const key = safeStorage.decryptString(Buffer.from(stored.slice(SEALED_PREFIX.length), 'base64'))
-      return { key, sealed: true }
-    } catch {
-      // Keystore changed or the profile was copied to another machine: the
-      // stored value is unreadable, which is the same as not configured.
-      return { key: '', sealed: false }
-    }
-  }
-  if (stored.startsWith(PLAIN_PREFIX)) return { key: stored.slice(PLAIN_PREFIX.length), sealed: false }
-  return { key: stored, sealed: false }
-}
-
 interface TestResult {
   reachable: boolean | null
   message: string | null
@@ -101,12 +66,13 @@ function readKey(): StoredKey {
   const stored = readValue(ANON_KEY)
   if (!stored) return { key: '', sealed: false }
 
-  const result = unseal(stored)
+  const unsealed = unsealSecret(stored)
+  const result = { key: unsealed.value, sealed: unsealed.sealed }
   if (!result.key) return result
 
   if (!result.sealed && canSeal()) {
-    const upgraded = seal(result.key)
-    if (upgraded.startsWith(SEALED_PREFIX)) {
+    const upgraded = sealSecret(result.key)
+    if (upgraded.startsWith('enc:v1:')) {
       writeValue(ANON_KEY, upgraded)
       return { key: result.key, sealed: true }
     }
@@ -127,7 +93,7 @@ function keyRole(key: string): string | null {
 }
 
 function validateUrl(raw: string): string {
-  const value = raw.trim().replace(/\/+$/, '')
+  const value = normaliseUrl(raw)
   if (!value) throw errors.validation('Enter the Supabase project URL.', 'url')
 
   let parsed: URL
@@ -169,6 +135,34 @@ function describeFailure(error: unknown): string {
     return 'The project did not answer within 8 seconds. Check the URL and the connection.'
   }
   return 'Could not reach that project. Check the URL and the connection.'
+}
+
+/**
+ * The credentials the rest of the app uses to reach the project, in clear.
+ * Callers must never put them in a log or a window; this exists for the
+ * workspace client, which needs them on every request.
+ */
+export function readBackendCredentials(): { url: string; key: string } | null {
+  const url = readValue(URL_KEY)
+  const { key } = readKey()
+  if (!url || !key) return null
+  return { url: normaliseUrl(url), key }
+}
+
+/**
+ * Writes the endpoint compiled into this build, once, so a fresh installation
+ * inherits the administrator's settings before anyone has configured anything.
+ * An endpoint saved by an administrator always wins and is never overwritten.
+ */
+export function ensureBackendConfig(url: string, key: string): { seeded: boolean } {
+  const existingUrl = readValue(URL_KEY)
+  const { key: existingKey } = readKey()
+  if (existingUrl && existingKey) return { seeded: false }
+
+  writeValue(URL_KEY, normaliseUrl(url))
+  writeValue(ANON_KEY, sealSecret(key))
+  lastTest = { reachable: null, message: null, checkedAt: null }
+  return { seeded: true }
 }
 
 export function backendStatus(): BackendStatus {
@@ -276,7 +270,7 @@ export async function saveBackendConfig(input: BackendConfigInput): Promise<Back
   const key = validateKey(input?.key ?? '')
 
   writeValue(URL_KEY, url)
-  writeValue(ANON_KEY, seal(key))
+  writeValue(ANON_KEY, sealSecret(key))
   lastTest = { reachable: null, message: null, checkedAt: null }
 
   // Save then immediately prove it, so the panel never shows a stored config

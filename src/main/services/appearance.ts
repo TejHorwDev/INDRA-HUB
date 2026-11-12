@@ -8,7 +8,8 @@ import {
   openSync,
   readSync,
   statSync,
-  unlinkSync
+  unlinkSync,
+  writeFileSync
 } from 'node:fs'
 import { extname, join } from 'node:path'
 import type { LoginAppearance, LoginBackground, PublicAppearance } from '@shared/types'
@@ -131,6 +132,74 @@ export function publicAppearance(): PublicAppearance {
     blur: appearance.blur,
     dim: appearance.dim
   }
+}
+
+
+/**
+ * Wraps bytes that arrived from the workspace — already validated against the
+ * same limits as an upload — into the local media folder under the cloud
+ * asset id. Using that id as the local primary key is what lets the renderer's
+ * Blob cache notice a replacement: a new cloud asset id is a new file.
+ */
+export function adoptBackground(input: {
+  id: string
+  bytes: Buffer
+  mime: string
+  originalName?: string
+}): LoginAppearance {
+  const mime = canonicalMime(input.mime)
+  if (!mime) throw errors.validation('That video type cannot be played.', 'video')
+  if (input.bytes.length === 0) throw errors.validation('That video is an empty file.', 'video')
+  if (input.bytes.length > MAX_BYTES) {
+    throw errors.validation('That video is larger than the app accepts.', 'video')
+  }
+
+  const fileName = `${input.id}${extensionFor(mime)}`
+  const previous = activeRow()
+
+  writeFileSync(join(mediaDirectory(), fileName), input.bytes)
+
+  const db = getDatabase()
+  db.prepare(
+    `INSERT INTO media_assets (id, kind, file_name, original_name, mime, bytes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       file_name = excluded.file_name,
+       mime = excluded.mime,
+       bytes = excluded.bytes`
+  ).run(
+    input.id,
+    KIND,
+    fileName,
+    input.originalName || fileName,
+    mime,
+    input.bytes.length,
+    new Date().toISOString()
+  )
+  writeSetting('login_background_asset', input.id)
+
+  // The previous file is only removed once the new one is in place.
+  if (previous && previous.id !== input.id) {
+    try {
+      unlinkSync(join(mediaDirectory(), previous.file_name))
+    } catch {
+      // Already gone is the good case.
+    }
+    db.prepare('DELETE FROM media_assets WHERE id = ?').run(previous.id)
+  }
+
+  return readLoginAppearance()
+}
+
+/** `video/mp4; codecs=avc1` and `VIDEO/MP4` both become `video/mp4`. */
+function canonicalMime(raw: string): string {
+  const base = String(raw ?? '').split(';')[0].trim().toLowerCase()
+  return extensionFor(base) ? base : ''
+}
+
+function extensionFor(mime: string): string {
+  const found = Object.entries(VIDEO_TYPES).find(([, value]) => value === mime)
+  return found ? found[0] : ''
 }
 
 /**

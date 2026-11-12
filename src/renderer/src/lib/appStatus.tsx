@@ -36,10 +36,18 @@ export function AppStatusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh()
+
+    /*
+     * A published change arrives here first: the main process keeps the row
+     * mirrored and says so, and this provider turns that into a re-read. The
+     * interval below is only a safety net for a stretched connection.
+     */
+    const off = api.workspace.onChange(() => void refresh())
     const timer = window.setInterval(() => void refresh(), 15_000)
     const onFocus = (): void => void refresh()
     window.addEventListener('focus', onFocus)
     return () => {
+      off()
       window.clearInterval(timer)
       window.removeEventListener('focus', onFocus)
     }
