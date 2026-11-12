@@ -63,6 +63,7 @@ export const AUDIT_LABELS: Record<AdminAuditAction, string> = {
   sign_out: 'Signed out',
   sign_in_failed: 'Failed sign-in',
   password_changed: 'Admin password changed',
+  identity_changed: 'Admin identity changed',
   account_suspended: 'Account suspended',
   account_restored: 'Account restored',
   account_deleted: 'Account deleted',

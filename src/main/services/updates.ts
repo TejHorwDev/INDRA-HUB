@@ -185,7 +185,12 @@ export function installUpdate(): UpdateState {
   // Let the IPC reply reach the renderer before the window disappears.
   setImmediate(() => {
     try {
-      updater?.quitAndInstall(false, true)
+      // The first argument is `isSilent`. Passing false here ran the NSIS
+      // wizard in front of the user — which is exactly the "it downloaded an
+      // installer and ran it" experience this app is not supposed to have.
+      // Silent install replaces the files and relaunches into the new version;
+      // the user sees a restart, not an installer.
+      updater?.quitAndInstall(true, true)
     } catch (error) {
       console.error('[updates] install failed', error)
       setState({ phase: 'error', message: 'The update could not be installed. Restart the app and try again.' })

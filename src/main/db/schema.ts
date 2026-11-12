@@ -178,6 +178,9 @@ const MIGRATIONS: string[] = [
   `
 ]
 
+/** How many steps this build knows about; the database records how many ran. */
+export const MIGRATION_COUNT = MIGRATIONS.length
+
 export function migrate(db: DatabaseSync): void {
   const row = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined
   const current = Number(row?.user_version ?? 0)

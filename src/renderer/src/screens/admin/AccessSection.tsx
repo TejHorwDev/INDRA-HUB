@@ -29,6 +29,12 @@ export default function AccessSection({ overview, refresh }: SectionProps) {
   const [passwordBusy, setPasswordBusy] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
+  const [identityEmail, setIdentityEmail] = useState(overview.admin.email)
+  const [identityName, setIdentityName] = useState(overview.admin.displayName)
+  const [identityPassword, setIdentityPassword] = useState('')
+  const [identityBusy, setIdentityBusy] = useState(false)
+  const [identityError, setIdentityError] = useState<string | null>(null)
+
   const dirty =
     allowRegistration !== overview.settings.allowRegistration ||
     maintenanceMode !== overview.settings.maintenanceMode ||
@@ -87,6 +93,38 @@ export default function AccessSection({ overview, refresh }: SectionProps) {
       setSignOutError(errorMessage(error))
     } finally {
       setSigningOut(false)
+    }
+  }
+
+  const identityChanged =
+    identityEmail.trim().toLowerCase() !== overview.admin.email.toLowerCase() ||
+    identityName.trim() !== overview.admin.displayName
+
+  async function saveIdentity() {
+    setIdentityError(null)
+    if (!identityEmail.trim() || !identityName.trim()) {
+      setIdentityError('Enter both an email address and a name.')
+      return
+    }
+    if (!identityPassword) {
+      setIdentityError('Confirm the change with your current password.')
+      return
+    }
+
+    setIdentityBusy(true)
+    try {
+      await api.admin.updateIdentity({
+        email: identityEmail.trim(),
+        displayName: identityName.trim(),
+        currentPassword: identityPassword
+      })
+      setIdentityPassword('')
+      toast.success('Administrator identity updated. Use the new email the next time you sign in.')
+      await refresh()
+    } catch (error) {
+      setIdentityError(errorMessage(error))
+    } finally {
+      setIdentityBusy(false)
     }
   }
 
@@ -233,6 +271,71 @@ export default function AccessSection({ overview, refresh }: SectionProps) {
           ) : (
             <p className="admin-dim">No ordinary account is signed in on this machine.</p>
           )}
+        </div>
+      </section>
+
+      <section className="admin-card">
+        <div className="admin-card-head">
+          <h2>Administrator identity</h2>
+          {identityChanged && <span className="admin-status admin-status--accent">Unsaved changes</span>}
+        </div>
+        <div className="admin-card-body">
+          <div className="admin-form-grid">
+            <TextField
+              label="Administrator email"
+              name="admin-identity-email"
+              value={identityEmail}
+              onChange={(event) => setIdentityEmail(event.target.value)}
+              placeholder="you@gmail.com"
+              type="email"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={identityBusy}
+            />
+            <TextField
+              label="Display name"
+              name="admin-identity-name"
+              value={identityName}
+              onChange={(event) => setIdentityName(event.target.value)}
+              placeholder="Your name"
+              autoComplete="off"
+              disabled={identityBusy}
+            />
+            <PasswordField
+              label="Current password"
+              name="admin-identity-password"
+              value={identityPassword}
+              onChange={(event) => setIdentityPassword(event.target.value)}
+              placeholder="Confirm with your password"
+              autoComplete="current-password"
+              disabled={identityBusy}
+            />
+          </div>
+
+          {identityError && (
+            <p className="admin-error" role="alert">
+              {identityError}
+            </p>
+          )}
+
+          <div className="admin-form-actions">
+            <button
+              type="button"
+              className="btn btn-primary w-auto"
+              onClick={() => void saveIdentity()}
+              disabled={identityBusy || !identityChanged || !identityPassword}
+            >
+              {identityBusy && <span className="spinner" aria-hidden="true" />}
+              {identityBusy ? 'Saving…' : 'Change identity'}
+            </button>
+          </div>
+
+          <p className="admin-dim">
+            The email is the sign-in identity for administration on this machine, and it must be a
+            Gmail address. Changing it asks for the current password so a window left signed in
+            cannot be pointed at someone else&apos;s address. If the password is ever lost, launch the
+            app with <code>--reset-admin</code> to remove the administrator and set it up again.
+          </p>
         </div>
       </section>
 

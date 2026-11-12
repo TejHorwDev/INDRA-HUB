@@ -100,8 +100,12 @@ sign-in is handled by Supabase. The key is additionally sealed with the OS keyst
 
 An installed build updates itself from its GitHub Releases page. It checks **as it starts**, again
 when the window regains focus (at most hourly), and every four hours while it stays open. A newer
-version downloads in the background and installs when the user chooses **Restart and install** in
-*Settings → Updates*. Nothing is installed while someone is working.
+version downloads in the background and is applied on the next restart — either from **Restart and
+update** in *Settings → Updates*, or automatically when the app is quit.
+
+The update is an in-app restart, not a reinstall: Windows installers are replaced silently
+(`quitAndInstall(true)`), so no wizard, no next-next-finish, no download page. Nothing is installed
+while someone is working.
 
 Updating requires releases to be **publicly readable**: GitHub refuses anonymous API and asset
 requests for a private repository, so a private repository would need a personal access token
@@ -109,6 +113,24 @@ compiled into the app. The portable executable cannot update itself — use the 
 
 The first release that contains the updater has to be installed by hand; every release after it
 arrives in the app.
+
+## Recovery
+
+Two things can go wrong that no interface should be able to fix by itself.
+
+- **Forgotten administrator password.** Launch the app from a terminal or the Run dialog with
+  `--reset-admin`:
+
+  ```powershell
+  & "$env:LOCALAPPDATA\Programs\indra-hub\INDRA HUB.exe" --reset-admin
+  ```
+
+  This removes the administrator identity on this installation and asks for a new one. Projects,
+  documents, accounts and activation keys are untouched. It is deliberately not a button in the
+  interface: recovering access requires control of the machine, which is the same bar as opening
+  the database file.
+- **A failed upgrade.** Before any schema migration runs, the database is copied to
+  `backups/` beside it (five most recent kept). Copying one back restores the previous state.
 
 ## Licensing
 

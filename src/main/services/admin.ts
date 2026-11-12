@@ -5,6 +5,7 @@ import { app } from 'electron'
 import type {
   AdminAccount,
   AdminAccountRow,
+  AdminIdentityInput,
   AdminAuditAction,
   AdminAuditEntry,
   AdminContentRow,
@@ -801,6 +802,48 @@ export function removeKey(id: string): void {
 /* Administrator credential                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Changes the administrator's own email and name.
+ *
+ * The email is the sign-in identity, so this asks for the current password:
+ * an unattended, signed-in window must not be enough to move the account to an
+ * address someone else controls.
+ */
+export function updateAdminIdentity(input: AdminIdentityInput): AdminAccount {
+  const admin = requireAdmin()
+  const row = adminRow()
+  if (!row) throw errors.adminRequired()
+
+  if (!verifyPassword(input?.currentPassword ?? '', { hash: row.password_hash, salt: row.password_salt })) {
+    throw errors.validation('Current password is incorrect.', 'currentPassword')
+  }
+
+  const email = normalizeEmail(input?.email ?? '')
+  const displayName = (input?.displayName ?? '').trim().replace(/\s+/g, ' ')
+
+  if (!EMAIL_PATTERN.test(email)) {
+    throw errors.validation('Enter a valid email address.', 'email')
+  }
+  if (!email.endsWith('@gmail.com')) {
+    throw errors.validation('Administrator access uses a Gmail address.', 'email')
+  }
+  if (displayName.length < 2 || displayName.length > 48) {
+    throw errors.validation('Name must be 2–48 characters.', 'displayName')
+  }
+
+  if (email === row.email && displayName === row.display_name) return toAccount(row)
+
+  getDatabase()
+    .prepare('UPDATE admin_users SET email = ?, display_name = ? WHERE id = ?')
+    .run(email, displayName, row.id)
+
+  audit('identity_changed', `Administrator identity changed to ${email}.`, admin.id)
+
+  const updated = adminRow()
+  if (!updated) throw new Error('administrator vanished after update')
+  return toAccount(updated)
+}
+
 export function changeAdminPassword(currentPassword: string, newPassword: string): void {
   const admin = requireAdmin()
   const row = adminRow()
@@ -822,4 +865,31 @@ export function changeAdminPassword(currentPassword: string, newPassword: string
     .run(hash, salt, row.id)
 
   audit('password_changed', 'Administrator password changed.', admin.id)
+}
+
+/* ------------------------------------------------------------------ */
+/* Offline recovery                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Removes the administrator identity from this installation.
+ *
+ * There is exactly one administrator and no seeded password, which is the
+ * right shape — but it also means a forgotten password would otherwise lock
+ * the installation forever. This runs only from the command line
+ * (`INDRA HUB --reset-admin`), never from the interface: recovering access
+ * requires control of the machine, which is the same bar as reading the
+ * database file directly. Projects, documents, accounts and activation keys
+ * are untouched; only the administrator has to be set up again.
+ */
+export function resetAdminIdentity(): { reset: boolean } {
+  const row = adminRow()
+  if (!row) return { reset: false }
+
+  const db = getDatabase()
+  clearState(SESSION_KEY)
+  // The audit trail stays; its author becomes unknown, as it was before.
+  db.prepare('UPDATE admin_audit SET admin_id = NULL WHERE admin_id = ?').run(row.id)
+  db.prepare('DELETE FROM admin_users WHERE id = ?').run(row.id)
+  return { reset: true }
 }

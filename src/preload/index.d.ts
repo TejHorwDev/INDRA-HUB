@@ -5,6 +5,7 @@ import type {
   DocumentSummary,
   DocumentVersionSummary,
   AdminAccount,
+  AdminIdentityInput,
   AdminLoginInput,
   AdminOverview,
   AdminSettings,
@@ -158,6 +159,7 @@ export interface IndraBridge {
       currentPassword: string
       newPassword: string
     }) => Promise<ApiResult<null>>
+    updateIdentity: (payload: AdminIdentityInput) => Promise<ApiResult<AdminAccount>>
   }
   window: {
     minimize: () => void

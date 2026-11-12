@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from 'electron'
 import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
+import { resetAdminIdentity } from './services/admin'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
 const isDev = !app.isPackaged
@@ -105,6 +106,30 @@ app.whenReady().then(() => {
   // Open (and migrate) the database before any IPC call can reach it.
   getDatabase()
   registerIpcHandlers()
+
+  /*
+   * Offline recovery: `INDRA HUB --reset-admin`.
+   *
+   * Deliberately not a button. There is one administrator and no default
+   * credential, so a forgotten password would otherwise lock the installation
+   * for good. Recovering needs command-line access to the machine — the same
+   * bar as opening the database file — and it removes the administrator
+   * identity only. Projects, documents, accounts and keys are untouched.
+   */
+  if (process.argv.includes('--reset-admin')) {
+    const { reset } = resetAdminIdentity()
+    void dialog.showMessageBox({
+      type: 'info',
+      title: 'Administrator access',
+      message: reset
+        ? 'Administrator access was reset. Set up a new administrator now.'
+        : 'There was no administrator to reset. Set one up now.',
+      detail: reset
+        ? 'Your projects, documents, accounts and activation keys were not touched.'
+        : 'This installation had no administrator configured.',
+      buttons: ['Continue']
+    })
+  }
 
   // An installed build looks for a newer release in the background.
   initUpdates()

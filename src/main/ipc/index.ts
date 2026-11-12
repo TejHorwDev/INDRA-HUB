@@ -69,6 +69,7 @@ import {
   signOutAccount,
   signOutAllAccounts,
   transferProject,
+  updateAdminIdentity,
   updateSettings
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
@@ -79,7 +80,13 @@ import {
   saveBackendConfig,
   testBackendConnection
 } from '../services/backend'
-import type { AdminLoginInput, AdminSettings, AdminSetupInput, BackendConfigInput } from '@shared/types'
+import type {
+  AdminIdentityInput,
+  AdminLoginInput,
+  AdminSettings,
+  AdminSetupInput,
+  BackendConfigInput
+} from '@shared/types'
 
 /** Every project call resolves the caller here, never from the renderer. */
 function actor(): SessionUser {
@@ -401,6 +408,10 @@ export function registerIpcHandlers(): void {
   // Admin calls never use `actor()`: the admin session is a separate identity,
   // and every data handler below re-checks it inside the main process.
   ipcMain.handle('admin:status', () => toResult(() => adminStatus()))
+
+  ipcMain.handle('admin:identity:update', (_event, input: AdminIdentityInput) =>
+    toResult(() => updateAdminIdentity(input))
+  )
 
   ipcMain.handle('admin:setup', (_event, input: AdminSetupInput) =>
     toResult(() => setupAdmin(input ?? ({} as AdminSetupInput)))
