@@ -111,9 +111,10 @@ export default function UpdatesPanel() {
 
       <p className="account-note">
         INDRA HUB updates itself from its release page. It checks as it starts, again when you
-        come back to the window, and every few hours while it stays open. A new version downloads
-        quietly and is applied on the next restart — no installer to run, no wizard, no download
-        page. Your projects, accounts and activation keys are never touched by an update.
+        come back to the window, and every few hours while it stays open. An update is a couple of
+        megabytes rather than a whole installer, it downloads quietly, and it takes effect the next
+        time the app starts — no installer to run, no wizard, no download page. Your projects,
+        accounts and activation keys are never touched by an update.
       </p>
 
       <dl className="account-meta">

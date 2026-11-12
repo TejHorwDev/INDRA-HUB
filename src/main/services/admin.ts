@@ -20,6 +20,7 @@ import type {
   CreatedActivationKey
 } from '@shared/types'
 import { getDatabase } from '../db/database'
+import { runningVersion } from '../lib/payload'
 import { errors } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { EMAIL_PATTERN, normalizeEmail, validateProjectInput } from '../lib/validation'
@@ -446,7 +447,7 @@ function systemInfo(): AdminSystemInfo {
     | undefined
 
   return {
-    appVersion: app.getVersion(),
+    appVersion: runningVersion(),
     electron: process.versions.electron ?? '—',
     chrome: process.versions.chrome ?? '—',
     node: process.versions.node,

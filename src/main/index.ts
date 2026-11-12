@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from
 import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
+import { markHealthy, runningVersion } from './lib/payload'
 import { resetAdminIdentity } from './services/admin'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
@@ -131,6 +132,10 @@ app.whenReady().then(() => {
     })
   }
 
+  // Reaching this point means the payload we are running actually works, so
+  // it stops being on probation and will be used again next time.
+  markHealthy()
+
   // An installed build looks for a newer release in the background.
   initUpdates()
 
@@ -154,7 +159,9 @@ app.whenReady().then(() => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false
   })
 
-  ipcMain.handle('app:version', () => app.getVersion())
+  // The payload's version when an in-app update is running, not the
+  // installer's.
+  ipcMain.handle('app:version', () => runningVersion())
 
   // Locked-down content policy for the packaged app; dev keeps Vite's HMR working.
   if (!isDev) {
