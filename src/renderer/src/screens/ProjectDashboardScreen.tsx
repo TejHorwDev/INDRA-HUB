@@ -1,0 +1,270 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import type { ProjectDetail, ProjectMember } from '@shared/types'
+import AddMemberDialog from '../components/AddMemberDialog'
+import EmptyState from '../components/EmptyState'
+import Page from '../components/Page'
+import ProjectTabs from '../components/ProjectTabs'
+import RemoveMemberDialog from '../components/RemoveMemberDialog'
+import { useToast } from '../components/ToastProvider'
+import { AlertCircleIcon, FolderIcon, PlusIcon } from '../components/icons'
+import { api, errorCode, errorMessage } from '../lib/api'
+import { formatDate, formatRelative, initialsOf } from '../lib/format'
+import { Skeleton } from '../components/Skeleton'
+
+type LoadState = 'loading' | 'ready' | 'missing' | 'error'
+
+export default function ProjectDashboardScreen() {
+  const { projectId = '' } = useParams()
+  const toast = useToast()
+
+  const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [state, setState] = useState<LoadState>('loading')
+  const [error, setError] = useState<string | null>(null)
+
+  const [addOpen, setAddOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<ProjectMember | null>(null)
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setState('loading')
+    setError(null)
+    try {
+      const detail = await api.projects.get(projectId)
+      setProject(detail)
+      setState('ready')
+    } catch (failure) {
+      if (errorCode(failure) === 'NOT_FOUND') {
+        setState('missing')
+        return
+      }
+      if (errorCode(failure) === 'AUTH_REQUIRED') {
+        setState('missing')
+        return
+      }
+      setError(errorMessage(failure))
+      setState('error')
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function confirmRemove() {
+    if (!removeTarget || !project) return
+    setRemoving(true)
+    setRemoveError(null)
+    try {
+      const updated = await api.projects.removeMember({
+        projectId: project.id,
+        userId: removeTarget.userId
+      })
+      setProject(updated)
+      toast.success(`${removeTarget.displayName} was removed.`)
+      setRemoveTarget(null)
+    } catch (failure) {
+      setRemoveError(errorMessage(failure))
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  if (state === 'loading') {
+    return (
+      <Page title="Project">
+        <div className="space-y-6" aria-busy="true" aria-label="Loading project">
+          <Skeleton height={14} width={220} />
+          <Skeleton height={12} width={320} />
+          <div className="project-layout">
+            <Skeleton height={190} radius={8} />
+            <Skeleton height={190} radius={8} />
+          </div>
+        </div>
+      </Page>
+    )
+  }
+
+  if (state === 'missing') {
+    return (
+      <Page title="Project unavailable">
+        <EmptyState
+          icon={<FolderIcon size={18} />}
+          title="You can’t open this project"
+          description="It may have been deleted, or your account isn’t on its team. Ask the head developer for access."
+          action={
+            <Link to="/dashboard" className="btn btn-ghost w-auto">
+              Back to projects
+            </Link>
+          }
+        />
+      </Page>
+    )
+  }
+
+  if (state === 'error' || !project) {
+    return (
+      <Page title="Project">
+        <EmptyState
+          icon={<AlertCircleIcon size={18} />}
+          title="Couldn’t load this project"
+          description={error ?? 'Something went wrong. Please try again.'}
+          action={
+            <button type="button" className="btn btn-ghost w-auto" onClick={() => void load()}>
+              Try again
+            </button>
+          }
+        />
+      </Page>
+    )
+  }
+
+  const isOwner = project.role === 'owner'
+  const teamSize = project.memberCount + 1
+
+  return (
+    <>
+      <Page
+        title={project.name}
+        description={project.description || undefined}
+        tabs={<ProjectTabs projectId={project.id} />}
+        actions={
+          <div className="flex flex-none items-center gap-2">
+            <Link to={`/project/${project.id}/workspace`} className="btn btn-ghost w-auto">
+              Open workspace
+            </Link>
+            {isOwner && (
+              <button
+                type="button"
+                className="btn btn-primary w-auto"
+                onClick={() => setAddOpen(true)}
+              >
+                <PlusIcon size={15} />
+                Add member
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="project-layout">
+          <section className="card" aria-label="Project overview">
+            <div className="panel-head">Overview</div>
+            <dl className="info-list">
+              <div className="info-row">
+                <dt>Head developer</dt>
+                <dd>
+                  {project.owner.displayName}{' '}
+                  <span className="text-[var(--ink-tertiary)]">@{project.owner.username}</span>
+                </dd>
+              </div>
+              <div className="info-row">
+                <dt>Created</dt>
+                <dd>{formatDate(project.createdAt)}</dd>
+              </div>
+              <div className="info-row">
+                <dt>Last activity</dt>
+                <dd>{formatRelative(project.updatedAt)}</dd>
+              </div>
+              <div className="info-row">
+                <dt>Team</dt>
+                <dd>
+                  {teamSize} {teamSize === 1 ? 'person' : 'people'}
+                </dd>
+              </div>
+              <div className="info-row">
+                <dt>Your access</dt>
+                <dd>{isOwner ? 'Head developer' : 'Member'}</dd>
+              </div>
+            </dl>
+
+            <p className="info-foot">
+              {isOwner
+                ? 'You own this project: only you can add or remove members.'
+                : 'Your access comes from the head developer. Team changes are managed by them.'}
+            </p>
+          </section>
+
+          <section className="card" aria-label="Project team">
+            <div className="panel-head">
+              <span>Team</span>
+              <span className="panel-head-count">{teamSize}</span>
+            </div>
+
+            <ul className="team-list">
+              <li className="team-row">
+                <span className="team-avatar">{initialsOf(project.owner.displayName)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="team-name">{project.owner.displayName}</span>
+                    <span className="badge badge--accent">Head developer</span>
+                  </span>
+                  <span className="team-handle">@{project.owner.username}</span>
+                </span>
+                <span className="team-joined">Created {formatDate(project.createdAt)}</span>
+              </li>
+
+              {project.members.map((member) => (
+                <li className="team-row" key={member.userId}>
+                  <span className="team-avatar">{initialsOf(member.displayName)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="team-name">{member.displayName}</span>
+                      <span className="badge">Member</span>
+                    </span>
+                    <span className="team-handle">@{member.username}</span>
+                  </span>
+                  <span className="team-joined">Joined {formatDate(member.joinedAt)}</span>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm w-auto"
+                      onClick={() => {
+                        setRemoveError(null)
+                        setRemoveTarget(member)
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </li>
+              ))}
+
+              {project.members.length === 0 && (
+                <li className="team-empty">
+                  <span>No one else is on this project yet.</span>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="link-quiet text-sm"
+                      onClick={() => setAddOpen(true)}
+                    >
+                      Add the first member
+                    </button>
+                  )}
+                </li>
+              )}
+            </ul>
+          </section>
+        </div>
+      </Page>
+
+      <AddMemberDialog
+        open={addOpen}
+        projectId={project.id}
+        onClose={() => setAddOpen(false)}
+        onUpdated={setProject}
+      />
+
+      <RemoveMemberDialog
+        member={removeTarget}
+        pending={removing}
+        error={removeError}
+        onCancel={() => {
+          if (!removing) setRemoveTarget(null)
+        }}
+        onConfirm={() => void confirmRemove()}
+      />
+    </>
+  )
+}
