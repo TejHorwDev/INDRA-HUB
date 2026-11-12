@@ -7,11 +7,13 @@ import { useLoginVideo } from '../lib/loginVideo'
 /**
  * Signed-out shell.
  *
- * Default: one centered column on a quiet, hairlined canvas.
+ * The window is split, not a card in the middle: a full-height rail attached
+ * to the left edge holds the form, and everything to its right is the stage.
  *
- * When the administrator has installed a background video, the same column
- * sits on a frosted card over a blurred, dimmed, looping video. The blur and
- * dim values come from the database rather than being fixed here, so the
+ * When the administrator has installed a background video, the stage is that
+ * video and the rail turns to glass across it — the film plays behind the form
+ * and fades out where the panel ends, so there is no box and no seam. The blur
+ * and dim values come from the database rather than being fixed here, so the
  * administrator can trade mood against legibility from the panel.
  *
  * Playback is deliberately boring: muted, inline, looped, and started with an
@@ -107,7 +109,29 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="auth-panel stagger">{children}</div>
+      <div className={`auth-rail${wantsVideo ? ' auth-rail--glass' : ''}`}>
+        {/*
+         * The glass is its own layer: it carries the darkening, the blur of
+         * whatever is behind it, and the mask that fades both out toward the
+         * stage. Text sits above it and is never faded.
+         */}
+        {wantsVideo && <div className="auth-rail-glass" aria-hidden="true" />}
+
+        <div className="auth-brand">
+          <span className="auth-brand-dot" aria-hidden="true" />
+          INDRA HUB
+        </div>
+
+        <div className="auth-rail-main">
+          <div className="auth-panel stagger">{children}</div>
+        </div>
+
+        <div className="auth-rail-foot">
+          <span>Your files stay on this PC.</span>
+        </div>
+      </div>
+
+      <div className="auth-stage" aria-hidden="true" />
     </div>
   )
 }

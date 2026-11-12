@@ -197,19 +197,112 @@
 }
 
 @layer components {
-  /* ---------------- auth canvas ---------------- */
+  /* ---------------- signed-out shell ---------------- */
+  /*
+   * The signed-out window is two parts, not a card floating in the middle: a
+   * full-height rail attached to the left edge, and the stage beside it. When
+   * the administrator has installed a background video the stage *is* the
+   * video and the rail becomes glass across it, so the film runs behind the
+   * form without ever competing with it.
+   *
+   * The rail keeps the form in the left third of a 1920px screen, which is
+   * where the eye starts, and leaves the rest of the window to the footage.
+   */
   .auth-canvas {
     position: relative;
     display: grid;
-    place-items: center;
+    grid-template-columns: clamp(416px, 33vw, 528px) minmax(0, 1fr);
     height: 100%;
-    padding: var(--space-8) var(--space-6);
-    overflow-y: auto;
+    min-height: 0;
+    overflow: hidden;
     background-color: var(--bg);
   }
 
+  .auth-rail {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    padding: clamp(22px, 4.2vh, 40px) clamp(28px, 3vw, 44px) 24px;
+    background-color: var(--surface);
+    border-right: 1px solid var(--line);
+  }
+
+  /* The stationery stays put; only the form scrolls, so a short window never
+     takes the brand or the foot line out of view.
+     The panel centres itself with an auto margin rather than justify-content:
+     when a tall form (registration) outgrows the rail, centring would push its
+     first fields above the scroll origin where they cannot be reached. */
+  .auth-rail-main {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 10px 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+  }
+
+  .auth-rail-main > .auth-panel {
+    margin-block: auto;
+  }
+
+  .auth-brand {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    user-select: none;
+  }
+
+  .auth-brand-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .auth-rail-foot {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 20px;
+    border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    font-size: var(--fs-xs);
+    line-height: var(--lh-snug);
+    color: var(--ink-tertiary);
+  }
+
+  .auth-panel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 352px;
+  }
+
+  .auth-stage {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
   /* Hairline grid, faded toward the edges — structure without noise. */
-  .auth-canvas::before {
+  .auth-canvas:not(.auth-canvas--media) .auth-stage::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -218,17 +311,16 @@
       linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
     background-size: 96px 96px;
     opacity: 0.7;
-    mask-image: radial-gradient(105% 70% at 50% 0%, #000 0%, transparent 62%);
-    -webkit-mask-image: radial-gradient(105% 70% at 50% 0%, #000 0%, transparent 62%);
-    pointer-events: none;
+    mask-image: radial-gradient(120% 90% at 34% 0%, #000 0%, transparent 70%);
+    -webkit-mask-image: radial-gradient(120% 90% at 34% 0%, #000 0%, transparent 70%);
   }
 
-  .auth-panel {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 384px;
-    padding: var(--space-6) 0;
+  .auth-canvas:not(.auth-canvas--media) .auth-stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(64% 52% at 62% 26%, var(--accent-soft) 0%, transparent 72%);
+    opacity: 0.8;
   }
 
   /* ---------------- auth background video ---------------- */
@@ -236,12 +328,8 @@
      database as two custom properties, so the panel owns the look and the
      renderer only carries the numbers. */
   .auth-canvas--media {
-    background-color: #0b0b0d;
-    isolation: isolate;
-  }
-
-  .auth-canvas--media::before {
-    display: none;
+    background-color: #08080a;
+    color-scheme: dark;
   }
 
   .auth-media {
@@ -249,7 +337,7 @@
     inset: 0;
     z-index: 0;
     overflow: hidden;
-    background-color: #0b0b0d;
+    background-color: #08080a;
   }
 
   .auth-media-video {
@@ -269,28 +357,96 @@
     inset: 0;
     background-color: rgba(9, 9, 11, var(--auth-dim, 58%));
     background-image:
-      radial-gradient(120% 86% at 50% 0%, rgba(9, 9, 11, 0) 34%, rgba(9, 9, 11, 0.42) 100%),
-      linear-gradient(180deg, rgba(9, 9, 11, 0.18) 0%, rgba(9, 9, 11, 0.34) 100%);
+      radial-gradient(120% 86% at 62% 0%, rgba(9, 9, 11, 0) 30%, rgba(9, 9, 11, 0.38) 100%),
+      linear-gradient(180deg, rgba(9, 9, 11, 0.16) 0%, rgba(9, 9, 11, 0.32) 100%);
   }
 
-  /* With a video behind it the column becomes a frosted card, so the form
-     stays readable whatever was uploaded. */
-  .auth-canvas--media .auth-panel {
-    max-width: 404px;
-    padding: 30px 32px 28px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: var(--radius-lg);
-    background-color: color-mix(in srgb, var(--surface) 93%, transparent);
-    box-shadow:
-      var(--shadow-3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
-    backdrop-filter: blur(26px) saturate(1.15);
-    -webkit-backdrop-filter: blur(26px) saturate(1.15);
+  /*
+   * Glass over the film. The dark token set lives on the rail itself, so every
+   * field, label, link and notice inside it follows without being told twice.
+   * The glass fades out to the right — both its darkening and its blur — so
+   * there is no seam where the panel ends and the footage begins.
+   */
+  .auth-canvas--media .auth-rail {
+    --ink: #ffffff;
+    --ink-secondary: rgba(255, 255, 255, 0.82);
+    --ink-tertiary: rgba(255, 255, 255, 0.58);
+    --line: rgba(255, 255, 255, 0.14);
+    --line-strong: rgba(255, 255, 255, 0.24);
+    --surface: rgba(255, 255, 255, 0.055);
+    --surface-subtle: rgba(255, 255, 255, 0.055);
+    --surface-raised: rgba(255, 255, 255, 0.1);
+    --accent-ring: rgba(224, 140, 146, 0.4);
+    --danger: #f2a5a1;
+    --danger-soft: rgba(240, 96, 92, 0.18);
+    --shadow-3: 0 18px 44px -20px rgba(0, 0, 0, 0.7);
+
+    border-right-color: transparent;
+    background-color: transparent;
+  }
+
+  .auth-rail-glass {
+    position: absolute;
+    inset: 0 -150px 0 0;
+    z-index: 0;
+    background-image: linear-gradient(
+      94deg,
+      rgba(8, 8, 10, 0.9) 0%,
+      rgba(8, 8, 10, 0.88) 56%,
+      rgba(8, 8, 10, 0.66) 74%,
+      rgba(8, 8, 10, 0.28) 89%,
+      rgba(8, 8, 10, 0) 100%
+    );
+    backdrop-filter: blur(30px) saturate(1.25);
+    -webkit-backdrop-filter: blur(30px) saturate(1.25);
+    mask-image: linear-gradient(90deg, #000 0%, #000 66%, rgba(0, 0, 0, 0.55) 84%, transparent 100%);
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      #000 0%,
+      #000 66%,
+      rgba(0, 0, 0, 0.55) 84%,
+      transparent 100%
+    );
+  }
+
+  /* On a narrow window the rail takes the whole frame and the film becomes a
+     backdrop rather than a second column. */
+  @media (max-width: 860px), (max-height: 560px) {
+    .auth-canvas {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .auth-stage {
+      display: none;
+    }
+
+    /* A single centred column, still over the film, rather than a rail that
+       has lost its stage. */
+    .auth-rail {
+      padding-inline: max(26px, calc((100% - 424px) / 2));
+    }
+
+    .auth-panel {
+      max-width: 380px;
+    }
+
+    .auth-rail-glass {
+      inset: 0;
+      background-image: linear-gradient(
+        180deg,
+        rgba(8, 8, 10, 0.82) 0%,
+        rgba(8, 8, 10, 0.92) 100%
+      );
+      mask-image: none;
+      -webkit-mask-image: none;
+      backdrop-filter: blur(34px) saturate(1.2);
+      -webkit-backdrop-filter: blur(34px) saturate(1.2);
+    }
   }
 
   .auth-title {
     font-family: var(--font-display-stack);
-    font-size: var(--fs-3xl);
+    font-size: clamp(1.9375rem, 2.1vw, 2.375rem);
     font-weight: 500;
     line-height: 1.04;
     letter-spacing: -0.038em;
@@ -305,7 +461,7 @@
 
   .auth-alt {
     margin-top: 22px;
-    text-align: center;
+    text-align: left;
     font-size: var(--fs-sm);
     color: var(--ink-tertiary);
   }

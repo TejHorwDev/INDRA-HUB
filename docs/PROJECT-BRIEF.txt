@@ -41,17 +41,17 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.6.0
-  Latest release:     v1.6.0 (GitHub, public)
+  Version:            1.6.1
+  Latest release:     v1.6.1 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
-  Cloud:              optional Supabase connection — database prepared, client
-                      not wired yet (see section 10)
+  Cloud:              Supabase — the shared workspace is live (section 8.5);
+                      user files remain local
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -72,7 +72,10 @@ reports the file, its pixels, its duration and whether it is running. 1.6.0
 put the administrator's switches in one shared cloud row: maintenance,
 registration, activation keys, the sign-in video and its treatment now apply to
 every PC within seconds, and a fresh installation starts with them instead of
-with defaults.
+with defaults. 1.6.1 rebuilt the signed-out window: the card that used to float
+in the middle of the screen is gone, and the form now lives in a full-height
+rail attached to the left edge, turned to glass across the film so the video
+plays behind it and fades out where the panel ends.
 
 
 3. STACK
@@ -131,6 +134,12 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 --------------------
 
 5.1 Accounts and sessions
+  - Signed-out shell: a full-height rail on the left edge carries the form over
+    the stage. With the administrator's background video installed the stage is
+    the film and the rail becomes glass across it — no card, no border and no
+    seam, because the glass fades out toward the stage; the brand sits at the
+    top of the rail and one quiet line at the foot. Only the form scrolls, so a
+    short window never hides the brand or the foot line.
   - Local registration with username, display name, email, password
   - Sign in with username OR email
   - scrypt hashing with per-record salt; constant-time verification
