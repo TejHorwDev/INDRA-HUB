@@ -59,6 +59,7 @@ let running = false
 let state: UpdateState = {
   phase: packaged ? 'idle' : 'unsupported',
   currentVersion: runningVersion(),
+  installedVersion: app.getVersion(),
   version: null,
   percent: 0,
   bytesPerSecond: 0,
@@ -82,7 +83,7 @@ function setState(patch: Partial<UpdateState>): void {
 
 export function updateState(): UpdateState {
   // The version can change under us once a payload has booted.
-  return { ...state, currentVersion: runningVersion() }
+  return { ...state, currentVersion: runningVersion(), installedVersion: app.getVersion() }
 }
 
 /**

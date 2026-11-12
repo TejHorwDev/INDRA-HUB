@@ -377,6 +377,8 @@ export interface UpdateState {
   phase: UpdatePhase
   /** Version currently running. */
   currentVersion: string
+  /** Version the one-time installer put on disk — the fallback the bootstrap returns to. */
+  installedVersion: string
   /** Version being downloaded or waiting to install. */
   version: string | null
   /** 0–100 while downloading. */
