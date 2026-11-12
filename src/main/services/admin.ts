@@ -300,6 +300,28 @@ export function adminSignIn(input: AdminLoginInput): AdminAccount {
   return toAccount({ ...row, last_sign_in_at: now })
 }
 
+/**
+ * Lets the ordinary Sign in screen recognise the administrator.
+ *
+ * There is one sign-in screen in the product, and it is the one people find, so
+ * typing the administrator's email and password there opens the administration
+ * panel rather than answering "that password is incorrect". The two identities
+ * stay separate underneath: this creates an admin session and no user session.
+ *
+ * A different email returns null without touching the throttle, so an ordinary
+ * user mistyping their own password can never lock the administrator out. An
+ * attempt on the administrator's own address is throttled exactly like the gate.
+ */
+export function signInAdminFromLogin(input: { identifier?: string; password?: string } | null): AdminAccount | null {
+  const row = adminRow()
+  if (!row) return null
+
+  const identifier = normalizeEmail(input?.identifier ?? '')
+  if (!identifier || identifier !== row.email) return null
+
+  return adminSignIn({ email: row.email, password: input?.password ?? '' })
+}
+
 export function adminSignOut(): void {
   const row = adminRow()
   const session = readSession()

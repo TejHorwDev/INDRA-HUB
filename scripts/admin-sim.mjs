@@ -99,6 +99,21 @@ module.exports = { app, net: { fetch: () => { throw new Error('offline') } }, Br
     }
   }
 
+  // The ordinary Sign in screen must recognise the administrator too.
+  const viaLogin = admin.signInAdminFromLogin({ identifier: EMAIL, password: PASSWORD })
+  if (!viaLogin || viaLogin.email !== EMAIL) {
+    fail('the administrator could not sign in from the ordinary sign-in screen')
+    return
+  }
+  console.log('✓ recognised on the ordinary sign-in screen')
+
+  admin.adminSignOut()
+  if (admin.signInAdminFromLogin({ identifier: 'someone@example.com', password: PASSWORD })) {
+    fail('a different email was recognised as the administrator')
+    return
+  }
+  console.log('✓ not recognised for any other email')
+
   console.log('✓ one administrator, the documented credentials, no other way in')
 }
 

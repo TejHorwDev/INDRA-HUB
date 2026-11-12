@@ -67,6 +67,12 @@ export const api = {
   auth: {
     current: (): Promise<SessionUser | null> => unwrap(bridge().auth.current()),
     signIn: (input: LoginInput): Promise<SessionUser> => unwrap(bridge().auth.login(input)),
+    /**
+     * The administrator signing in on the ordinary screen. Resolves to null for
+     * anyone else, which is indistinguishable from a wrong password.
+     */
+    signInAdmin: (input: { identifier: string; password: string }): Promise<AdminAccount | null> =>
+      unwrap(bridge().auth.adminLogin(input)),
     signUp: (input: RegisterInput): Promise<SessionUser> => unwrap(bridge().auth.register(input)),
     signOut: (): Promise<null> => unwrap(bridge().auth.logout()),
     updateProfile: (input: ProfileInput): Promise<SessionUser> =>

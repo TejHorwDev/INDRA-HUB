@@ -79,9 +79,12 @@ Every installation ships with exactly one administrator, created on first launch
 | Email | `admintej@gmail.com` |
 | Password | `AAaa1234@$` |
 
-Nothing on the sign-in or registration screens mentions it. The administration area opens with
-**Ctrl+Alt+A** (Cmd+Alt+A on macOS), or at `#/admin`, and asks for that email and password. A
-different email is refused, and five failures lock the gate for fifteen minutes.
+Nothing on the sign-in or registration screens mentions it. Signing in with that email and password
+on the ordinary **Sign in** screen opens the administration panel — one screen, two identities, and
+an admin session is created rather than a user session. The panel is also reachable directly with
+**Ctrl+Alt+A** (Cmd+Alt+A on macOS) or at `#/admin`. A different email is refused, and five failures
+on the administrator's address lock the gate for fifteen minutes; a wrong password on someone
+else's address never counts against it.
 
 The password is stored as a scrypt hash — the database never holds the plain text — but it does
 travel inside the application files, so it is a starting credential, not a secret. Change it from

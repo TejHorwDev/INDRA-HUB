@@ -6,7 +6,7 @@ import Button from '../components/Button'
 import Notice from '../components/Notice'
 import PasswordField from '../components/PasswordField'
 import TextField from '../components/TextField'
-import { errorMessage } from '../lib/api'
+import { api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
 
 export default function LoginScreen() {
@@ -44,6 +44,21 @@ export default function LoginScreen() {
       await signIn({ identifier: identifier.trim(), password })
       navigate('/dashboard', { replace: true })
     } catch (error) {
+      /*
+       * One screen, two identities. If these are the administrator's
+       * credentials, the panel opens instead of an error appearing; everyone
+       * else gets the ordinary message, and a wrong password on any other
+       * address cannot touch the administrator's throttle.
+       */
+      const admin = await api.auth
+        .signInAdmin({ identifier: identifier.trim(), password })
+        .catch(() => null)
+
+      if (admin) {
+        navigate('/admin', { replace: true })
+        return
+      }
+
       setFormError(errorMessage(error))
       setPending(false)
     }
