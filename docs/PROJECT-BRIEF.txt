@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.4.2
-  Latest release:     v1.4.0 (GitHub, public)
+  Version:            1.4.3
+  Latest release:     v1.4.3 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,14 +51,17 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2.
+v1.4.2, v1.4.3.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
 Version 1.4.0 removed every public entry point to administrator creation and
 shipped a built-in administrator account; 1.4.1 made that account work on the
 ordinary Sign in screen; 1.4.2 changed maintenance mode so it closes the
-workspace and not the sign-in screen.
+workspace and not the sign-in screen; 1.4.3 redesigned the maintenance screen
+itself (see section 6) so a signed-in account meets a composed status card —
+the administrator's message, the session facts, an activity track and one
+action — instead of a bare text column.
 
 
 3. STACK
@@ -131,6 +134,12 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     maintenance message, and every data call is refused in the main process
     while it is on. The administration panel stays reachable so it can be lifted
     from inside. Nothing on the maintenance screen points at administration.
+  - The maintenance screen is a composed card, not a text column: status
+    eyebrow with a live pulse, an automatic-checking pill, the administrator's
+    message as a quoted panel, a three-part fact strip (account, workspace,
+    last check), a quiet note, "Check now" / "Sign out", and an indeterminate
+    activity line along the bottom edge. Same hairline grid as the sign-in
+    canvas, light and dark, and it collapses to one column at narrow widths.
 
 5.2 Projects and teams
   - Create, rename, delete projects; each has a description
