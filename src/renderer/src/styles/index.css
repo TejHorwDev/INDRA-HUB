@@ -3019,6 +3019,22 @@
     border-top: 0;
   }
 
+  /* The raw error, under the human one. Monospace so it reads as a fact. */
+  .update-technical-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-top: calc(var(--space-1) * -1);
+  }
+
+  .update-technical {
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: var(--fs-2xs);
+    color: var(--ink-tertiary);
+    opacity: 0.75;
+    word-break: break-word;
+  }
+
   .account-note {
     max-width: 62ch;
     color: var(--ink-tertiary);

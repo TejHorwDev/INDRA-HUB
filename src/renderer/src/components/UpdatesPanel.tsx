@@ -102,6 +102,22 @@ export default function UpdatesPanel() {
     ? (error ?? state?.message ?? 'Try again later.')
     : (state?.message ?? (unsupported ? 'Install the app to receive updates.' : null))
 
+  /** So the exact failure can be pasted somewhere, not retyped from a photo. */
+  const copyDetails = async (text: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(
+        `${headline}\n${detail ?? ''}\n${text}\nversion ${state?.currentVersion ?? '?'} · checked ${state?.checkedAt ?? 'never'}`
+      )
+      toast.success('Details copied.')
+    } catch {
+      toast.error('Could not copy the details.')
+    }
+  }
+
+  // The technical reason, when there is one. Small, and never instead of the
+  // sentence above it — but it is the difference between "it broke" and a fix.
+  const technicalDetail = failed ? (state?.detail ?? null) : null
+
   const percent = state?.percent ?? 0
   const speed = state?.bytesPerSecond ?? 0
 
@@ -160,6 +176,21 @@ export default function UpdatesPanel() {
         {headline}
         {detail && detail !== headline ? ` ${detail}` : ''}
       </p>
+
+      {technicalDetail && (
+        <div className="update-technical-row">
+          <p className="update-hint update-technical" title="The exact error, for reporting">
+            {technicalDetail}
+          </p>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm w-auto"
+            onClick={() => void copyDetails(technicalDetail)}
+          >
+            Copy
+          </button>
+        </div>
+      )}
 
       <div className="account-actions">
         {ready ? (
