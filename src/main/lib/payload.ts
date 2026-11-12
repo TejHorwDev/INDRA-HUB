@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync
@@ -29,6 +30,14 @@ import { join } from 'node:path'
  *                                             installed copy, automatically
  *
  * So the worst case is "the update did not take", never "the app will not open".
+ *
+ * One trap worth naming: Electron's asar layer hijacks *every* filesystem path
+ * that contains ".asar", not just the archive the app is loaded from. A payload
+ * called `INDRA-HUB-Payload-1.3.3.asar` in userData is therefore read through
+ * the archive reader, which answers `Invalid package <path>` — a download that
+ * verified perfectly would still be rejected, and no update would ever apply.
+ * Every raw read of a payload file goes through `asPlainFile` because of this,
+ * and the download is written under a name that contains no such substring.
  */
 
 const FOLDER = 'update'
@@ -49,6 +58,22 @@ interface StoredPayload {
 export interface ActivePayload {
   path: string
   version: string
+}
+
+/**
+ * Runs a filesystem call with Electron's asar layer switched off.
+ *
+ * Synchronous on purpose: the flag is global to the process, so it must never be
+ * held across an `await`. Every caller here is a one-shot read or stat.
+ */
+function asPlainFile<T>(operation: () => T): T {
+  const previous = process.noAsar
+  process.noAsar = true
+  try {
+    return operation()
+  } finally {
+    process.noAsar = previous
+  }
 }
 
 function folder(): string {
@@ -121,6 +146,27 @@ export function readPending(): StoredPayload | null {
 }
 
 /**
+ * Clears download debris left by a failed or interrupted attempt.
+ *
+ * Called once at startup, before anything can start downloading, so it can
+ * never race a file that is still being written.
+ */
+export function prunePayloadDir(): void {
+  let entries: string[]
+  try {
+    entries = readdirSync(folder())
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    if (entry.endsWith('.part') || entry.endsWith('.download')) {
+      console.warn('[payload] removing unfinished download', entry)
+      remove(join(folder(), entry))
+    }
+  }
+}
+
+/**
  * A pending download that still matches a file on disk.
  *
  * `readPending` only reads the record, which is right for the bootstrap — it
@@ -131,7 +177,14 @@ export function readPending(): StoredPayload | null {
 export function readVerifiedPending(): StoredPayload | null {
   const pending = readPending()
   if (!pending) return null
-  return isValid(pending) ? pending : null
+  if (isValid(pending)) return pending
+
+  // The record points at a file that is missing or damaged: forget both, so the
+  // next check downloads a clean copy instead of trusting a broken one.
+  console.warn('[payload] discarding unusable download', pending.file)
+  remove(join(folder(), pending.file))
+  clearPending()
+  return null
 }
 
 /**
@@ -162,15 +215,17 @@ export function markHealthy(): void {
 }
 
 export function hashFile(path: string): string {
-  return createHash('sha256').update(readFileSync(path)).digest('hex')
+  return asPlainFile(() => createHash('sha256').update(readFileSync(path)).digest('hex'))
 }
 
 function bytes(file: string): number {
-  try {
-    return statSync(file).size
-  } catch {
-    return -1
-  }
+  return asPlainFile(() => {
+    try {
+      return statSync(file).size
+    } catch {
+      return -1
+    }
+  })
 }
 
 /** Numeric compare of `1.2.10` against `1.2.9`. Returns <0, 0 or >0. */

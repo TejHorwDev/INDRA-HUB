@@ -1,11 +1,12 @@
 import { app, BrowserWindow, net } from 'electron'
 import { open, rename, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { UpdateDiagnostics, UpdateState } from '@shared/types'
 import {
   compareVersions,
   hashFile,
   payloadDir,
+  prunePayloadDir,
   readVerifiedPending,
   runningVersion,
   writePending
@@ -139,6 +140,9 @@ function explain(error: unknown): string {
     )
   ) {
     return 'The update server could not be reached. Check the connection — and if this machine uses a proxy, make sure it is reachable.'
+  }
+  if (/invalid package/i.test(text)) {
+    return 'The downloaded update file could not be read. It has been discarded — try again.'
   }
   if (/checksum|size mismatch/i.test(text)) {
     return 'The downloaded update was damaged and has been discarded. It will be tried again.'
@@ -354,7 +358,19 @@ async function fetchManifestWithRetry(): Promise<Manifest> {
 
 /** Streams the payload to disk, reporting progress, and proves what arrived. */
 async function downloadPayload(manifest: Manifest): Promise<string> {
-  const target = join(payloadDir(), `${manifest.file}.part`)
+  // The manifest names a release asset; never a path.
+  const name = basename(manifest.file)
+
+  /*
+   * The temporary file deliberately contains no ".asar".
+   *
+   * Electron turns every path containing ".asar" into an archive lookup, so
+   * `…Payload-1.3.3.asar.part` is read as an *entry* of `…Payload-1.3.3.asar`
+   * and fails with "Invalid package" — the reason every download so far was
+   * thrown away after arriving intact. Written as ".download", hashed, then
+   * renamed: renaming is not intercepted.
+   */
+  const target = join(payloadDir(), `incoming-${name.replace(/\.asar$/i, '')}.download`)
   const controller = new AbortController()
   let stall: NodeJS.Timeout | undefined
 
@@ -418,10 +434,10 @@ async function downloadPayload(manifest: Manifest): Promise<string> {
     throw new Error('checksum mismatch')
   }
 
-  const final = join(payloadDir(), manifest.file)
+  const final = join(payloadDir(), name)
   await rm(final, { force: true })
   await rename(target, final)
-  return manifest.file
+  return name
 }
 
 export async function checkForUpdates(manual = false): Promise<UpdateState> {
@@ -568,6 +584,9 @@ export function checkForUpdatesOnFocus(): void {
 /** Called once at startup, after the database and IPC are ready. */
 export function initUpdates(): void {
   if (!packaged) return
+
+  // Debris from an interrupted download is never useful.
+  prunePayloadDir()
 
   // A payload downloaded in a previous session is already in place: the
   // bootstrap is running it, so report that rather than looking for it again.
