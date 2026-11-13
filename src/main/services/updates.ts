@@ -590,8 +590,14 @@ export function checkForUpdatesOnFocus(): void {
   void checkForUpdates(false)
 }
 
-/** Called once at startup, after the database and IPC are ready. */
-export function initUpdates(): void {
+/**
+ * Called once at startup, after the database and IPC are ready.
+ *
+ * `skipFirstCheck` is set when the launch card has already asked — the answer is
+ * on screen before this runs, and a second manifest fetch seconds later would
+ * only spend a request to learn the same thing.
+ */
+export function initUpdates(skipFirstCheck = false): void {
   if (!packaged) return
 
   // Debris from an interrupted download is never useful.
@@ -610,8 +616,10 @@ export function initUpdates(): void {
     })
   }
 
-  firstCheck = setTimeout(() => void checkForUpdates(false), FIRST_CHECK_DELAY_MS)
-  firstCheck.unref()
+  if (!skipFirstCheck) {
+    firstCheck = setTimeout(() => void checkForUpdates(false), FIRST_CHECK_DELAY_MS)
+    firstCheck.unref()
+  }
 
   interval = setInterval(() => void checkForUpdates(false), CHECK_INTERVAL_MS)
   interval.unref()

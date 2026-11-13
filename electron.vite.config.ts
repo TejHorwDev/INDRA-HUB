@@ -23,6 +23,19 @@ export default defineConfig({
       alias: {
         '@shared': resolve('src/shared')
       }
+    },
+    /*
+     * Two bridges, because there are two windows: the app's, and the launch
+     * card's, which can only say "painted" and hear a stage. Giving the card the
+     * app's bridge would hand a 336px window the whole IPC surface.
+     */
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          splash: resolve('src/preload/splash.ts')
+        }
+      }
     }
   },
   renderer: {
@@ -39,7 +52,13 @@ export default defineConfig({
       minify: true,
       target: 'esnext',
       sourcemap: false,
-      chunkSizeWarningLimit: 900
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        input: {
+          index: resolve('src/renderer/index.html'),
+          splash: resolve('src/renderer/splash.html')
+        }
+      }
     },
     server: {
       port: 5173,

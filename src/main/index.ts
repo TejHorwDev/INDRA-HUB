@@ -11,6 +11,7 @@ import {
   stopWorkspaceSync
 } from './services/workspace'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
+import { runLaunchSplash } from './splash'
 import {
   recheckConnectivity,
   startConnectivity,
@@ -183,8 +184,12 @@ app.whenReady().then(() => {
   // it stops being on probation and will be used again next time.
   markHealthy()
 
-  // An installed build looks for a newer release in the background.
-  initUpdates()
+  /*
+   * An installed build looks for a newer release in the background. The launch
+   * card already performs the first check, so the service starts with its timer
+   * only — otherwise the same manifest would be fetched twice within a second.
+   */
+  initUpdates(!isDev)
 
   // Window controls. Every handler resolves the window from its own sender so
   // no renderer can drive a window it does not belong to.
@@ -228,7 +233,17 @@ app.whenReady().then(() => {
     })
   }
 
-  createWindow()
+  /*
+   * The launch card comes first, then the app.
+   *
+   * Only the packaged build shows it: a dev run has no update to find, and a
+   * spinner before Vite's server is ready would just be in the way. Whatever
+   * happens in the card — up to date, offline, an error, or a restart — the
+   * app opens next.
+   */
+  void runLaunchSplash().finally(() => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -366,8 +366,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const key = Deno.env.get('GEMINI_API_KEY') ?? Deno.env.get('GOOGLE_API_KEY') ?? ''
   const token = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
 
-  if (!token) return fail(401, 'unauthorized', 'Sign in to the cloud first.')
-
   let body: Body
   try {
     body = (await request.json()) as Body
@@ -400,6 +398,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
       unit: 'tokens'
     })
   }
+
+  if (!token) return fail(401, 'unauthorized', 'Sign in to the cloud first.')
 
   const mode = body.mode === 'research' ? 'research' : 'chat'
   const prompt = str(body.prompt, 8000)

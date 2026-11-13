@@ -1,0 +1,149 @@
+/*
+ * The launch window's stylesheet.
+ *
+ * It is deliberately its own file, not design.css: this page paints before any
+ * app code runs, in a window smaller than a phone, and it must look finished in
+ * the first frame. One card, one ring, one line.
+ */
+
+:root {
+  --card: #1b1c1f;
+  --card-edge: #2b2c30;
+  --ink: #f2f3f5;
+  --ink-muted: #9a9ca1;
+  --track: #33353a;
+  --arc: #f4f5f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  /* The window is transparent; the card is the only thing that exists. */
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+.splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  width: 100%;
+  height: 100%;
+  padding: 0 28px;
+  border: 1px solid var(--card-edge);
+  border-radius: 14px;
+  background-color: var(--card);
+  animation: splash-in 260ms ease-out both;
+}
+
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---------------- the ring ---------------- */
+
+.splash-ring {
+  width: 54px;
+  height: 54px;
+}
+
+.splash-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Slower than a phone spinner: this is a launch, not a button. */
+  animation: splash-turn 1.15s linear infinite;
+}
+
+.splash-track,
+.splash-arc {
+  fill: none;
+  stroke-width: 4.5;
+}
+
+.splash-track {
+  stroke: var(--track);
+}
+
+.splash-arc {
+  stroke: var(--arc);
+  stroke-linecap: round;
+  /* A quarter of the circle, so the gap is unmistakable at 54px. */
+  stroke-dasharray: 47 142;
+}
+
+@keyframes splash-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------------- the line ---------------- */
+
+.splash-stage {
+  margin: 0;
+  color: var(--ink-muted);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 1.4;
+  text-align: center;
+  transition: opacity 180ms ease;
+}
+
+/* A stage change fades the sentence rather than swapping it mid-word. */
+.splash-stage.is-swapping {
+  opacity: 0;
+}
+
+.splash-stage.is-final {
+  color: var(--ink);
+}
+
+body.is-closing .splash {
+  animation: splash-out 200ms ease-in both;
+}
+
+@keyframes splash-out {
+  to {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash {
+    animation: none;
+  }
+
+  .splash-ring svg {
+    animation-duration: 2.8s;
+  }
+
+  .splash-stage {
+    transition: none;
+  }
+}

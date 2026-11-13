@@ -75,27 +75,28 @@ async function main() {
 
   const gemini = (body) => {
     const json = body.generationConfig?.responseMimeType === 'application/json'
+    const system = String(body.systemInstruction?.parts?.[0]?.text ?? '')
     const grounded = Array.isArray(body.tools) && body.tools.some((tool) => tool.google_search)
     if (json) {
+      /* The gap turn is asked for the questions nobody asked yet. */
+      const gap = system.includes('deciding what is still missing')
+      const text = gap
+        ? JSON.stringify({
+            questions: [
+              'What did the strongest sceptical analysis conclude?',
+              'Which subsidy changed in the last budget?'
+            ]
+          })
+        : JSON.stringify({
+            questions: [
+              'What does a battery earn per cycle in India?',
+              'How far have cell prices fallen?',
+              'Who argues storage is still uneconomic?'
+            ],
+            angle: 'Costs fell faster than the market rules adapted.'
+          })
       return {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  text: JSON.stringify({
-                    questions: [
-                      'What does a battery earn per cycle in India?',
-                      'How far have cell prices fallen?',
-                      'Who argues storage is still uneconomic?'
-                    ],
-                    angle: 'Costs fell faster than the market rules adapted.'
-                  })
-                }
-              ]
-            }
-          }
-        ],
+        candidates: [{ content: { parts: [{ text }] } }],
         usageMetadata: { promptTokenCount: 500, candidatesTokenCount: 120, totalTokenCount: 620 }
       }
     }
@@ -210,6 +211,11 @@ async function main() {
   check((await call({ prompt: '  ' })).status === 400, 'an empty question is refused')
 
   calls.length = 0
+  const statusNoKey = await call({ action: 'status' }, { token: '' })
+  check(statusNoKey.status === 200 && statusNoKey.body.configured === false, 'the readiness probe answers without a key', JSON.stringify(statusNoKey.body))
+  check(statusNoKey.body.keySource === null && statusNoKey.body.research === true, 'it names no source and still reports research')
+  check(calls.every((entry) => !entry.url.includes('generativelanguage')), 'the probe never calls a provider')
+
   const noKey = await call({ prompt: 'hi' })
   check(noKey.status === 503 && noKey.body.error === 'not_configured', 'no key: reported as not configured', noKey.body?.message)
   check(calls.every((entry) => !entry.url.includes('generativelanguage')), 'no key: no provider is called')
@@ -217,6 +223,11 @@ async function main() {
   /* ---------------- chat: charged by real usage ---------------- */
 
   env.GEMINI_API_KEY = 'test-key'
+  const status = await call({ action: 'status' })
+  check(status.status === 200 && status.body.configured === true, 'the probe reports a configured workspace')
+  check(status.body.keySource === 'GEMINI_API_KEY', 'it names the variable that supplied it', status.body.keySource)
+  check(JSON.stringify(status.body).includes('test-key') === false, 'the key itself is never in the answer')
+
   balance.daily = 20000
   balance.purchased = 5000
   balance.spent.length = 0
@@ -240,12 +251,17 @@ async function main() {
 
   const research = await call({ mode: 'research', depth: 'deep', prompt: 'Storage economics in India', documentTitle: 'The storage piece' })
   check(research.status === 200 && research.body.mode === 'research', 'a research run answers')
-  check(research.body.outline.length === 3, 'the plan produced the questions', String(research.body.outline?.length))
-  check(research.body.citations.length === 2, 'the sources are deduplicated across searches', JSON.stringify(research.body.citations?.map((c) => c.url)))
+  check(research.body.outline.length === 5, 'deep research planned three questions and added two gaps', String(research.body.outline?.length))
+  check(research.body.followUps?.length === 2, 'the gap questions are reported separately', JSON.stringify(research.body.followUps))
+  check(research.body.citations.length === 2, 'the sources are deduplicated across both rounds', JSON.stringify(research.body.citations?.map((c) => c.url)))
   const providerCalls = calls.filter((entry) => entry.url.includes('generativelanguage'))
-  check(providerCalls.length === 5, 'one planning call, three searches, one synthesis', String(providerCalls.length))
+  check(providerCalls.length === 8, 'plan, three searches, a gap turn, two more searches, synthesis', String(providerCalls.length))
   const spendCalls = calls.filter((entry) => entry.url.includes('indra_spend_ai'))
-  check(spendCalls.length === 5, 'every step is charged as it happens')
+  check(spendCalls.length === 8, 'every step is charged as it happens', String(spendCalls.length))
+  check(
+    providerCalls.some((entry) => String(entry.body?.systemInstruction?.parts?.[0]?.text ?? '').includes('deciding what is still missing')),
+    'the gap pass is a real turn, not a repeat of the plan'
+  )
   check(research.body.usage.cost === balance.spent.reduce((sum, cost) => sum + cost, 0), 'the reported total is the sum of the charges')
   check(research.body.answer.includes('[1]'), 'the brief keeps its citations')
   check(research.body.balance.total === 40000 - research.body.usage.cost, 'the balance is the server’s after the run')
