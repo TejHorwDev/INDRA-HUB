@@ -67,6 +67,13 @@ jobs:
       - name: Compile main, preload and renderer
         run: npm run build
 
+      # 2.9.6 shipped an installer whose window could not open: main.js required
+      # a file the packaging step did not copy. The check is cheap, it runs
+      # before anything is built, and it is the only place that knows both what
+      # the code requires and what the file list ships.
+      - name: Check the installer's own files
+        run: npm run sim:installer
+
       - name: Package the Windows installer
         run: npx electron-builder --win --publish never
 

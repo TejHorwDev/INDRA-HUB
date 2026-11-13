@@ -20,7 +20,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
-const { ensureAppFolder } = require('./app-folder')
+const { ensureAppFolder } = require('./ui/app-folder')
 
 const APP_NAME = 'INDRA HUB'
 const EXE_NAME = 'INDRA HUB.exe'

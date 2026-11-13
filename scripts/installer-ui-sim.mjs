@@ -102,7 +102,7 @@ check(
 
 /* ---- 2c. the app gets its own folder inside whatever was chosen ---- */
 
-const { ensureAppFolder } = createRequire(import.meta.url)(join(installer, 'app-folder.js'))
+const { ensureAppFolder } = createRequire(import.meta.url)(join(installer, 'ui', 'app-folder.js'))
 check(
   ensureAppFolder('C:\\Users\\A\\Desktop') === 'C:\\Users\\A\\Desktop\\INDRA HUB',
   'choosing the Desktop installs into Desktop\\INDRA HUB, not loose on it',
@@ -118,8 +118,8 @@ check(
 )
 check(ensureAppFolder('') === '', 'an empty choice stays empty')
 
-check(/require\('\.\/app-folder'\)/.test(main), 'the main process uses that rule')
-check(/app-folder\.js/.test(html), 'and so does the page')
+check(/require\('\.\/ui\/app-folder'\)/.test(main), 'the main process uses that rule')
+check(/<script src="app-folder\.js"><\/script>/.test(html), 'and so does the page')
 check(/path\.dirname\(suggested\)/.test(main), 'the picker opens where the app would be created')
 check(/dir: target\.dir/.test(main), 'the window is told the folder that was really used')
 
@@ -175,6 +175,29 @@ check(
   !/electron-builder.*--publish/.test(main),
   'the window does not try to publish anything itself'
 )
+
+/* The bug this replaces: a require of a file the packaging step did not copy,
+   so the window died on its first line on Windows while every check here
+   passed. Every relative require in main.js must be inside the file list. */
+const packaged = (() => {
+  const yml = readFileSync(join(installer, 'electron-builder.yml'), 'utf8')
+  const block = yml.slice(yml.indexOf('files:'))
+  const list = block.slice(0, block.indexOf('compression')).split('\n')
+  return list.filter((line) => /^\s+-\s+[^!]/.test(line)).map((line) => line.replace(/^\s+-\s+/, '').trim())
+})()
+const requires = [...main.matchAll(/require\('\.\/([^']+)'\)/g)].map((m) => m[1])
+check(requires.length > 0, 'the main process does require something of its own')
+for (const wanted of requires) {
+  const file = wanted.endsWith('.js') ? wanted : `${wanted}.js`
+  const covered = packaged.some((glob) =>
+    glob.endsWith('/**/*') ? file.startsWith(glob.replace('/**/*', '/')) : glob === file
+  )
+  check(
+    existsSync(join(installer, file)) && covered,
+    `"${file}" is required by main.js and is shipped in the installer`
+  )
+}
+check(packaged.includes('ui/**/*'), 'the ui folder is what the file list covers')
 
 console.log('')
 if (failures > 0) {
