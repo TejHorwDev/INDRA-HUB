@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { CloudProjectState, ProjectDetail, ProjectMember } from '@shared/types'
+import type { CloudProjectState, InvitationSummary, ProjectDetail, ProjectMember } from '@shared/types'
 import AddMemberDialog from '../components/AddMemberDialog'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
@@ -9,6 +9,7 @@ import RemoveMemberDialog from '../components/RemoveMemberDialog'
 import { useToast } from '../components/ToastProvider'
 import { AlertCircleIcon, CloudIcon, FolderIcon, PlusIcon, SaveIcon } from '../components/icons'
 import { api, errorCode, errorMessage } from '../lib/api'
+import { cancelInvitation } from '../lib/invitations'
 import { useConnectivity } from '../lib/connectivity'
 import { useSession } from '../lib/session'
 import { formatDate, formatRelative, initialsOf } from '../lib/format'
@@ -106,6 +107,16 @@ export default function ProjectDashboardScreen() {
   useEffect(() => {
     void load()
   }, [load])
+
+  async function cancelInvite(invitation: InvitationSummary): Promise<void> {
+    try {
+      await cancelInvitation(invitation.id)
+      setProject(await api.projects.get(projectId))
+      toast.success(`Invitation to ${invitation.displayName} cancelled.`)
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    }
+  }
 
   async function confirmRemove() {
     if (!removeTarget || !project) return
@@ -222,7 +233,7 @@ export default function ProjectDashboardScreen() {
                 onClick={() => setAddOpen(true)}
               >
                 <PlusIcon size={15} />
-                Add member
+                Invite member
               </button>
             )}
           </div>
@@ -279,7 +290,7 @@ export default function ProjectDashboardScreen() {
 
             <p className="info-foot">
               {isOwner
-                ? 'You own this project: only you can add or remove members.'
+                ? 'You own this project: only you can invite or remove members. People join by accepting.'
                 : 'Your access comes from the head developer. Team changes are managed by them.'}
             </p>
           </section>
@@ -329,7 +340,30 @@ export default function ProjectDashboardScreen() {
                 </li>
               ))}
 
-              {project.members.length === 0 && (
+              {project.invitations.map((invitation) => (
+                <li className="team-row" key={invitation.id}>
+                  <span className="team-avatar">{initialsOf(invitation.displayName)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="team-name">{invitation.displayName}</span>
+                      <span className="badge">Invited</span>
+                    </span>
+                    <span className="team-handle">{invitation.email}</span>
+                  </span>
+                  <span className="team-joined">Asked {formatRelative(invitation.createdAt)}</span>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm w-auto"
+                      onClick={() => void cancelInvite(invitation)}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </li>
+              ))}
+
+              {project.members.length === 0 && project.invitations.length === 0 && (
                 <li className="team-empty">
                   <span>No one else is on this project yet.</span>
                   {isOwner && (
@@ -351,8 +385,10 @@ export default function ProjectDashboardScreen() {
       <AddMemberDialog
         open={addOpen}
         projectId={project.id}
+        pending={project.invitations}
         onClose={() => setAddOpen(false)}
-        onUpdated={setProject}
+        onInvited={setProject}
+        onCancel={(invitation) => void cancelInvite(invitation)}
       />
 
       <RemoveMemberDialog

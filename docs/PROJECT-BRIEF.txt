@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.2
-  Latest release:     v1.9.2 (GitHub, public)
+  Version:            1.9.3
+  Latest release:     v1.9.3 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -53,7 +53,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2.
+v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -325,6 +325,35 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - One team per owner, created in place, renamed in place, deleted behind a
     confirmation. The roster lists the owner first, then members; a member is
     removed from the row itself.
+  - **Joining is consensual (1.9.3).** Choosing a person sends them an
+    invitation; it does not enlist them. Nothing of the team — or of a project —
+    is reachable until they accept, because access is derived from the
+    membership tables and acceptance is the only thing that writes one. This
+    was a correction, not a refinement: adding somebody used to put them on a
+    roster, and in a project, with no way to notice or refuse.
+  - An invitation is a row in this installation's database: one account invited
+    for one team or one project, with a status (`pending`, `accepted`,
+    `declined`, `revoked`, `cancelled`) and the time it was answered. A
+    partial unique index allows one pending question per person and target, so
+    double-clicking a button cannot send two.
+  - The invitee answers on Home: a section above the panels names what it is for,
+    who asked, and offers Accept and Decline. The rail carries a count on Home
+    while one is waiting, and an invitation that arrives while the app is open
+    is announced once in a toast. A poll on focus and every 30 seconds is how it
+    is noticed — there is no server pushing, because there is no server.
+  - Declining is an answer, not a deletion: the owner is not left waiting, the
+    row stays as a record, and re-inviting the person later is a deliberate act
+    rather than an automatic one. The invited person cannot withdraw a question
+    themselves; only the owner of the team or project can revoke one, and even
+    then it is recorded as revoked rather than erased.
+  - Until it is answered, the person appears on the owner's roster marked
+    "invited", with their address and a Cancel action, and is filtered out of
+    the search so the same question cannot be sent twice. Their `memberCount`
+    does not change — the count is people with access, not people asked.
+  - Deleting a team, or a project, cancels the questions it left open; an
+    invitation whose target no longer exists cannot be accepted.
+  - Invitations are local to an installation, like accounts. They are not a
+    cloud object and do not travel to another PC by themselves.
   - **People are found by email, not by name (1.9.2).** Names repeat, and an
     initials avatar makes two people with the same name look like one person,
     so the search field asks for the address the account was registered with.
@@ -343,8 +372,9 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     on them, and deleting a team touches no account and no document.
   - Create, rename, delete projects; each has a description
   - Owner/member model stored in project_members
-  - Add members by exact email address; the matched account's name and address
-    are shown so the choice is made by name
+  - Invite members by exact email address; the matched account's name and
+    address are shown so the choice is made by name, and the invitation is
+    answered by them on their own Home screen (section 5.2)
   - Membership checks on every read and write in the service layer
   - Project dashboard: overview, members, documents, presentations, activity
   - Project workspace: a combined view of the project's material

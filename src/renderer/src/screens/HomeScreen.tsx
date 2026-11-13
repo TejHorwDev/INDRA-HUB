@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import type { TeamDetail, TeamOverview } from '@shared/types'
+import type { InvitationSummary, TeamDetail, TeamOverview } from '@shared/types'
 import AddTeamMemberDialog from '../components/AddTeamMemberDialog'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
 import TeamNameDialog from '../components/TeamNameDialog'
 import { useToast } from '../components/ToastProvider'
-import { UsersIcon, XIcon } from '../components/icons'
+import { FolderIcon, UsersIcon, XIcon } from '../components/icons'
 import { api, errorMessage } from '../lib/api'
+import {
+  acceptInvitation,
+  cancelInvitation,
+  declineInvitation,
+  refreshInvitations,
+  useInvitations
+} from '../lib/invitations'
 import { initialsOf, toneOf } from '../lib/format'
 import { useSession } from '../lib/session'
 
@@ -18,9 +25,14 @@ import { useSession } from '../lib/session'
  *
  * Two things, side by side, and nothing else. The profile is the account the
  * app is signed in as; the team is the standing group this installation knows
- * about, with the roster, the one action that matters (add someone) and the
+ * about, with the roster, the one action that matters (invite someone) and the
  * removal that a roster needs. Everything else the app can do has its own
  * place already — a home screen that repeats it is just a menu with a hero.
+ *
+ * Invitations sit above both, and only while one is waiting. Being asked to
+ * join something is the one thing on Home that has a deadline in spirit: an
+ * unanswered question blocks the person who asked. So it is answered here, in
+ * place, without a trip to another screen.
  */
 function memberSince(value: string): string {
   const date = new Date(value)
@@ -37,6 +49,8 @@ export default function HomeScreen() {
   const [nameDialog, setNameDialog] = useState<'create' | 'rename' | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [answeringId, setAnsweringId] = useState<string | null>(null)
+  const invitations = useInvitations()
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +85,37 @@ export default function HomeScreen() {
     }
   }
 
+  async function answer(invitation: InvitationSummary, accept: boolean): Promise<void> {
+    if (answeringId) return
+    setAnsweringId(invitation.id)
+    try {
+      const result = accept
+        ? await acceptInvitation(invitation.id)
+        : await declineInvitation(invitation.id)
+      toast.success(
+        result.accepted
+          ? `You joined ${result.targetName}.`
+          : `You declined the invitation to ${result.targetName}.`
+      )
+      // Accepting can add a team to "Member of", or a project to the list.
+      if (result.accepted) await load()
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setAnsweringId(null)
+    }
+  }
+
+  async function cancelInvite(invitation: InvitationSummary): Promise<void> {
+    try {
+      await cancelInvitation(invitation.id)
+      setOverview(await api.team.read())
+      toast.success(`Invitation to ${invitation.displayName} cancelled.`)
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    }
+  }
+
   async function deleteTeam(): Promise<void> {
     try {
       setOverview(await api.team.remove())
@@ -83,6 +128,60 @@ export default function HomeScreen() {
 
   return (
     <Page title="Home">
+      {invitations.length > 0 && (
+        <section className="home-invites" aria-labelledby="home-invites-title">
+          <div className="home-section-head">
+            <h2 id="home-invites-title" className="home-section-title">
+              Invitations
+            </h2>
+            <span className="home-count">
+              {invitations.length} waiting for you
+            </span>
+          </div>
+
+          <ul className="invite-list">
+            {invitations.map((invitation) => (
+              <li key={invitation.id} className="invite-card">
+                <span className="invite-mark" aria-hidden="true">
+                  {invitation.kind === 'team' ? <UsersIcon size={16} /> : <FolderIcon size={16} />}
+                </span>
+
+                <span className="invite-text">
+                  <span className="invite-title">
+                    {invitation.targetName}
+                    <span className="badge">{invitation.kind === 'team' ? 'Team' : 'Project'}</span>
+                  </span>
+                  <span className="invite-sub">
+                    {invitation.invitedByName} invited you to join
+                    {invitation.kind === 'project' ? ' this project' : ' their team'}.
+                  </span>
+                </span>
+
+                <span className="invite-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm w-auto"
+                    onClick={() => void answer(invitation, true)}
+                    disabled={answeringId !== null}
+                  >
+                    {answeringId === invitation.id ? <span className="spinner" aria-hidden="true" /> : null}
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm w-auto"
+                    onClick={() => void answer(invitation, false)}
+                    disabled={answeringId !== null}
+                  >
+                    Decline
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="home">
         <section className="home-profile">
           <span className="avatar avatar--lg" style={{ '--tone': toneOf(user?.id ?? '') } as CSSProperties}>
@@ -113,6 +212,9 @@ export default function HomeScreen() {
             {team && (
               <span className="home-count">
                 {team.memberCount} {team.memberCount === 1 ? 'member' : 'members'}
+                {team.invitations.length > 0
+                  ? ` · ${team.invitations.length} invited`
+                  : ''}
               </span>
             )}
             {team && (
@@ -138,7 +240,7 @@ export default function HomeScreen() {
               variant="panel"
               icon={<UsersIcon size={18} />}
               title="No team yet"
-              description="Create a team, then add the people you work with."
+              description="Create a team, then invite the people you work with."
               action={
                 <button type="button" className="btn btn-primary w-auto" onClick={() => setNameDialog('create')}>
                   Create team
@@ -185,11 +287,46 @@ export default function HomeScreen() {
                     )}
                   </li>
                 ))}
+                {/* Asked, not joined: the owner sees who has not answered yet. */}
+                {team.invitations.map((invitation) => (
+                  <li key={invitation.id} className="member member--invited">
+                    <span
+                      className="avatar"
+                      style={{ '--tone': toneOf(invitation.personId) } as CSSProperties}
+                      aria-hidden="true"
+                    >
+                      {initialsOf(invitation.displayName)}
+                    </span>
+
+                    <span className="member-text">
+                      <span className="member-name">
+                        {invitation.displayName}
+                        <span className="member-you">invited</span>
+                      </span>
+                      <span className="member-handle">{invitation.email}</span>
+                    </span>
+
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => void cancelInvite(invitation)}
+                      aria-label={`Cancel the invitation to ${invitation.displayName}`}
+                    >
+                      Cancel
+                    </button>
+                  </li>
+                ))}
               </ul>
+
+              {team.invitations.length > 0 && (
+                <p className="home-team-note">
+                  Invited people join when they accept, on their own Home screen.
+                </p>
+              )}
 
               <div className="home-team-foot">
                 <button type="button" className="btn btn-ghost btn-sm w-auto" onClick={() => setAddOpen(true)}>
-                  Add member
+                  Invite member
                 </button>
               </div>
             </>
@@ -231,10 +368,12 @@ export default function HomeScreen() {
       <AddTeamMemberDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onAdded={(next) => {
+        pending={team?.invitations ?? []}
+        onInvited={(next) => {
           setOverview((current) => ({ owned: next, memberOf: current?.memberOf ?? [] }))
-          toast.success('Added to the team.')
+          void refreshInvitations()
         }}
+        onCancel={(invitation) => void cancelInvite(invitation)}
       />
 
       <ConfirmDialog

@@ -5409,3 +5409,175 @@ body,
   font-weight: 500;
   overflow-wrap: anywhere;
 }
+
+/* ---------------- invitations ---------------- */
+
+/*
+ * A question, not an admission. The invitation is drawn as a row rather than a
+ * banner: a mark for what it is, the name of the thing, who asked, and the two
+ * answers. It sits above the Home panels and disappears the moment it is
+ * answered, so the screen returns to being about the person and their team.
+ */
+.home-invites {
+  margin-bottom: var(--space-4);
+}
+
+.invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invite-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  animation: rise-in var(--dur-base) var(--ease) both;
+}
+
+.dark .invite-card {
+  box-shadow: var(--edge-top);
+}
+
+.invite-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+.invite-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.invite-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.invite-sub {
+  font-size: var(--fs-xs);
+  color: var(--ink-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.invite-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The one line that says a question left: quiet, and only where it happened. */
+.invite-sent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 24px 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.invite-sent svg {
+  flex: none;
+}
+
+/* Inside a dialog: the questions still out, under the one being asked now. */
+.invite-pending {
+  margin-top: 6px;
+  padding: 14px 24px 6px;
+  border-top: 1px solid var(--line);
+}
+
+.invite-pending-head {
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.invite-pending .member-list {
+  margin-top: 6px;
+}
+
+/* On a roster, invited is a state, not a membership: dimmed, and labelled. */
+.member--invited .member-handle {
+  color: var(--ink-tertiary);
+}
+
+.member--invited .avatar {
+  opacity: 0.6;
+}
+
+.home-team-note {
+  margin-top: 10px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--ink-tertiary);
+}
+
+/* The rail's only count: how many questions are waiting on Home. */
+.sidebar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background-color: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Collapsed, the rail has no room for a number — a dot carries the same news. */
+.sidebar--collapsed .sidebar-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  min-width: 6px;
+  height: 6px;
+  padding: 0;
+  font-size: 0;
+}
+
+@media (max-width: 640px) {
+  .invite-card {
+    flex-wrap: wrap;
+  }
+
+  .invite-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

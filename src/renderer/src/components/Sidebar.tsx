@@ -5,6 +5,7 @@ import { initialsOf, toneOf } from '../lib/format'
 import { navGroups } from '../lib/nav'
 import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
+import { useInvitations } from '../lib/invitations'
 import {
   ChevronLeftIcon,
   CodeIcon,
@@ -34,6 +35,9 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const { user, signOut } = useSession()
   const { offline } = useConnectivity()
+  const invitations = useInvitations()
+  // A count on Home, because that is where an invitation is answered.
+  const waiting = invitations.length
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -73,10 +77,24 @@ export default function Sidebar() {
                 className={({ isActive }) =>
                   `sidebar-item${isActive ? ' sidebar-item--active' : ''}`
                 }
-                title={collapsed ? item.label : undefined}
+                title={
+                  collapsed
+                    ? item.to === '/home' && waiting > 0
+                      ? `${item.label} — ${waiting} waiting`
+                      : item.label
+                    : undefined
+                }
               >
                 <span className="sidebar-icon">{ICONS[item.to]}</span>
                 <span className="sidebar-label">{item.label}</span>
+                {item.to === '/home' && waiting > 0 && (
+                  <span
+                    className="sidebar-badge"
+                    aria-label={`${waiting} ${waiting === 1 ? 'invitation' : 'invitations'} waiting`}
+                  >
+                    {waiting}
+                  </span>
+                )}
               </NavLink>
             ))}
           </div>

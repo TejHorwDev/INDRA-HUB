@@ -75,6 +75,36 @@ export interface TeamDetail {
   memberCount: number
   /** The owner first, then everyone else by name. */
   members: TeamMember[]
+  /** People asked and not yet answered. Only the owner sees these. */
+  invitations: InvitationSummary[]
+}
+
+/**
+ * A request to join a team or a project, waiting for an answer.
+ *
+ * Adding somebody is not the same as them joining: the person on the other end
+ * is told, and can say no. Until they accept, the roster shows them as invited
+ * and nothing of theirs is shared.
+ */
+export interface InvitationSummary {
+  id: string
+  kind: 'team' | 'project'
+  targetId: string
+  /** Team name, or project name, whichever the invitation is for. */
+  targetName: string
+  personId: string
+  displayName: string
+  email: string
+  invitedByName: string
+  createdAt: string
+}
+
+/** What a screen gets back once an invitation has been answered. */
+export interface InvitationAnswer {
+  kind: 'team' | 'project'
+  targetId: string
+  targetName: string
+  accepted: boolean
 }
 
 /** What the home screen needs: the team you own, and any you merely belong to. */
@@ -248,6 +278,8 @@ export interface ProjectSummary {
 export interface ProjectDetail extends ProjectSummary {
   owner: UserSummary
   members: ProjectMember[]
+  /** People asked and not yet answered. Only the head developer sees these. */
+  invitations: InvitationSummary[]
 }
 
 export interface CreateProjectInput {

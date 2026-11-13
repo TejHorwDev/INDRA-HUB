@@ -2,14 +2,19 @@ import { randomUUID } from 'node:crypto'
 import type { SessionUser, TeamDetail, TeamOverview, UserSummary } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
+import { inviteToTeam, pendingInvitations } from './invitations'
 
 /*
  * Teams: the small group of people who work together inside one installation.
  *
  * One team per person — enforced by a unique index, not by the UI — and a
- * roster of colleagues they have added. The owner is the team: they are never
- * a member row (a trigger rejects that), they alone may rename it, change the
- * roster or delete it, and everyone on the roster can see who else is on it.
+ * roster of colleagues who agreed to be on it. The owner is the team: they are
+ * never a member row (a trigger rejects that), they alone may rename it, change
+ * the roster or delete it, and everyone on the roster can see who else is on it.
+ *
+ * Adding somebody asks them; it does not enlist them. The invitation itself
+ * lives in services/invitations.ts, and until it is accepted the person is
+ * shown to the owner as invited and is not on the roster.
  *
  * This is deliberately a separate idea from project membership. A project
  * belongs to one person and may borrow a few individuals; a team is the
@@ -18,7 +23,6 @@ import { errors } from '../lib/errors'
  */
 
 const MAX_NAME = 60
-const MAX_MEMBERS = 50
 
 interface TeamRow {
   id: string
@@ -100,14 +104,19 @@ function detail(row: TeamRow, viewerId: string): TeamDetail {
     )
     .all(row.id) as unknown as MemberRow[]
 
+  const isOwner = row.owner_id === viewerId
+
   return {
     id: row.id,
     name: row.name,
     ownerId: row.owner_id,
     ownerName: owner?.display_name ?? 'Unknown',
     createdAt: row.created_at,
-    role: row.owner_id === viewerId ? 'owner' : 'member',
+    role: isOwner ? 'owner' : 'member',
     memberCount: members.length + 1,
+    // The questions the owner is waiting on. A member never sees who else was
+    // asked, because being asked is nobody else's business.
+    invitations: isOwner ? pendingInvitations('team', row.id) : [],
     members: [
       {
         id: owner?.id ?? row.owner_id,
@@ -180,35 +189,24 @@ export function deleteTeam(viewer: SessionUser): TeamOverview {
   return teamOverview(viewer)
 }
 
-export function addTeamMember(viewer: SessionUser, userId: unknown): TeamDetail {
+/**
+ * Inviting somebody to the team.
+ *
+ * Called "add member" in the screens and "invite" in the service on purpose:
+ * what the owner does is choose a person, and what happens is a question. The
+ * person joins when they accept, from their own Home screen.
+ */
+export function inviteTeamMember(viewer: SessionUser, ref: unknown): TeamDetail {
   const team = requireOwned(viewer)
-  const id = String(userId ?? '')
-  if (!id) throw errors.validation('Choose someone to add.', 'userId')
+  const id = String(ref ?? '').trim()
+  if (!id) throw errors.validation('Choose someone to invite.', 'userId')
+
   if (id === viewer.id) throw errors.validation('You are already on your own team.', 'userId')
-
-  const person = getDatabase()
-    .prepare('SELECT id, suspended_at FROM users WHERE id = ?')
-    .get(id) as { id: string; suspended_at: string | null } | undefined
-
-  if (!person) throw errors.notFound('That account no longer exists.')
-  if (person.suspended_at) {
-    throw errors.validation('That account is suspended, so it cannot join a team.', 'userId')
-  }
   if (memberOfTeam(team.id, id)) {
     throw errors.validation('That person is already on the team.', 'userId')
   }
 
-  const count = getDatabase()
-    .prepare('SELECT COUNT(*) AS total FROM team_members WHERE team_id = ?')
-    .get(team.id) as { total: number }
-  if (Number(count.total) >= MAX_MEMBERS) {
-    throw errors.validation(`A team holds ${MAX_MEMBERS} people.`, 'userId')
-  }
-
-  getDatabase()
-    .prepare('INSERT INTO team_members (team_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)')
-    .run(team.id, id, 'member', now())
-
+  inviteToTeam(viewer, id)
   return detail(teamById(team.id) as TeamRow, viewer.id)
 }
 
@@ -243,9 +241,13 @@ export function searchTeamCandidates(viewer: SessionUser, query: unknown): UserS
           AND suspended_at IS NULL
           AND id <> ?
           AND id NOT IN (SELECT user_id FROM team_members WHERE team_id = ?)
+          AND id NOT IN (
+            SELECT user_id FROM invitations
+             WHERE kind = 'team' AND team_id IS ? AND status = 'pending'
+          )
         LIMIT 1`
     )
-    .all(address, viewer.id, team?.id ?? '') as unknown as Array<{
+    .all(address, viewer.id, team?.id ?? '', team?.id ?? null) as unknown as Array<{
     id: string
     username: string
     display_name: string

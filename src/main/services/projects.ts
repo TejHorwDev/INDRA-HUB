@@ -10,6 +10,7 @@ import type {
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
 import { validateProjectInput } from '../lib/validation'
+import { inviteToProject, pendingInvitations } from './invitations'
 
 interface ProjectRow {
   id: string
@@ -94,7 +95,9 @@ function detail(row: ProjectRow, viewerId: string): ProjectDetail {
       username: row.owner_username,
       displayName: row.owner_name
     },
-    members: readMembers(row.id)
+    members: readMembers(row.id),
+    // Only the head developer is shown who has been asked and not answered.
+    invitations: row.owner_id === viewerId ? pendingInvitations('project', row.id) : []
   }
 }
 
@@ -178,44 +181,32 @@ export function assertCanManageTeam(viewer: SessionUser, projectId: string): voi
   requireOwnedProject(viewer, projectId)
 }
 
-export function addMember(
+/**
+ * Inviting somebody onto a project.
+ *
+ * The owner chooses a person; that person is asked, and joins only by
+ * accepting. Nothing of the project is reachable until they do — access is
+ * derived from project_members, which acceptance is the only thing to write.
+ */
+export function inviteMember(
   viewer: SessionUser,
   projectId: string,
-  userId: string
+  ref: string
 ): ProjectDetail {
   const project = requireOwnedProject(viewer, projectId)
-  const db = getDatabase()
+  const value = String(ref ?? '').trim()
 
-  if (userId === project.owner_id) {
+  if (!value) throw errors.validation('Choose someone to invite.', 'userId')
+  if (value === project.owner_id) {
     throw errors.validation('The head developer is already on this project.', 'userId')
   }
 
-  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(userId)
-  if (!target) throw errors.validation('No INDRA HUB account matches that person.', 'userId')
-
-  const existing = db
+  const existing = getDatabase()
     .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
-    .get(projectId, userId)
+    .get(projectId, value)
   if (existing) throw errors.duplicateMember()
 
-  const now = new Date().toISOString()
-
-  db.exec('BEGIN')
-  try {
-    db.prepare(
-      `INSERT INTO project_members (project_id, user_id, role, joined_at)
-       VALUES (?, ?, 'member', ?)`
-    ).run(projectId, userId, now)
-    db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId)
-    db.exec('COMMIT')
-  } catch (error) {
-    db.exec('ROLLBACK')
-    // The trigger is the last line of defence if a service check is bypassed.
-    if (error instanceof Error && error.message.includes('owner_cannot_be_member')) {
-      throw errors.validation('The head developer cannot be added as a member.', 'userId')
-    }
-    throw error
-  }
+  inviteToProject(viewer, projectId, value)
 
   const row = loadRow(projectId, viewer.id)
   if (!row) throw errors.notFound()

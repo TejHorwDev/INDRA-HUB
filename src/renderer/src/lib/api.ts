@@ -14,6 +14,8 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  InvitationAnswer,
+  InvitationSummary,
   LibrarySnapshot,
   OfflineWorkSummary,
   ProjectArchive,
@@ -85,10 +87,20 @@ export const api = {
     create: (input: { name?: string }): Promise<TeamDetail> => unwrap(bridge().team.create(input)),
     rename: (input: { name?: string }): Promise<TeamDetail> => unwrap(bridge().team.rename(input)),
     remove: (): Promise<TeamOverview> => unwrap(bridge().team.remove()),
-    addMember: (userId: string): Promise<TeamDetail> => unwrap(bridge().team.addMember(userId)),
+    /** Asks one account to join. They join by accepting, on their own Home. */
+    invite: (ref: string): Promise<TeamDetail> => unwrap(bridge().team.invite(ref)),
     removeMember: (userId: string): Promise<TeamDetail> =>
       unwrap(bridge().team.removeMember(userId)),
     search: (query: string): Promise<UserSummary[]> => unwrap(bridge().team.search(query))
+  },
+
+  invitations: {
+    list: (): Promise<InvitationSummary[]> => unwrap(bridge().invitations.list()),
+    accept: (invitationId: string): Promise<InvitationAnswer> =>
+      unwrap(bridge().invitations.accept(invitationId)),
+    decline: (invitationId: string): Promise<InvitationAnswer> =>
+      unwrap(bridge().invitations.decline(invitationId)),
+    cancel: (invitationId: string): Promise<null> => unwrap(bridge().invitations.cancel(invitationId))
   },
 
   auth: {
@@ -114,8 +126,8 @@ export const api = {
     create: (input: CreateProjectInput): Promise<ProjectDetail> =>
       unwrap(bridge().projects.create(input)),
     get: (projectId: string): Promise<ProjectDetail> => unwrap(bridge().projects.get(projectId)),
-    addMember: (input: { projectId: string; userId: string }): Promise<ProjectDetail> =>
-      unwrap(bridge().projects.addMember(input)),
+    invite: (input: { projectId: string; userId: string }): Promise<ProjectDetail> =>
+      unwrap(bridge().projects.invite(input)),
     removeMember: (input: { projectId: string; userId: string }): Promise<ProjectDetail> =>
       unwrap(bridge().projects.removeMember(input)),
     exportFile: (projectId: string): Promise<{ filePath: string } | null> =>
