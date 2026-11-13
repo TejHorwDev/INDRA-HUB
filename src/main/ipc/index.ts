@@ -47,7 +47,7 @@ import {
   startOfflineWorkspace,
   updateProfile
 } from '../services/auth'
-import { readPortraitFile } from '../services/portrait'
+import { readPickedPortrait, readPortraitFile } from '../services/portrait'
 import { claimOfflineWork, offlineWork } from '../services/offline'
 import { myInvitations, respond, revoke } from '../services/invitations'
 import {
@@ -467,6 +467,30 @@ export function registerIpcHandlers(): void {
       requireUser()
       const file = readPortraitFile(String(id ?? ''))
       return file ? { bytes: file.bytes, mime: file.mime } : null
+    })
+  )
+
+  /*
+   * Choosing a portrait is the system's file dialog, not an input element.
+   * It has to exist before there is an account (registration is where most
+   * people pick one), so it needs no session: the person is choosing a file
+   * by hand, and only the bytes of the image they picked come back — checked
+   * for size and signature first, so nothing else can be read this way.
+   */
+  ipcMain.handle('auth:choose-portrait', (event) =>
+    toResult(async (): Promise<{ bytes: Buffer; mime: string; name: string } | null> => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options: Electron.OpenDialogOptions = {
+        title: 'Choose a profile picture',
+        buttonLabel: 'Use this picture',
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      if (result.canceled || !result.filePaths[0]) return null
+      return readPickedPortrait(result.filePaths[0])
     })
   )
 

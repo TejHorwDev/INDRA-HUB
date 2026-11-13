@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
 import { mediaDirectory } from './appearance'
@@ -129,4 +129,39 @@ export function removePortrait(value: string | null | undefined): void {
     // Already gone is the good case.
   }
   getDatabase().prepare('DELETE FROM media_assets WHERE id = ?').run(id)
+}
+
+/**
+ * A file the person chose in the system dialog, checked but not stored.
+ *
+ * Registering happens before there is an account to attach a portrait to, so
+ * the picker hands the bytes back to the page for its preview and the bytes
+ * travel with the registration itself. Reading a path is safe here because the
+ * person picked it in an OS dialog that the renderer could not fill in.
+ */
+export function readPickedPortrait(sourcePath: string): { bytes: Buffer; mime: string; name: string } {
+  let size = 0
+  try {
+    size = statSync(sourcePath).size
+  } catch {
+    throw errors.validation('That file could not be read.', 'avatar')
+  }
+  if (size === 0) throw errors.validation('That image is empty.', 'avatar')
+  if (size > MAX_PORTRAIT_BYTES) {
+    throw errors.validation('That photo is larger than 6 MB. Pick a smaller one.', 'avatar')
+  }
+
+  let bytes: Buffer
+  try {
+    bytes = readFileSync(sourcePath)
+  } catch {
+    throw errors.validation('That file could not be read.', 'avatar')
+  }
+
+  const signature = signatureOfBytes(bytes)
+  if (!signature) {
+    throw errors.validation('That file is not a PNG, JPEG or WebP image.', 'avatar')
+  }
+
+  return { bytes, mime: signature.mime, name: basename(sourcePath) }
 }

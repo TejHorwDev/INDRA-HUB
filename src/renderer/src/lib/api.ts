@@ -137,6 +137,9 @@ export const api = {
     /** The bytes behind a `photo:` portrait, or null if it is gone. */
     portraitBytes: (id: string): Promise<{ bytes: Uint8Array; mime: string } | null> =>
       unwrap(bridge().auth.portraitBytes(id)),
+    /** Opens the system picture picker. Null when the person cancelled. */
+    choosePortrait: (): Promise<{ bytes: Uint8Array; mime: string; name: string } | null> =>
+      unwrap(bridge().auth.choosePortrait()),
     changePassword: (input: ChangePasswordInput): Promise<null> =>
       unwrap(bridge().auth.changePassword(input)),
     deleteAccount: (input: DeleteAccountInput): Promise<null> =>

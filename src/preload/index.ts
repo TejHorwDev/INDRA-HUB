@@ -101,6 +101,9 @@ const api = {
       ipcRenderer.invoke('auth:update-profile', input),
     portraitBytes: (id: string): Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>> =>
       ipcRenderer.invoke('auth:portrait-bytes', id),
+    choosePortrait: (): Promise<
+      ApiResult<{ bytes: Uint8Array; mime: string; name: string } | null>
+    > => ipcRenderer.invoke('auth:choose-portrait'),
     changePassword: (input: ChangePasswordInput): Promise<ApiResult<null>> =>
       ipcRenderer.invoke('auth:change-password', input),
     deleteAccount: (input: DeleteAccountInput): Promise<ApiResult<null>> =>

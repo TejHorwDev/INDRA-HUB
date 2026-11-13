@@ -1,22 +1,19 @@
 import { useRef, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
-import Avatar, { AVATAR_MARKS } from '../components/Avatar'
 import Button from '../components/Button'
 import Notice from '../components/Notice'
 import PasswordField from '../components/PasswordField'
 import PasswordStrength from '../components/PasswordStrength'
+import PortraitPicker from '../components/PortraitPicker'
 import TextField from '../components/TextField'
-import { ApiError, errorMessage } from '../lib/api'
+import { ApiError, api, errorMessage } from '../lib/api'
 import { useAppStatus } from '../lib/appStatus'
 import { useSession } from '../lib/session'
 import { passwordStrength, validateEmail, validateName } from '../lib/validation'
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{2,23}$/
-const MAX_PHOTO_BYTES = 6 * 1024 * 1024
-const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp']
-
 const STEPS = [
   { n: 1, label: 'Credentials' },
   { n: 2, label: 'Identity' },
@@ -29,6 +26,7 @@ type FieldName = 'email' | 'password' | 'confirmPassword' | 'activationKey' | 'u
 interface PickedPhoto {
   bytes: Uint8Array
   name: string
+  /** A local preview only; the bytes travel with the registration. */
   url: string
 }
 
@@ -59,9 +57,8 @@ export default function RegisterScreen() {
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
 
-  /** A drawn mark (`mark:<id>`) or `initials`. A photo wins while it is set. */
-  const [avatar, setAvatar] = useState<string>('initials')
   const [photo, setPhoto] = useState<PickedPhoto | null>(null)
+  const [picking, setPicking] = useState(false)
 
   const [pending, setPending] = useState(false)
   const [portraitError, setPortraitError] = useState<string | null>(null)
@@ -73,7 +70,6 @@ export default function RegisterScreen() {
   const keyRef = useRef<HTMLInputElement>(null)
   const usernameRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
-  const photoRef = useRef<HTMLInputElement>(null)
 
   const strength = passwordStrength(password)
 
@@ -150,31 +146,33 @@ export default function RegisterScreen() {
     setStep(3)
   }
 
-  async function pickPhoto(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.target.files?.[0]
-    // The same input can be used again for a replacement.
-    event.target.value = ''
-    if (!file) return
-
+  /**
+   * The system's picture picker, not a hidden file input.
+   *
+   * The main process opens the dialog and hands back only the bytes of the
+   * image that was chosen, after checking its size and signature. This screen
+   * draws a local preview from those bytes; the same bytes are what the
+   * registration carries, so there is no second read of the file.
+   */
+  async function pickPhoto(): Promise<void> {
     setPortraitError(null)
-
-    if (!PHOTO_TYPES.includes(file.type)) {
-      setPortraitError('Choose a PNG, JPEG or WebP image.')
-      return
-    }
-    if (file.size > MAX_PHOTO_BYTES) {
-      setPortraitError('That photo is larger than 6 MB. Pick a smaller one.')
-      return
-    }
-
+    setPicking(true)
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer())
+      const picked = await api.auth.choosePortrait()
+      if (!picked) return
+
+      const copy = new Uint8Array(picked.bytes.length)
+      copy.set(picked.bytes)
+      const url = URL.createObjectURL(new Blob([copy.buffer as ArrayBuffer], { type: picked.mime }))
+
       setPhoto((previous) => {
         if (previous) URL.revokeObjectURL(previous.url)
-        return { bytes, name: file.name, url: URL.createObjectURL(file) }
+        return { bytes: picked.bytes, name: picked.name, url }
       })
-    } catch {
-      setPortraitError('That file could not be read.')
+    } catch (error) {
+      setPortraitError(errorMessage(error))
+    } finally {
+      setPicking(false)
     }
   }
 
@@ -195,8 +193,8 @@ export default function RegisterScreen() {
         email: email.trim(),
         password,
         activationKey: activationKey.trim() || undefined,
-        // A photo is sent as bytes; without one, the drawn choice is stored.
-        avatar: photo ? undefined : avatar,
+        // The picture travels as bytes; without one the account keeps initials.
+        avatar: photo ? undefined : 'initials',
         avatarPhoto: photo ? { bytes: photo.bytes, name: photo.name } : undefined
       })
       // The session provider records the arrival; the app owns the four
@@ -239,11 +237,10 @@ export default function RegisterScreen() {
   const headings: Record<Step, { title: string; sub: string }> = {
     1: { title: 'Create account', sub: 'The details you sign in with — nothing else yet.' },
     2: { title: 'Who you are', sub: 'Your handle, and the name the people you work with will see.' },
-    3: { title: 'Your portrait', sub: 'A photo, a mark, or your initials — shown wherever you are.' }
+    3: { title: 'Your portrait', sub: 'A picture of you. You can change it whenever you like.' }
   }
 
   const previewName = displayName.trim() || 'Your name'
-  const previewPortrait = photo ? `photo:${photo.url}` : avatar
 
   return (
     <AuthLayout>
@@ -372,100 +369,20 @@ export default function RegisterScreen() {
 
         {step === 3 && (
           <div>
-            <div className="portrait-stage">
-              {photo ? (
-                <span className="avatar avatar--xl portrait-preview">
-                  <img className="avatar-photo" src={photo.url} alt="" draggable={false} />
-                </span>
-              ) : (
-                <Avatar
-                  name={previewName}
-                  avatar={previewPortrait}
-                  size="xl"
-                  className="portrait-preview"
-                  title="Your portrait"
-                />
-              )}
-
-              <div className="portrait-stage-text">
-                <p className="portrait-name">{previewName}</p>
-                <p className="portrait-handle">@{username.trim().toLowerCase() || 'your-handle'}</p>
-
-                <div className="portrait-upload">
-                  <input
-                    ref={photoRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="portrait-file"
-                    onChange={(event) => void pickPhoto(event)}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm w-auto"
-                    onClick={() => photoRef.current?.click()}
-                  >
-                    {photo ? 'Replace photo' : 'Upload photo'}
-                  </button>
-                  {photo && (
-                    <button type="button" className="link-quiet portrait-clear" onClick={clearPhoto}>
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <p className="portrait-note">PNG, JPEG or WebP · up to 6 MB</p>
-              </div>
-            </div>
+            <PortraitPicker
+              name={previewName}
+              avatar="initials"
+              photoUrl={photo?.url ?? null}
+              busy={picking}
+              onChoose={() => void pickPhoto()}
+              onRemove={photo ? clearPhoto : undefined}
+            />
 
             {portraitError && (
               <div className="auth-actions auth-actions--stack">
                 <Notice>{portraitError}</Notice>
               </div>
             )}
-
-            <div className="portrait-or" role="separator" aria-label="or choose a mark">
-              <span>or choose a mark</span>
-            </div>
-
-            <div className="portrait-grid" role="radiogroup" aria-label="Choose a portrait">
-              {AVATAR_MARKS.map((mark) => {
-                const value = `mark:${mark.id}`
-                const selected = !photo && avatar === value
-                return (
-                  <button
-                    key={mark.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    aria-label={mark.label}
-                    title={mark.label}
-                    className={`portrait-choice${selected ? ' is-selected' : ''}`}
-                    onClick={() => {
-                      clearPhoto()
-                      setAvatar(value)
-                    }}
-                  >
-                    <Avatar name={previewName} avatar={value} size="lg" />
-                  </button>
-                )
-              })}
-
-              <button
-                type="button"
-                role="radio"
-                aria-checked={!photo && avatar === 'initials'}
-                aria-label="My initials"
-                title="My initials"
-                className={`portrait-choice portrait-choice--initials${
-                  !photo && avatar === 'initials' ? ' is-selected' : ''
-                }`}
-                onClick={() => {
-                  clearPhoto()
-                  setAvatar('initials')
-                }}
-              >
-                <Avatar name={previewName} avatar="initials" size="lg" />
-              </button>
-            </div>
 
             {serverIssue && !serverIssue.field && (
               <div className="auth-actions auth-actions--stack">
@@ -505,7 +422,7 @@ export default function RegisterScreen() {
 
       {step === 3 && (
         <p className="auth-foot-note">
-          The photo is copied into the app on this PC. Nothing is uploaded.
+          Your picture is copied into the app on this PC. Nothing is uploaded.
         </p>
       )}
     </AuthLayout>

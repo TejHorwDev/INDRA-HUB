@@ -127,6 +127,23 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   /* ---------------- installing one ---------------- */
 
+  /* ---------------- a file picked in the system dialog ---------------- */
+
+  const chosenPath = join(work, 'chosen.png')
+  writeFileSync(chosenPath, PNG)
+  const chosen = mod.readPickedPortrait(chosenPath)
+  check(chosen.mime === 'image/png', 'a picked file is typed by its bytes', chosen.mime)
+  check(chosen.bytes.length === PNG.length, 'its bytes come back whole')
+  check(chosen.name === 'chosen.png', 'with the name for the preview', chosen.name)
+
+  const fakePath = join(work, 'not-really.png')
+  writeFileSync(fakePath, '#!/bin/sh\necho nope\n')
+  check(refused(() => mod.readPickedPortrait(fakePath)) !== '', 'a picked file is checked again, not trusted')
+
+  const emptyPath = join(work, 'empty.png')
+  writeFileSync(emptyPath, '')
+  check(refused(() => mod.readPickedPortrait(emptyPath)) !== '', 'an empty pick is refused')
+
   const value = mod.installPortrait(PNG, 'me.png')
   check(/^photo:[0-9a-f-]{36}$/.test(value), 'installing returns a photo id', value)
   check(mediaFiles().length === 1, 'exactly one file is written', String(mediaFiles().length))
