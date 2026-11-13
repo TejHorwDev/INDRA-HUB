@@ -29,11 +29,34 @@ export class SupabaseError extends Error {
   readonly detail: string
 
   constructor(status: number, detail: string) {
-    super(`cloud ${status}: ${detail}`)
+    super(readable(detail))
     this.name = 'SupabaseError'
     this.status = status
     this.detail = detail
   }
+}
+
+/**
+ * The sentence a person can act on, out of an answer meant for a program.
+ *
+ * PostgREST refuses with `{"code":"P0001","details":null,"hint":null,
+ * "message":"A device cannot be an administrator."}`. The panel used to print
+ * that whole thing, which tells somebody nothing they can do — so the server's
+ * own `message` is what survives, and the JSON is dropped.
+ */
+function readable(detail: string): string {
+  const trimmed = detail.trim()
+  if (!trimmed.startsWith('{')) return trimmed
+  try {
+    const body = JSON.parse(trimmed) as { message?: unknown; hint?: unknown }
+    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const hint = typeof body.hint === 'string' ? body.hint.trim() : ''
+    if (message && hint) return `${message} ${hint}`
+    if (message) return message
+  } catch {
+    // Not JSON after all: it is already the best text there is.
+  }
+  return trimmed
 }
 
 /**
