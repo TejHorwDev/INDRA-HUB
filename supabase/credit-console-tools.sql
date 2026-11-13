@@ -289,34 +289,87 @@ begin
     raise exception 'Claiming the credit console needs a signed-in cloud identity.';
   end if;
 
+  /*
+   * A different administrator whose *auth* account has been used in the last
+   * day. The signal has to come from auth.users: the sign-up trigger writes
+   * now() into indra_users.last_sign_in_at for every profile at birth, so that
+   * column marks every identity ever created as active forever, and a
+   * reinstalled PC could never take the role back. (A timestamp in public is
+   * also writable by its own owner through a self-update policy, so it could
+   * never have been evidence even if it had been maintained.)
+   */
   select u.id into v_holder
     from public.indra_users u
+    join auth.users a on a.id = u.auth_user_id
    where u.role = 'admin'
      and u.id <> v_me
-     and u.last_sign_in_at is not null
      and u.suspended_at is null
+     and a.last_sign_in_at is not null
+     and a.last_sign_in_at > now() - interval '1 day'
    limit 1;
 
   if v_holder is not null then
     return jsonb_build_object(
       'claimed', false,
-      'reason', 'Another account already administers credits. It has to hand the role over.'
+      'reason', 'Another administrator is still using the console. Ask them to hand the role over, or try again once that installation has been idle for a day.'
     );
   end if;
 
-  -- Only now, and only ever one: the caller becomes it, everybody else is not.
-  update public.indra_users set role = 'member' where role = 'admin' and id <> v_me;
+  -- Promote first, and prove it. Nothing is demoted until the caller holds it.
   update public.indra_users set role = 'admin' where id = v_me and role <> 'admin';
-
-  -- Read the row that was just written. `indra_is_admin()` is stable, and
-  -- inside this statement it can still answer from the earlier snapshot.
   select u.role into v_role from public.indra_users u where u.id = v_me;
-  if v_role = 'admin' then
-    return jsonb_build_object('claimed', true, 'reason', null, 'userId', v_me);
+
+  if v_role is distinct from 'admin' then
+    return jsonb_build_object(
+      'claimed', false,
+      'reason', 'This cloud identity has no account on the server yet, so it cannot hold the role.'
+    );
   end if;
 
-  return jsonb_build_object('claimed', false, 'reason', 'The server did not keep the role. Try again.');
+  -- Every administrator that is no longer live is released, not just one.
+  update public.indra_users u
+     set role = 'member'
+   where u.role = 'admin'
+     and u.id <> v_me
+     and not exists (
+       select 1 from auth.users a
+        where a.id = u.auth_user_id
+          and a.last_sign_in_at is not null
+          and a.last_sign_in_at > now() - interval '1 day'
+     );
+
+  return jsonb_build_object('claimed', true, 'reason', null, 'userId', v_me, 'previousUserId', v_holder);
 end $$;
 
 revoke all on function public.indra_claim_credit_admin() from public, anon;
 grant execute on function public.indra_claim_credit_admin() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 8. What `anon` and `authenticated` may do to the tables
+-- ---------------------------------------------------------------------------
+-- Found by asking the live project, not by reading it. `anon` held INSERT,
+-- UPDATE, DELETE and TRUNCATE on every data table. RLS filters the first three;
+-- it does not filter TRUNCATE, which is a table-level operation. The publishable
+-- key is compiled into every copy of the app, so `anon` is in practice anybody,
+-- and the only thing between a leaked key and an empty workspace was a
+-- foreign-key error. The anonymous role needs no write path at all — every write
+-- is either a SECURITY DEFINER function or an authenticated request — so it is
+-- left with SELECT and nothing else.
+--
+-- `authenticated` keeps the row-level writes its policies gate, but loses
+-- TRUNCATE for the same reason: no part of this app truncates anything.
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['indra_users','indra_plans','indra_credit_ledger','indra_credit_settings','indra_purchase_requests','indra_workspace','indra_projects','indra_documents']
+  loop
+    begin
+      execute format('revoke all on public.%I from anon', t);
+      execute format('grant select on public.%I to anon', t);
+      execute format('revoke truncate on public.%I from authenticated', t);
+    exception when undefined_table then null;
+    end;
+  end loop;
+end $$;

@@ -520,6 +520,20 @@ export default function CreditsSection(_props: SectionProps) {
                 'The server has not granted credit administration to this installation.'}
             </p>
             {/*
+             * Which cloud account this PC is. Without it, "the role is not
+             * granted" is the same sentence whether another machine holds it,
+             * the role is free, or this is a brand-new identity after a
+             * reinstall — and only one of those is fixed by pressing the button.
+             */}
+            {snapshot.identity?.email && (
+              <dl className="admin-kv admin-kv--inline">
+                <div>
+                  <dt>This PC&rsquo;s cloud account</dt>
+                  <dd className="admin-key-placeholder">{snapshot.identity.email}</dd>
+                </div>
+              </dl>
+            )}
+            {/*
              * With no server there is no cached copy to show: an unreachable
              * cloud returns no snapshot at all, so promising one "below" was a
              * promise this page could not keep. Say what is true instead.
@@ -553,9 +567,10 @@ export default function CreditsSection(_props: SectionProps) {
               )}
             </div>
             <p className="admin-empty">
-              The role belongs to the server, not to this PC. It can be taken once, and only while no active
-              administrator holds it — after that it has to be handed over at the database, so this button can never
-              take it from somebody who is using it.
+              The role belongs to the server, not to this PC. The button never takes it from an administrator who is
+              still using the console: if one is, the server refuses and says so. An installation that has been
+              abandoned for a day stops counting as in use, so a reinstalled PC can pick the role back up without
+              anybody editing the database.
             </p>
           </div>
         </section>

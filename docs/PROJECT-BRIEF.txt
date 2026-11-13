@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 2.1.3 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.1.4 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            2.1.3
-  Latest release:     v2.1.2
+  Version:            2.1.4
+  Latest release:     v2.1.3
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -911,7 +911,18 @@ Tests for this exist and must keep passing:
       eight-second poll when it does not, and a sixty-second reconcile either
       way. Windows are told to re-read through `workspace:changed`.
     - A setup code, stored only as a SHA-256, decides which account may claim
-      the row; it is cleared when used. `anon` has no UPDATE grant at all.
+      the row; it is cleared when used. `anon` holds SELECT and nothing else on
+      every data table: it had INSERT/UPDATE/DELETE/TRUNCATE, and TRUNCATE is
+      not filtered by RLS — the publishable key ships in the binary, so that was
+      one leaked key away from an empty workspace. `authenticated` keeps the
+      row-level writes its policies gate and loses TRUNCATE for the same reason.
+
+    - The credit role is held by one installation at a time. Liveness is read
+      from `auth.users.last_sign_in_at`, the only timestamp the client cannot
+      write: the sign-up trigger stamps `indra_users.last_sign_in_at` at birth,
+      so that column called every identity ever created "active" forever and a
+      reinstalled PC could never take the role back. An installation idle for a
+      day stops counting as in use.
 
   Fresh installs: the endpoint is compiled in, so a machine that has never been
   configured mirrors the row before the first sign-in screen is painted (and

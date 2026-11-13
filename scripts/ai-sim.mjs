@@ -285,7 +285,10 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
       if (!tokens.has(token)) return json(401, { message: 'no session' })
 
-      if (path === '/rest/v1/rpc/indra_credit_state') return json(200, stateBody())
+      if (path === '/rest/v1/rpc/indra_credit_state') {
+        /* Someone else may hold the role while this PC does not. */
+        return json(200, { ...stateBody(), isAdmin: globalThis.__aiIsAdmin ?? balance.isAdmin })
+      }
 
       if (path === '/rest/v1/rpc/indra_my_ledger') return json(200, ledger.slice(0, body?.p_limit ?? 40))
 
@@ -360,6 +363,23 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
        */
       if (path.startsWith('/rest/v1/rpc/indra_admin_') && !balance.isAdmin) {
         return json(403, { message: 'Only an administrator can do that.' })
+      }
+
+      /*
+       * Taking the role, answered the way the server answers it after this fix:
+       * granted when nobody else is live, refused with a reason when somebody
+       * is. The sim flips `__aiRoleHeldElsewhere` to exercise both.
+       */
+      if (path === '/rest/v1/rpc/indra_claim_credit_admin') {
+        if (globalThis.__aiRoleHeldElsewhere) {
+          return json(200, {
+            claimed: false,
+            reason: 'Another administrator is still using the console. Ask them to hand the role over, or try again once that installation has been idle for a day.'
+          })
+        }
+        balance.isAdmin = true
+        globalThis.__aiIsAdmin = true
+        return json(200, { claimed: true, reason: null, userId: 'profile-me', previousUserId: null })
       }
 
       if (path === '/rest/v1/rpc/indra_credit_reset_info') {
@@ -799,12 +819,53 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     JSON.stringify(spend.map((row) => [row.accountName, row.kind]))
   )
 
+  /*
+   * The reinstall case, which is the one that made the live panel useless: this
+   * PC's identity is new, another identity still holds the role, and the old
+   * one belongs to a machine that no longer exists. The panel has to be able to
+   * say WHICH account it is, because "the role is not granted" is the same
+   * sentence in every one of those situations.
+   */
+  check(
+    consoleState.identity?.email !== null && consoleState.identity?.uid !== null,
+    'the panel knows which cloud account this PC is speaking as',
+    JSON.stringify(consoleState.identity)
+  )
+
+  /* ---------------- the reinstall: another PC still holds the role ---------------- */
+
+  /*
+   * This is the case that made the live panel useless after a reinstall. The
+   * role is taken by an identity belonging to a PC that no longer exists, so the
+   * button is refused — and the panel must say *why*, in the server's words,
+   * instead of claiming that taking the role will fix it.
+   */
+  globalThis.__aiIsAdmin = false
+  balance.isAdmin = false
+  globalThis.__aiRoleHeldElsewhere = true
+
+  const refusedClaim = await api.adminClaimCreditRole(user)
+  check(refusedClaim.live === false, 'a role held elsewhere leaves the console read-only')
+  check(
+    /still using the console|idle for a day/i.test(refusedClaim.message ?? ''),
+    'and the refusal is the server’s reason, not a guess',
+    refusedClaim.message
+  )
+
+  /* Once the other installation is gone, the same press succeeds. */
+  globalThis.__aiRoleHeldElsewhere = false
+  const acceptedClaim = await api.adminClaimCreditRole(user)
+  check(acceptedClaim.live === true, 'with no live administrator the press takes the role', acceptedClaim.message)
+  check(acceptedClaim.claimed === true && acceptedClaim.accounts.length === 2, 'and the console opens in the same press')
+
   /* The console refuses to pretend: with the role gone, it says so. */
   balance.isAdmin = false
+  globalThis.__aiIsAdmin = false
   const revoked = await api.adminCreditSnapshot(user)
   check(revoked.live === false && revoked.reachable === true, 'without the role the console is read-only, not broken')
   check(/not an administrator/i.test(revoked.message ?? ''), 'and it says exactly that', revoked.message)
   balance.isAdmin = true
+  globalThis.__aiIsAdmin = true
 
   /* ---------------- nothing was written to a balance from here ---------------- */
 
