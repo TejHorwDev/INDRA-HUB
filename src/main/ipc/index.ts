@@ -61,6 +61,7 @@ import {
 import { searchUsers } from '../services/users'
 import {
   activity as aiActivity,
+  readiness as aiReadiness,
   adminAccountDetail,
   adminClaimTokenRole,
   adminTokenSnapshot,
@@ -1142,6 +1143,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('ai:activity', (_event, payload: { limit?: unknown }) =>
     toResult(() => aiActivity(actor(), Number(payload?.limit ?? 20)))
   )
+
+  /* Whether the workspace can run a model at all, before anything is spent. */
+  ipcMain.handle('ai:readiness', () => toResult(() => aiReadiness(actor())))
 
   ipcMain.handle(
     'ai:ask',

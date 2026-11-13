@@ -1013,6 +1013,21 @@ export interface PurchaseRequestInput {
 export type AiMode = 'chat' | 'research'
 export type AiDepth = 'standard' | 'deep'
 
+/**
+ * What the cloud function says about itself.
+ *
+ * `configured` is the question that matters: a workspace with no model key
+ * refuses every run before it spends anything, and that is not a failure the
+ * person asking can fix. Reporting it names the missing variable instead.
+ */
+export interface AiReadiness {
+  configured: boolean
+  /** The environment variable that supplied the key, e.g. GEMINI_API_KEY. Never the key. */
+  keySource: string | null
+  models: Record<string, string>
+  research: boolean
+}
+
 export interface AiCitation {
   title: string
   url: string

@@ -3174,3 +3174,79 @@ tbody td {
 
 
 
+
+
+/* ---------------- AI readiness ----------------
+ *
+ * A workspace with no model key refuses every run. That is a fact about the
+ * workspace, not a failure of the question, so it sits above the modes as a
+ * standing explanation instead of surfacing as an error after someone asks.
+ */
+
+.ai-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background-color: var(--surface-subtle);
+}
+
+.ai-notice strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ai-notice p {
+  color: var(--ink-tertiary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.ai-notice code {
+  padding: 1px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background-color: var(--surface);
+  color: var(--ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+}
+
+.admin-ai-state {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.admin-ai-state .admin-chip-dot {
+  margin-top: 5px;
+}
+
+.admin-ai-state--off {
+  border-color: var(--line-strong);
+  background-color: var(--surface-subtle);
+}
+
+.admin-ai-state-title {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.admin-ai-state-note {
+  margin-top: 3px;
+  color: var(--ink-tertiary);
+  font-size: 11.5px;
+  line-height: 1.55;
+}

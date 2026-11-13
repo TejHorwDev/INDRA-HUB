@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { net } from 'electron'
 import type {
   AdminTokenAccount,
+  AiReadiness,
   AdminTokenAccountDetail,
   AdminTokenResetInfo,
   AdminTokenLedgerRow,
@@ -340,6 +341,28 @@ function documentText(blocks: Array<{ type: string; html?: string; rows?: string
 }
 
 /* ---------------- ask, research, and the honest record of it ---------------- */
+
+/**
+ * Whether this workspace can actually run a model, asked of the function itself.
+ *
+ * The screens used to discover this by failing. A run would come back as a
+ * generic "AI could not run", which reads like a bug in the app when it is a
+ * missing key in the cloud project. The probe answers before anything is spent.
+ */
+export async function readiness(viewer: SessionUser): Promise<AiReadiness> {
+  const session = await cloudSession(viewer)
+  const payload = await callFunction<Partial<AiReadiness>>(session.token, { action: 'status' })
+  const models =
+    payload?.models && typeof payload.models === 'object'
+      ? (payload.models as Record<string, string>)
+      : {}
+  return {
+    configured: payload?.configured === true,
+    keySource: typeof payload?.keySource === 'string' ? payload.keySource : null,
+    models,
+    research: payload?.research === true
+  }
+}
 
 export async function ask(
   viewer: SessionUser,

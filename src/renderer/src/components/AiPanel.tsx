@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AiAnswer, AiDepth, AiMode, TokensState } from '@shared/types'
+import type { AiAnswer, AiDepth, AiMode, AiReadiness, TokensState } from '@shared/types'
 import { useToast } from './ToastProvider'
 import { Link } from 'react-router-dom'
 import { InfoIcon, SparkIcon } from './icons'
@@ -150,6 +150,7 @@ export default function AiPanel({
   const [failure, setFailure] = useState<{ message: string; tokens: boolean } | null>(null)
   const [state, setState] = useState<TokensState | null>(null)
   const [history, setHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([])
+  const [ready, setReady] = useState<AiReadiness | null>(null)
   const bottom = useRef<HTMLDivElement | null>(null)
 
   const refreshState = useCallback(async () => {
@@ -161,6 +162,26 @@ export default function AiPanel({
     void refreshState()
   }, [refreshState])
 
+  /*
+   * Ask the function whether it can run at all, once per open. A workspace with
+   * no model key fails every run at the first step; finding that out here means
+   * the panel can say so instead of inviting a question that cannot be answered.
+   */
+  useEffect(() => {
+    let live = true
+    api.ai
+      .readiness()
+      .then((next) => {
+        if (live) setReady(next)
+      })
+      .catch(() => {
+        /* Offline or no cloud: the balance line already explains that. */
+      })
+    return () => {
+      live = false
+    }
+  }, [])
+
   /* The clock is real: it counts how long the run has been going, nothing else. */
   useEffect(() => {
     if (startedAt === null) return
@@ -171,9 +192,12 @@ export default function AiPanel({
   const rich = useMemo(() => (answer ? markdownToHtml(answer.answer) : ''), [answer])
 
   const ahead = state ? state.total : null
-  const usable = state?.connected === true && (ahead ?? 0) >= 1
-  const blockedReason = !state
-    ? 'Reading the balance…'
+  const off = ready !== null && !ready.configured
+  const usable = state?.connected === true && (ahead ?? 0) >= 1 && !off
+  const blockedReason = off
+    ? 'AI is not switched on for this workspace yet.'
+    : !state
+      ? 'Reading the balance…'
     : !state.connected
       ? 'AI needs the cloud. Sign in to an account to use it — the offline workspace writes on its own.'
       : (ahead ?? 0) < 1
@@ -260,6 +284,17 @@ export default function AiPanel({
         )}
       </div>
 
+      {off && (
+        <div className="ai-notice" role="status">
+          <strong>AI is not switched on yet</strong>
+          <p>
+            The cloud project has no model key, so no run can start. An administrator adds it as{' '}
+            <code>{ready?.keySource === null ? 'GEMINI_API_KEY' : ready?.keySource}</code> in Supabase →
+            Edge Functions → Secrets. Tokens, plans and the research pipeline are already in place.
+          </p>
+        </div>
+      )}
+
       <div className="ai-modes" role="group" aria-label="Mode">
         <button
           type="button"
@@ -298,7 +333,7 @@ export default function AiPanel({
           >
             Deep
           </button>
-          <span className="ml-auto">{depth === 'deep' ? 'up to 6 searches' : '3 searches'}</span>
+          <span className="ml-auto">{depth === 'deep' ? 'up to 9 searches' : '3 searches'}</span>
         </div>
       )}
 

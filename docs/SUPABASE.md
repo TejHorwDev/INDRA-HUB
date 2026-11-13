@@ -216,3 +216,68 @@ row, a published change reaching a machine that never signed in, claiming,
 publishing, a video travelling between machines, a stale write losing to the
 newer row, hostile payloads clamped or refused, offline behaviour, and a
 disconnect surviving a restart.
+
+---
+
+## AI and tokens
+
+The balance is Postgres's, not the app's. Every account owns its own SQLite file,
+so a number kept on the user's machine is a number the user can edit.
+
+**What is deployed.** `supabase/ai-credits.sql` (run first) then
+`supabase/credit-console.sql` create `indra_plans`, the two buckets on
+`indra_users`, an append-only `indra_credit_ledger`, `indra_purchase_requests`,
+and the functions that move a balance. `indra_spend_ai()` is granted to
+`service_role` alone, so the app can read its own state and ask for a purchase
+but cannot pay itself. `cron.schedule('indra-credit-daily-reset', '5 0 * * *',
+'select public.indra_reset_all_daily();')` refills every allowance at 00:05 UTC;
+`indra_admin_reset_daily()` does the same on demand from the admin console.
+
+**Tiers.** Free, Basic and Pro ship as rows in `indra_plans` — daily allowance,
+price and whether the tier is offered. All three are editable from Admin →
+Tokens, including creating a fourth; nothing about a tier is compiled into the
+app beyond the cached copy it draws while loading.
+
+**The one thing that switches AI on.** The `indra-ai` Edge Function holds no key
+and the app holds none either. The project secret `GEMINI_API_KEY` (or
+`GOOGLE_API_KEY`) is what lets it call a model:
+
+```
+Supabase dashboard → Project Settings → Edge Functions → Secrets
+GEMINI_API_KEY = <key from Google AI Studio>
+```
+
+Optional model overrides: `AI_CHAT_MODEL`, `AI_PLAN_MODEL`, `AI_SEARCH_MODEL`,
+`AI_RESEARCH_MODEL`. Defaults are `gemini-2.5-flash` for chat, planning and
+search, and `gemini-2.5-pro` for the deep brief.
+
+Until that secret exists the function answers every run with `503
+not_configured` **before** any balance is read or charged. That is a workspace
+fact, not a user error, so the app asks instead of guessing:
+
+```
+POST /functions/v1/indra-ai   { "action": "status" }
+→ { "configured": false, "keySource": null, "models": { … }, "research": true }
+```
+
+The research panel shows the same sentence to the person asking, and Admin →
+Tokens shows it above the balances, naming the variable to add. Names are
+reported; the key itself never leaves the function's environment.
+
+**Research, in two passes.** A standard run plans three questions, searches each
+with grounding, and writes a 500–800 word brief. Deep plans six, then runs a gap
+turn over what came back — the opposing case, the number nobody quoted, what
+changed this year — and reads up to three more pages before writing 900–1400
+words. Every factual sentence carries `[n]` against the sources that were
+actually returned; the URLs are shown before anything is inserted. The gap pass
+is skipped near the time budget or when the balance runs out, and a failed gap
+pass still leaves the first round standing.
+
+**Charging.** The charge is the token count the provider reported, once per
+provider call, through `indra_spend_ai()`. Nothing is estimated: if the provider
+returns no usage, the run fails rather than inventing a number. A spent balance
+stops the run mid-way and the response says which stage stopped it.
+
+**Proved.** `npm run sim:credits` exercises the wire contract, the tier maths and
+the ledger with a fake server; the app refuses to run while offline, and refuses
+before building a request when the balance is empty.

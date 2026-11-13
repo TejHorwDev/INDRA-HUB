@@ -5,6 +5,7 @@ import type {
   AdminTokenSnapshot,
   AdminSpendRow,
   TokenPlan,
+  AiReadiness,
   TokenSettings
 } from '@shared/types'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -78,6 +79,8 @@ export default function CreditsSection(_props: SectionProps) {
   const [grantAmount, setGrantAmount] = useState('')
   const [grantReason, setGrantReason] = useState('')
   const [planDraft, setPlanDraft] = useState<Record<string, PlanDraft>>({})
+  /** Whether the workspace holds a model key. Without one, no run can start. */
+  const [readiness, setReadiness] = useState<AiReadiness | null>(null)
   const [settingsDraft, setSettingsDraft] = useState<{
     currency: string
     symbol: string
@@ -102,6 +105,25 @@ export default function CreditsSection(_props: SectionProps) {
   )
 
   const settings = snapshot?.settings ?? null
+
+  /*
+   * A balance console is the right place to say whether the engine behind those
+   * balances can run at all: every figure here looked fine while nothing did.
+   */
+  useEffect(() => {
+    let live = true
+    api.ai
+      .readiness()
+      .then((next) => {
+        if (live) setReadiness(next)
+      })
+      .catch(() => {
+        /* The snapshot's own reachability line already covers this. */
+      })
+    return () => {
+      live = false
+    }
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -495,6 +517,27 @@ export default function CreditsSection(_props: SectionProps) {
       {error && (
         <div className="notice mb-4 items-start">
           <span>{error}</span>
+        </div>
+      )}
+
+      {readiness && (
+        <div className={`admin-ai-state${readiness.configured ? '' : ' admin-ai-state--off'}`}>
+          <span
+            className={`admin-chip-dot${readiness.configured ? '' : ' admin-chip--muted'}`}
+            aria-hidden="true"
+          />
+          <div>
+            <p className="admin-ai-state-title">
+              {readiness.configured
+                ? `The model key is in place, from ${readiness.keySource ?? 'the project environment'}`
+                : 'No model key — AI refuses every run before it charges'}
+            </p>
+            <p className="admin-ai-state-note">
+              {readiness.configured
+                ? `Writing runs on ${readiness.models.chat ?? 'the configured model'}; deep research plans its questions, reads the web in two passes, then writes the brief with its sources.`
+                : 'The function is deployed and the balances are live, but there is no provider key, so nothing can be answered or charged. Add GEMINI_API_KEY under Supabase → Edge Functions → Secrets, then press Refresh.'}
+            </p>
+          </div>
         </div>
       )}
 

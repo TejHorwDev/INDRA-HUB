@@ -8,6 +8,7 @@ import type {
   AdminTokenSnapshot,
   AdminPlanInput,
   AiActivity,
+  AiReadiness,
   AiAnswer,
   AiAskInput,
   TokenLedgerEntry,
@@ -393,7 +394,8 @@ export const api = {
   ai: {
     ask: (input: AiAskInput): Promise<AiAnswer> => unwrap(bridge().ai.ask(input)),
     research: (input: AiAskInput): Promise<AiAnswer> => unwrap(bridge().ai.research(input)),
-    activity: (limit = 20): Promise<AiActivity[]> => unwrap(bridge().ai.activity({ limit }))
+    activity: (limit = 20): Promise<AiActivity[]> => unwrap(bridge().ai.activity({ limit })),
+    readiness: (): Promise<AiReadiness> => unwrap(bridge().ai.readiness())
   }
 }
 

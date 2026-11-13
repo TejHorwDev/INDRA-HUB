@@ -7,6 +7,7 @@ import type {
   AdminTokenSettingsInput,
   AdminPlanInput,
   AiActivity,
+  AiReadiness,
   AiAnswer,
   AiAskInput,
   TokenLedgerEntry,
@@ -265,6 +266,7 @@ export interface IndraBridge {
     ask: (input: AiAskInput) => Promise<ApiResult<AiAnswer>>
     research: (input: AiAskInput) => Promise<ApiResult<AiAnswer>>
     activity: (payload?: { limit?: number }) => Promise<ApiResult<AiActivity[]>>
+    readiness: () => Promise<ApiResult<AiReadiness>>
   }
 
   admin: {

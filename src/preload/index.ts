@@ -53,6 +53,7 @@ import type {
   AdminTokenSettingsInput,
   AdminPlanInput,
   AiActivity,
+  AiReadiness,
   AiAnswer,
   AiAskInput,
   TokenLedgerEntry,
@@ -368,7 +369,9 @@ const api = {
       ipcRenderer.invoke('ai:research', input),
     /** What this PC asked for, so a document can point at it later. */
     activity: (payload?: { limit?: number }): Promise<ApiResult<AiActivity[]>> =>
-      ipcRenderer.invoke('ai:activity', payload ?? {})
+      ipcRenderer.invoke('ai:activity', payload ?? {}),
+    /** Whether the workspace holds a model key, so a run can actually start. */
+    readiness: (): Promise<ApiResult<AiReadiness>> => ipcRenderer.invoke('ai:readiness')
   },
 
   admin: {
