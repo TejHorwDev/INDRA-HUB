@@ -491,6 +491,22 @@ export async function adminCloudRole(
   }
 }
 
+/**
+ * Which cloud account this installation's credit console is speaking as.
+ *
+ * Exposed because it is the fact that made a support case impossible to
+ * diagnose: two PCs can both hold the credit role and there was no way, from
+ * inside the app, to say which sealed identity either of them was using. An
+ * administrator who reinstalls gets a new identity, the old one keeps the role,
+ * and the panel simply said the role was not granted — true, and useless.
+ */
+export async function adminCloudIdentity(
+  adminId: string
+): Promise<{ email: string | null; uid: string | null }> {
+  const session = await adminCloudSession(adminId)
+  return { email: (await identityEmail(adminId)) ?? null, uid: session.uid }
+}
+
 /** The account address the cloud issued to this administrator's identity. */
 async function identityEmail(adminId: string): Promise<string | null> {
   const stored = readSetting(`${IDENTITY_PREFIX}:admin:${adminId}`)

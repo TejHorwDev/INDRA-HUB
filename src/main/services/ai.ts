@@ -27,7 +27,14 @@ import type {
 import { normaliseUrl } from '@shared/workspace'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
-import { adminCloudRole, adminCloudSession, assertCloudReachable, cloudEndpoint, cloudSession } from './cloud'
+import {
+  adminCloudIdentity,
+  adminCloudRole,
+  adminCloudSession,
+  assertCloudReachable,
+  cloudEndpoint,
+  cloudSession
+} from './cloud'
 import { getDocument } from './documents'
 
 /*
@@ -693,6 +700,12 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
   try {
     const session = await adminCloudSession(adminId)
     const state = await rpcCall<WireState>(session.token, 'indra_credit_state', {})
+    /*
+     * A failed identity lookup must not be able to mask the real answer below.
+     * It is caught here and turned into `null`, and the panel then simply
+     * omits the account line rather than reporting an error that did not happen.
+     */
+    const identity = await adminCloudIdentity(adminId).catch(() => null)
     if (state?.isAdmin !== true) {
       return {
         pending: [],
@@ -701,11 +714,20 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
         accounts: [],
         settings: asCreditSettings(state?.settings),
         reset: null,
+        identity,
         live: false,
         claimed: false,
         reachable: true,
+        /*
+         * This message used to promise that the button below would work, which
+         * it could not do on a reinstalled PC: the previous installation's
+         * identity still held the role, and "only while nobody holds it" had
+         * quietly become "never". It now states the two facts an administrator
+         * needs — which account this PC is, and what the button will do — and
+         * the server's own refusal replaces the guess below when it refuses.
+         */
         message:
-          'The signed-in cloud account is not an administrator on the server, so this PC does not hold credit administration yet. Take the role once — the server only grants it while no active administrator holds it, and the button below is how.'
+          'This PC is not an administrator on the server yet, so it does not hold credit administration. Take the role below: the server grants it at once when no other administrator is live, and if one is, it will say so and release it once that installation has been idle for a day.'
       }
     }
 
@@ -753,6 +775,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
       accounts,
       settings: asCreditSettings(state.settings),
       reset,
+      identity,
       live: true,
       claimed: true,
       reachable: true,
@@ -766,6 +789,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
       accounts: [],
       settings: null,
       reset: null,
+      identity: null,
       live: false,
       claimed: false,
       reachable: false,
@@ -999,6 +1023,7 @@ export async function adminClaimCreditRole(adminId: string): Promise<AdminCredit
         accounts: [],
         settings: null,
         reset: null,
+        identity: null,
         live: false,
         claimed: false,
         reachable: true,
@@ -1013,6 +1038,7 @@ export async function adminClaimCreditRole(adminId: string): Promise<AdminCredit
       accounts: [],
       settings: null,
       reset: null,
+      identity: null,
       live: false,
       claimed: false,
       reachable: false,

@@ -1131,6 +1131,13 @@ export interface AdminCreditSnapshot {
   settings: CreditSettings | null
   /** The server's refill clock and its real account totals. */
   reset: AdminCreditResetInfo | null
+  /**
+   * Which cloud account this PC is speaking as. Two machines can both hold the
+   * role, and after a reinstall this is the only thing that says which one is
+   * asking — the difference between "the role is broken" and "this is a new
+   * identity and the old PC still has it".
+   */
+  identity: { email: string | null; uid: string | null } | null
   /** The server answered, and this installation's cloud account holds the credit role. */
   live: boolean
   /** The server answered at all. False means "unknown", never "empty". */
