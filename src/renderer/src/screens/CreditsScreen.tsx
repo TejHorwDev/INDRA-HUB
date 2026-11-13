@@ -228,66 +228,6 @@ export default function CreditsScreen() {
         </button>
       }
     >
-      {/* ---------------- the balance ---------------- */}
-      <section className="token-balance" aria-label="Balance">
-        <div className="token-balance-main">
-          <div className="token-balance-figure">
-            <p className="token-eyebrow">Available now</p>
-            <div className="token-figure">
-              <strong>{state ? tokens(state.total) : '—'}</strong>
-              <span>tokens</span>
-            </div>
-            <p className="token-meta">
-              {state?.connected ? (
-                <>
-                  {resetLabel(state)}
-                  {state.syncedAt && !state.cached ? ` · read ${when(state.syncedAt)}` : ''}
-                  {state.cached && state.syncedAt ? ` · last known ${when(state.syncedAt)}` : ''}
-                </>
-              ) : (
-                'Not connected to a cloud account yet'
-              )}
-            </p>
-          </div>
-
-          <div className="token-balance-side">
-            <span className="token-plan">
-              <span className="token-plan-dot" aria-hidden="true" />
-              {state?.planName ?? 'Free'}
-            </span>
-            {current?.expiresAt && (
-              <span className="token-meta">renews {when(current.expiresAt)}</span>
-            )}
-          </div>
-        </div>
-
-        {state?.connected && (
-          <dl className="token-split" aria-label="Balance breakdown">
-            <div className="token-split-cell">
-              <dt>Daily allowance</dt>
-              <dd>
-                {tokens(state.daily)} <small>of {tokens(state.dailyAllowance)}</small>
-              </dd>
-            </div>
-            <div className="token-split-cell">
-              <dt>Purchased</dt>
-              <dd>
-                {tokens(state.purchased)} <small>carries over</small>
-              </dd>
-            </div>
-            <div className="token-split-cell">
-              <dt>Used today</dt>
-              <dd>
-                {tokens(state.spentToday)} <small>in {state.requestsToday} runs</small>
-              </dd>
-            </div>
-            <div className="token-meter" aria-hidden="true">
-              <span style={{ width: `${Math.round(usedRatio * 100)}%` }} />
-            </div>
-          </dl>
-        )}
-      </section>
-
       {state?.message && (
         <div className="notice mb-4 items-start">
           <InfoIcon />
@@ -318,267 +258,345 @@ export default function CreditsScreen() {
         </div>
       )}
 
-      <div className="token-body">
-        <div>
-          {/* ---------------- plans ---------------- */}
-          <section className="token-group" aria-label="Plans">
-            <div className="token-group-head">
-              <span>Plans</span>
-              <span>{current ? `You are on ${current.name}` : 'Free by default'}</span>
-            </div>
-            <div className="token-group-body">
-              {plans.length === 0 ? (
-                <p className="token-group-note">
-                  {offline
-                    ? 'Plans are read from the cloud, so they are not available offline.'
-                    : 'Loading the plans from the cloud…'}
-                </p>
-              ) : offered.length === 0 ? (
-                <p className="token-group-note">Every tier is switched off right now. Ask the administrator.</p>
-              ) : (
-                <div className="plan-list">
-                  {offered.map((plan) => (
-                    <article
-                      key={plan.id}
-                      className={`plan-row${plan.current ? ' plan-row--current' : ''}`}
-                      aria-current={plan.current ? 'true' : undefined}
-                    >
-                      <div className="plan-row-name">
-                        <span>{plan.name}</span>
-                        {plan.current && <span className="plan-row-tag">Current</span>}
-                      </div>
-                      <p className="plan-row-allowance">
-                        <strong>{tokens(plan.dailyTokens)}</strong> tokens a day
-                        <span className="plan-row-blurb">{plan.blurb}</span>
-                      </p>
-                      <p className="plan-row-price">
-                        {money(plan.priceMinor, settings)}
-                        {plan.priceMinor > 0 && <small>a month</small>}
-                      </p>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm w-auto plan-row-action"
-                        disabled={
-                          plan.current ||
-                          busyTier !== null ||
-                          offline ||
-                          pending.some((request) => request.planId === plan.id)
-                        }
-                        onClick={() => void requestPlan(plan)}
-                      >
-                        {plan.current
-                          ? 'Your plan'
-                          : pending.some((request) => request.planId === plan.id)
-                            ? 'Waiting for approval'
-                            : busyTier === plan.id
-                              ? 'Sending…'
-                              : `Request ${plan.name}`}
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-            <p className="token-group-note">
-              Plans are approved by an administrator — there is no card on file and no automatic
-              charge. A request sits here until it is answered, and the allowance changes the moment
-              it is.
-            </p>
-          </section>
-
-          {/* ---------------- top up ---------------- */}
-          <section className="token-group" aria-label="Top up">
-            <div className="token-group-head">
-              <span>Top up</span>
-              <span>
-                {pack && settings
-                  ? `${money(pack.price, settings)} per ${tokens(pack.tokens)} tokens`
-                  : 'priced by the server'}
-              </span>
-            </div>
-            <div className="token-group-body">
-              {pack && settings ? (
-                <>
-                  <div className="buy-row">
-                    <label className="admin-field buy-field">
-                      <span className="field-label">Tokens</span>
-                      <input
-                        className="field-input"
-                        inputMode="numeric"
-                        value={topUp}
-                        onChange={(event) => {
-                          setTopUp(event.target.value.replace(/[^\d]/g, ''))
-                          setTopUpError(null)
-                        }}
-                        aria-label="Tokens to buy"
-                      />
-                    </label>
-                    <div className="buy-quote" aria-live="polite">
-                      <span className="buy-quote-label">You would pay</span>
-                      <span className="buy-quote-value">
-                        {topUpValid ? money(topUpPrice, settings) : '—'}
-                      </span>
-                      <span className="buy-quote-note">
-                        {topUpValid
-                          ? `${topUpPacks} ${topUpPacks === 1 ? 'pack' : 'packs'} of ${tokens(
-                              pack.tokens
-                            )} · ${money(pack.price, settings)} each`
-                          : 'Enter an amount to see its price'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary w-auto buy-submit"
-                      onClick={() => void requestTopUp()}
-                      disabled={busyTier !== null || offline || !topUpValid}
-                    >
-                      {busyTier === 'topup' ? 'Sending…' : 'Request top-up'}
-                    </button>
-                  </div>
-
-                  <div className="buy-presets" role="group" aria-label="Common top-ups">
-                    {[1, 2, 5, 10].map((multiplier) => {
-                      const amount = Math.min(pack.tokens * multiplier, settings.maxTopup)
-                      if (amount < settings.minTopup) return null
-                      /* Priced the way the server prices it: whole packs. */
-                      const packs = Math.ceil(amount / Math.max(pack.tokens, 1))
-                      return (
-                        <button
-                          key={multiplier}
-                          type="button"
-                          className={`buy-preset${topUpAmount === amount ? ' buy-preset--on' : ''}`}
-                          onClick={() => {
-                            setTopUp(String(amount))
-                            setTopUpError(null)
-                          }}
-                        >
-                          <span>{tokens(amount)} tokens</span>
-                          <span className="buy-preset-price">
-                            {money(packs * pack.price, settings)}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {topUpError && (
-                    <p className="token-error" role="alert">
-                      {topUpError}
-                    </p>
-                  )}
-                  <p className="token-note">
-                    {`Top-ups run from ${tokens(settings.minTopup)} to ${tokens(
-                      settings.maxTopup
-                    )} tokens, in whole packs.`}{' '}
-                    Purchased tokens never expire and are spent after the daily allowance runs out.
-                    An administrator approves the request; nothing is charged automatically.
-                  </p>
-                </>
-              ) : (
-                <p className="token-group-note">
-                  {offline
-                    ? 'Prices are read from the cloud, so top-ups are unavailable offline.'
-                    : loading
-                      ? 'Reading the price of a top-up…'
-                      : 'The server did not send its pricing rules, so a top-up cannot be priced. Refresh to try again.'}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div>
-          {/* ---------------- requests ---------------- */}
-          <section className="token-group" aria-label="Requests">
-            <div className="token-group-head">
-              <span>Requests</span>
-              <span>{pending.length > 0 ? `${pending.length} waiting` : 'none waiting'}</span>
-            </div>
-            {purchases.length === 0 ? (
-              <div className="token-group-body">
-                <p className="token-group-note">
-                  Nothing requested yet. A plan change or a top-up starts here and is answered by an
-                  administrator.
-                </p>
-              </div>
+      {/* ---------------- the balance, and what it is made of ---------------- */}
+      <div className="token-hero">
+        <section className="token-panel token-panel--balance" aria-label="Balance">
+          <p className="token-eyebrow">Available now</p>
+          <div className="token-figure">
+            <strong>{state ? tokens(state.total) : '—'}</strong>
+            <span>tokens</span>
+          </div>
+          <p className="token-meta">
+            {state?.connected ? (
+              <>
+                {resetLabel(state)}
+                {state.syncedAt && !state.cached ? ` · read ${when(state.syncedAt)}` : ''}
+                {state.cached && state.syncedAt ? ` · last known ${when(state.syncedAt)}` : ''}
+              </>
             ) : (
-              purchases.slice(0, 8).map((request) => (
-                <div className="token-row" key={request.id}>
-                  <span className="token-row-kind">{request.kind === 'plan' ? 'Plan' : 'Top-up'}</span>
-                  <span className="token-row-what">
-                    {request.kind === 'plan'
-                      ? (request.planName ?? request.planId ?? 'Plan')
-                      : `${tokens(request.tokens ?? 0)} tokens`}
-                  </span>
-                  <span className="token-row-amount">
-                    {request.amountMinor === null
-                      ? '—'
-                      : money(request.amountMinor, shapeFor(request.currency, settings))}
-                  </span>
-                  {request.status === 'pending' ? (
-                    <button
-                      type="button"
-                      className="link-quiet token-row-action"
-                      onClick={() => void withdraw(request.id)}
-                    >
-                      Withdraw
-                    </button>
-                  ) : (
-                    <span className="token-row-status token-row-status--decided">
-                      {request.status === 'approved' ? 'Approved' : 'Declined'}
-                    </span>
-                  )}
-                </div>
-              ))
+              'Not connected to a cloud account yet'
             )}
-          </section>
+          </p>
 
-          {/* ---------------- history ---------------- */}
-          <section className="token-group" aria-label="Usage history">
-            <div className="token-group-head">
-              <span>Balance history</span>
-              <span>from the server</span>
+          {state?.connected && (
+            <div className="token-meter" aria-hidden="true">
+              <span style={{ width: `${Math.round(usedRatio * 100)}%` }} />
             </div>
-            {loading ? (
-              <div className="token-group-body">
-                <p className="token-group-note">Reading the ledger…</p>
-              </div>
-            ) : ledger.length === 0 ? (
-              <EmptyState
-                variant="panel"
-                icon={<SparkIcon size={16} />}
-                title="Nothing spent yet"
-                description="Every reset, charge and top-up is written here by the database itself."
-              />
-            ) : (
-              ledger.slice(0, 14).map((entry) => (
-                <div className="token-row" key={entry.id}>
-                  <span className="token-row-kind">{KIND_LABEL[entry.kind]}</span>
-                  <span className="token-row-what">{describe(entry, settings)}</span>
-                  <span className={`token-row-amount${entry.amount < 0 ? ' token-row-amount--down' : ''}`}>
-                    {entry.amount > 0 ? '+' : ''}
-                    {tokens(entry.amount)}
-                  </span>
-                  <span className="token-row-when">{when(entry.createdAt)}</span>
-                </div>
-              ))
-            )}
-          </section>
-        </div>
+          )}
+        </section>
+
+        <aside className="token-panel token-panel--status" aria-label="Plan and use">
+          <div className="token-status-head">
+            <p className="token-eyebrow">Current plan</p>
+            <span className="token-plan">
+              <span className="token-plan-dot" aria-hidden="true" />
+              {state?.planName ?? 'Free'}
+            </span>
+          </div>
+
+          <p className="token-status-plan">{state?.planName ?? 'Free'}</p>
+
+          <dl className="token-facts">
+            <div>
+              <dt>Daily allowance</dt>
+              <dd>
+                {state ? tokens(state.daily) : '—'}{' '}
+                <small>of {state ? tokens(state.dailyAllowance) : '—'}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Purchased</dt>
+              <dd>
+                {state ? tokens(state.purchased) : '—'} <small>carries over</small>
+              </dd>
+            </div>
+            <div>
+              <dt>Used today</dt>
+              <dd>
+                {state ? tokens(state.spentToday) : '—'}{' '}
+                <small>in {state ? state.requestsToday : 0} runs</small>
+              </dd>
+            </div>
+          </dl>
+
+          {current?.expiresAt && (
+            <p className="token-meta">renews {when(current.expiresAt)}</p>
+          )}
+        </aside>
       </div>
 
-      <section className="token-group token-group--spaced" aria-label="Recent AI work">
-        <div className="token-group-head">
-          <span>Recent research on this PC</span>
-          <span>{activity.length > 0 ? `${activity.length} runs` : 'nothing yet'}</span>
+      {/* ---------------- plans ---------------- */}
+      <section className="token-section" aria-label="Plans">
+        <div className="section-head">
+          <h2 className="section-title">Plans</h2>
+          <span className="section-meta">
+            {current ? `You are on ${current.name}` : 'Free by default'}
+          </span>
         </div>
-        {activity.length === 0 ? (
-          <div className="token-group-body">
-            <p className="token-group-note">
-              Open a document and use <strong>Research</strong> to plan a topic, read sources and
-              write the brief into the page. What it cost appears here and in the ledger above.
-            </p>
+
+        {plans.length === 0 ? (
+          <p className="token-group-note">
+            {offline
+              ? 'Plans are read from the cloud, so they are not available offline.'
+              : 'Loading the plans from the cloud…'}
+          </p>
+        ) : offered.length === 0 ? (
+          <p className="token-group-note">Every tier is switched off right now. Ask the administrator.</p>
+        ) : (
+          <div className="plan-grid">
+            {offered.map((plan) => (
+              <article
+                key={plan.id}
+                className={`plan-card${plan.current ? ' plan-card--current' : ''}`}
+                aria-current={plan.current ? 'true' : undefined}
+              >
+                <div className="plan-card-head">
+                  <h3 className="plan-card-name">{plan.name}</h3>
+                  {plan.current && <span className="badge badge--accent">Current</span>}
+                </div>
+
+                <p className="plan-card-allowance">
+                  <strong>{tokens(plan.dailyTokens)}</strong>
+                  tokens a day
+                </p>
+
+                <p className="plan-card-blurb">{plan.blurb}</p>
+
+                <div className="plan-card-foot">
+                  <p className="plan-card-price">
+                    {money(plan.priceMinor, settings)}
+                    {plan.priceMinor > 0 && <small>a month</small>}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm w-auto"
+                    disabled={
+                      plan.current ||
+                      busyTier !== null ||
+                      offline ||
+                      pending.some((request) => request.planId === plan.id)
+                    }
+                    onClick={() => void requestPlan(plan)}
+                  >
+                    {plan.current
+                      ? 'Your plan'
+                      : pending.some((request) => request.planId === plan.id)
+                        ? 'Waiting for approval'
+                        : busyTier === plan.id
+                          ? 'Sending…'
+                          : `Request ${plan.name}`}
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
+        )}
+
+        <p className="token-note">
+          Plans are approved by an administrator — there is no card on file and no automatic charge.
+          A request sits here until it is answered, and the allowance changes the moment it is.
+        </p>
+      </section>
+
+      {/* ---------------- top up, and what is waiting ---------------- */}
+      <div className="token-columns">
+        <section className="token-section" aria-label="Top up">
+          <div className="section-head">
+            <h2 className="section-title">Top up</h2>
+            <span className="section-meta">
+              {pack && settings
+                ? `${money(pack.price, settings)} per ${tokens(pack.tokens)} tokens`
+                : 'priced by the server'}
+            </span>
+          </div>
+
+          {pack && settings ? (
+            <>
+              <div className="buy-row">
+                <label className="admin-field buy-field">
+                  <span className="field-label">Tokens</span>
+                  <input
+                    className="field-input"
+                    inputMode="numeric"
+                    value={topUp}
+                    onChange={(event) => {
+                      setTopUp(event.target.value.replace(/[^\d]/g, ''))
+                      setTopUpError(null)
+                    }}
+                    aria-label="Tokens to buy"
+                  />
+                </label>
+                <div className="buy-quote" aria-live="polite">
+                  <span className="buy-quote-label">You would pay</span>
+                  <span className="buy-quote-value">
+                    {topUpValid ? money(topUpPrice, settings) : '—'}
+                  </span>
+                  <span className="buy-quote-note">
+                    {topUpValid
+                      ? `${topUpPacks} ${topUpPacks === 1 ? 'pack' : 'packs'} of ${tokens(
+                          pack.tokens
+                        )} · ${money(pack.price, settings)} each`
+                      : 'Enter an amount to see its price'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary w-auto buy-submit"
+                  onClick={() => void requestTopUp()}
+                  disabled={busyTier !== null || offline || !topUpValid}
+                >
+                  {busyTier === 'topup' ? 'Sending…' : 'Request top-up'}
+                </button>
+              </div>
+
+              <div className="buy-presets" role="group" aria-label="Common top-ups">
+                {[1, 2, 5, 10].map((multiplier) => {
+                  const amount = Math.min(pack.tokens * multiplier, settings.maxTopup)
+                  if (amount < settings.minTopup) return null
+                  /* Priced the way the server prices it: whole packs. */
+                  const packs = Math.ceil(amount / Math.max(pack.tokens, 1))
+                  return (
+                    <button
+                      key={multiplier}
+                      type="button"
+                      className={`buy-preset${topUpAmount === amount ? ' buy-preset--on' : ''}`}
+                      onClick={() => {
+                        setTopUp(String(amount))
+                        setTopUpError(null)
+                      }}
+                    >
+                      <span>{tokens(amount)} tokens</span>
+                      <span className="buy-preset-price">
+                        {money(packs * pack.price, settings)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {topUpError && (
+                <p className="token-error" role="alert">
+                  {topUpError}
+                </p>
+              )}
+              <p className="token-note">
+                {`Top-ups run from ${tokens(settings.minTopup)} to ${tokens(
+                  settings.maxTopup
+                )} tokens, in whole packs.`}{' '}
+                Purchased tokens never expire and are spent after the daily allowance runs out. An
+                administrator approves the request; nothing is charged automatically.
+              </p>
+            </>
+          ) : (
+            <p className="token-group-note">
+              {offline
+                ? 'Prices are read from the cloud, so top-ups are unavailable offline.'
+                : loading
+                  ? 'Reading the price of a top-up…'
+                  : 'The server did not send its pricing rules, so a top-up cannot be priced. Refresh to try again.'}
+            </p>
+          )}
+        </section>
+
+        <section className="token-section" aria-label="Requests">
+          <div className="section-head">
+            <h2 className="section-title">Requests</h2>
+            <span className="section-meta">
+              {pending.length > 0 ? `${pending.length} waiting` : 'none waiting'}
+            </span>
+          </div>
+
+          {purchases.length === 0 ? (
+            <p className="token-group-note">
+              Nothing requested yet. A plan change or a top-up starts here and is answered by an
+              administrator.
+            </p>
+          ) : (
+            purchases.slice(0, 8).map((request) => (
+              <div className="token-row" key={request.id}>
+                <span className="token-row-kind">{request.kind === 'plan' ? 'Plan' : 'Top-up'}</span>
+                <span className="token-row-what">
+                  {request.kind === 'plan'
+                    ? (request.planName ?? request.planId ?? 'Plan')
+                    : `${tokens(request.tokens ?? 0)} tokens`}
+                </span>
+                <span className="token-row-amount">
+                  {request.amountMinor === null
+                    ? '—'
+                    : money(request.amountMinor, shapeFor(request.currency, settings))}
+                </span>
+                {request.status === 'pending' ? (
+                  <button
+                    type="button"
+                    className="link-quiet token-row-action"
+                    onClick={() => void withdraw(request.id)}
+                  >
+                    Withdraw
+                  </button>
+                ) : (
+                  <span className="token-row-status token-row-status--decided">
+                    {request.status === 'approved' ? 'Approved' : 'Declined'}
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </section>
+      </div>
+
+      {/* ---------------- history ---------------- */}
+      <section className="token-section" aria-label="Usage history">
+        <div className="section-head">
+          <h2 className="section-title">Balance history</h2>
+          <span className="section-meta">from the server</span>
+        </div>
+
+        {loading ? (
+          <p className="token-group-note">Reading the ledger…</p>
+        ) : ledger.length === 0 ? (
+          <EmptyState
+            variant="panel"
+            icon={<SparkIcon size={16} />}
+            title="Nothing spent yet"
+            description="Every reset, charge and top-up is written here by the database itself."
+          />
+        ) : (
+          <div className="token-table">
+            <div className="token-table-head" aria-hidden="true">
+              <span>Kind</span>
+              <span>Entry</span>
+              <span>Amount</span>
+              <span>When</span>
+            </div>
+            {ledger.slice(0, 14).map((entry) => (
+              <div className="token-row" key={entry.id}>
+                <span className="token-row-kind">{KIND_LABEL[entry.kind]}</span>
+                <span className="token-row-what">{describe(entry, settings)}</span>
+                <span className={`token-row-amount${entry.amount < 0 ? ' token-row-amount--down' : ''}`}>
+                  {entry.amount > 0 ? '+' : ''}
+                  {tokens(entry.amount)}
+                </span>
+                <span className="token-row-when">{when(entry.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ---------------- recent work ---------------- */}
+      <section className="token-section" aria-label="Recent AI work">
+        <div className="section-head">
+          <h2 className="section-title">Recent research on this PC</h2>
+          <span className="section-meta">
+            {activity.length > 0 ? `${activity.length} runs` : 'nothing yet'}
+          </span>
+        </div>
+
+        {activity.length === 0 ? (
+          <p className="token-group-note">
+            Open a document and use <strong>Research</strong> to plan a topic, read sources and write
+            the brief into the page. What it cost appears here and in the ledger above.
+          </p>
         ) : (
           activity.map((run) => (
             <div className="token-row" key={run.id}>
@@ -593,7 +611,7 @@ export default function CreditsScreen() {
         )}
       </section>
 
-      <p className="token-note mt-4">
+      <p className="token-note mt-8">
         These numbers are the server's, read when the page opens. Nothing is stored on this PC, and
         nothing here authorises a request: the database writes the charge itself, from the tokens the
         model actually reported.{' '}

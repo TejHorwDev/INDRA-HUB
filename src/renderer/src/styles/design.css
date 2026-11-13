@@ -2367,3 +2367,294 @@ tbody td {
 .project-list--three .project-visual {
   height: 64px;
 }
+
+/* ==================================================================
+ * Tokens — the page, arranged
+ *
+ * Two panels open the page: the balance and what it is made of. Plans are
+ * cards because they are compared, not scanned. Top-up and requests sit
+ * side by side, and history is a table across the whole width. Nothing on
+ * this page is a 900px column with a dead half.
+ * ================================================================== */
+
+.token-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.token-panel {
+  padding: 28px 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.token-panel--balance {
+  display: flex;
+  flex-direction: column;
+}
+
+.token-panel--balance .token-figure strong {
+  font-size: clamp(3.5rem, 7vw, 5rem);
+}
+
+.token-panel--balance .token-meter {
+  margin-top: auto;
+}
+
+.token-status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.token-status-plan {
+  margin-top: 16px;
+  color: var(--ink);
+  font-family: var(--font-display-stack);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.token-facts {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.token-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.token-facts dt {
+  color: var(--ink-tertiary);
+  font-size: 11.5px;
+}
+
+.token-facts dd {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-facts dd small {
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.token-section {
+  margin-top: 40px;
+}
+
+.token-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 40px;
+  margin-top: 40px;
+}
+
+.token-columns .token-section {
+  margin-top: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.section-title {
+  color: var(--ink);
+  font-family: var(--font-display-stack);
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.026em;
+}
+
+.section-meta {
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.plan-card--current {
+  box-shadow: inset 0 2px 0 var(--ink);
+}
+
+.plan-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.plan-card-name {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.plan-card-allowance {
+  margin-top: 20px;
+  color: var(--ink-tertiary);
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.plan-card-allowance strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-family: var(--font-display-stack);
+  font-size: 2.125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.plan-card-blurb {
+  flex: 1;
+  margin-top: 10px;
+  color: var(--ink-tertiary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.plan-card-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.plan-card-price {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-card-price small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-tertiary);
+  font-size: 9.5px;
+  font-weight: 400;
+}
+
+.token-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  overflow: hidden;
+}
+
+.token-table-head {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 120px 130px;
+  gap: 14px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface-subtle);
+  color: var(--ink-tertiary);
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.token-table .token-row {
+  grid-template-columns: 110px minmax(0, 1fr) 120px 130px;
+  padding: 12px 20px;
+}
+
+.token-table .token-row:last-child {
+  border-bottom: 0;
+}
+
+.token-row-amount {
+  text-align: right;
+}
+
+/* Inside the requests column the kind is the row's context, not a column. */
+.token-columns .token-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.token-columns .token-row-kind {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .token-hero,
+  .token-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .plan-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .token-table-head {
+    display: none;
+  }
+
+  .token-table .token-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+/* The quote has a fixed button beside it; let its note wrap instead of
+   running underneath the button at narrower widths. */
+.buy-row {
+  align-items: end;
+}
+
+.buy-quote-note {
+  white-space: normal;
+}
