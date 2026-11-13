@@ -11,6 +11,7 @@ import {
   stopWorkspaceSync
 } from './services/workspace'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
+import { startWithLaunchCard } from './launch'
 import { runLaunchSplash } from './splash'
 import {
   recheckConnectivity,
@@ -52,7 +53,7 @@ function windowBackground(): string {
   return nativeTheme.shouldUseDarkColors ? '#08090a' : '#f7f7f8'
 }
 
-function createWindow(): void {
+function createWindow(options: { deferred?: boolean } = {}): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 780,
@@ -72,8 +73,14 @@ function createWindow(): void {
     }
   })
 
+  /*
+   * With a launch card in front, the app is created first and shown last: a
+   * hidden window is still a window, so nothing can trigger `window-all-closed`
+   * while the card is on screen, and the app is already painted by the time the
+   * card fades.
+   */
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show()
+    if (!options.deferred) mainWindow.show()
   })
 
   // Coming back to the app is a natural moment to ask whether it is still
@@ -122,6 +129,23 @@ function createWindow(): void {
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
+}
+
+/**
+ * Shows a window that was created deferred, waiting for its first paint if the
+ * load has not finished yet.
+ */
+function revealWindow(window: BrowserWindow): void {
+  if (window.isDestroyed() || window.isVisible()) return
+  if (!window.webContents.isLoading()) {
+    window.show()
+    return
+  }
+  window.once('ready-to-show', () => {
+    if (!window.isDestroyed()) window.show()
+  })
 }
 
 app.whenReady().then(() => {
@@ -234,16 +258,35 @@ app.whenReady().then(() => {
   }
 
   /*
-   * The launch card comes first, then the app.
+   * The launch card sits in front of an app that is already loading.
    *
-   * Only the packaged build shows it: a dev run has no update to find, and a
-   * spinner before Vite's server is ready would just be in the way. Whatever
-   * happens in the card — up to date, offline, an error, or a restart — the
-   * app opens next.
+   * The order matters and used to be wrong. Showing the card alone and then
+   * destroying it made it the last window, `window-all-closed` fired, and the
+   * app quit before its own window existed — the launch build closed itself.
+   * Now the real window exists first (hidden), the card is only the thing on
+   * screen, and closing it can never be the last window closing.
+   *
+   * A dev run skips the card: there is no update to find, and a spinner before
+   * Vite's server is ready would just be in the way.
    */
-  void runLaunchSplash().finally(() => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
+  if (isDev) {
+    revealWindow(createWindow())
+  } else {
+    void startWithLaunchCard({
+      createAppWindow: () => createWindow({ deferred: true }),
+      runSplash: runLaunchSplash,
+      reveal: revealWindow,
+      /*
+       * If the app somehow never paints, showing it anyway is better than
+       * leaving a person with a card that has faded out.
+       */
+      scheduleFallback: (reveal) => setTimeout(reveal, 6000)
+    }).catch((error) => {
+      /* Last resort: a startup that throws should still leave a window. */
+      console.error('[launch] startup failed', error)
+      if (BrowserWindow.getAllWindows().length === 0) revealWindow(createWindow())
+    })
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

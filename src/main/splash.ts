@@ -27,7 +27,19 @@ const WIDTH = 336
 const HEIGHT = 392
 
 /** Past this, the app opens and the download finishes in the background. */
-const GRACE_MS = 22_000
+const GRACE_MS = 10_000
+
+/**
+ * What the caller should do next.
+ *
+ * `restarting` means the process is about to relaunch into a new payload and no
+ * app window should be shown; `card` is the launch window, which the caller owns
+ * and must close once the real window is on screen.
+ */
+export interface LaunchResult {
+  card: BrowserWindow | null
+  restarting: boolean
+}
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -75,8 +87,8 @@ function createSplashWindow(): BrowserWindow {
  * The caller opens the real window when this resolves — no matter how it
  * resolved. Restarting never resolves: `installUpdate` relaunches the process.
  */
-export async function runLaunchSplash(): Promise<void> {
-  if (!app.isPackaged) return
+export async function runLaunchSplash(): Promise<LaunchResult> {
+  if (!app.isPackaged) return { card: null, restarting: false }
 
   const splash = createSplashWindow()
   let stage: Exclude<LaunchStage, 'done'> = 'checking'
@@ -132,7 +144,7 @@ export async function runLaunchSplash(): Promise<void> {
         await moveTo('restarting')
         await delay(LAUNCH_HOLD.restarting)
         installUpdate()
-        return
+        return { card: splash, restarting: true }
       }
 
       if (next === 'done') break
@@ -143,10 +155,20 @@ export async function runLaunchSplash(): Promise<void> {
     /* A launch screen must never be the reason someone cannot open the app. */
     console.error('[launch] update check failed', error)
   } finally {
+    /*
+     * Fade the card out and leave the window alive.
+     *
+     * Destroying it here was the launch bug: with no other window yet, the
+     * destroy made this the last window, `window-all-closed` fired, and the app
+     * quit before the real window existed. The caller closes this one after the
+     * app is on screen — by then there is another window, so nothing quits.
+     */
     if (!splash.isDestroyed()) {
       splash.webContents.send('launch:stage', 'closing')
       await delay(180)
-      splash.destroy()
+      splash.hide()
     }
   }
+
+  return { card: splash, restarting: false }
 }
