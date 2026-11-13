@@ -4702,14 +4702,14 @@
   }
 
   /* The cloud copies sit below the local list, visually a second shelf. */
-  .library-cloud {
+  .cloud-shelf {
     margin-top: 30px;
     padding-top: 22px;
     border-top: 1px solid var(--line);
     animation: rise-in var(--dur-base) var(--ease) both;
   }
 
-  .library-cloud .home-section-head {
+  .cloud-shelf .home-section-head {
     margin-bottom: 12px;
     padding-inline: 2px;
   }

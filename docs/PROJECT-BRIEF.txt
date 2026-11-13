@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.8.0
-  Latest release:     v1.8.0 (GitHub, public)
+  Version:            1.8.1
+  Latest release:     v1.8.1 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -53,7 +53,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5, v1.7.0, v1.8.0.
+v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -200,8 +200,13 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     OFFLINE pill and the rail's only heading is OFFLINE.
   - Documents and Presentations are cross-project libraries (every document
     and deck the account can reach, most recent first, project named on each
-    row). They exist online too — they are the quickest way back into work —
-    but offline they are the whole workspace.
+    row). They are the offline workspace and nothing else: online, a project is
+    the container, so the rail does not list them, the palette does not offer
+    them, and /documents redirects to the project list. (1.8.1 — 1.8.0 briefly
+    had them in both places, which was one way to find work too many.)
+  - The rule lives in lib/nav.ts as plain data, so `npm run sim:offline`
+    asserts it rather than a screenshot: online the rail has no Documents or
+    Presentations entry; offline it has both, in one group.
   - Nothing in the offline path touches the network: sign-in, registration,
     projects, documents, presentations, settings and the maintenance screen
     are all SQLite reads and writes.
@@ -242,8 +247,10 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     minutes ago · newer work here" with no connection. The button itself is
     inert offline, and the main process refuses all five cloud calls with the
     machine has no route out — the renderer is not the thing deciding that.
-  - The library lists cloud copies in a second shelf, and that shelf disappears
-    offline. Offline is this PC only, always.
+  - The Projects screen lists cloud copies in a second shelf below your own
+    projects (1.8.1 moved it out of the library, which became offline-only).
+    That shelf is not fetched and not drawn offline. Offline is this PC only,
+    always.
   - Pulling a cloud project lands as a NEW local project through the same
     restore path an imported file uses, so it is sanitised by the same code.
     It remembers which cloud copy it came from, so saving it again updates that

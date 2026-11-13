@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { CSSProperties, ReactNode } from 'react'
 import { initialsOf, toneOf } from '../lib/format'
+import { navGroups } from '../lib/nav'
 import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
 import {
@@ -18,43 +19,16 @@ import {
 
 const STORAGE_KEY = 'indra-hub.sidebar'
 
-interface NavItem {
-  to: string
-  label: string
-  icon: ReactNode
+/* The rail is data-driven (lib/nav.ts); this maps a path to its glyph. */
+const ICONS: Record<string, ReactNode> = {
+  '/home': <HomeIcon size={16} />,
+  '/dashboard': <DashboardIcon size={16} />,
+  '/documents': <FileIcon size={16} />,
+  '/presentations': <PresentationIcon size={16} />,
+  '/developers': <CodeIcon size={16} />,
+  '/credits': <SparkIcon size={16} />,
+  '/settings': <SettingsIcon size={16} />
 }
-
-interface NavGroup {
-  label: string
-  items: NavItem[]
-}
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Workspace',
-    items: [
-      { to: '/home', label: 'Home', icon: <HomeIcon size={16} /> },
-      { to: '/dashboard', label: 'Projects', icon: <DashboardIcon size={16} /> },
-      { to: '/documents', label: 'Documents', icon: <FileIcon size={16} /> },
-      { to: '/presentations', label: 'Presentations', icon: <PresentationIcon size={16} /> },
-      { to: '/developers', label: 'Developers', icon: <CodeIcon size={16} /> }
-    ]
-  },
-  {
-    label: 'Account',
-    items: [
-      { to: '/credits', label: 'Credits', icon: <SparkIcon size={16} /> },
-      { to: '/settings', label: 'Settings', icon: <SettingsIcon size={16} /> }
-    ]
-  }
-]
-
-/**
- * With no route out, the rail keeps only what the machine can do on its own.
- * Hiding the rest is kinder than letting someone click into a screen that has
- * nothing to show them.
- */
-const OFFLINE_ALLOWED = new Set(['/documents', '/presentations', '/dashboard', '/settings'])
 
 export default function Sidebar() {
   const navigate = useNavigate()
@@ -82,18 +56,9 @@ export default function Sidebar() {
     navigate('/login', { replace: true })
   }
 
-  // Offline the rail keeps one group, and it drops the headings rather than
-  // leaving "Workspace" over a list of two.
-  const groups = offline
-    ? [
-        {
-          label: 'Offline',
-          items: NAV_GROUPS.flatMap((group) =>
-            group.items.filter((item) => OFFLINE_ALLOWED.has(item.to))
-          )
-        }
-      ]
-    : NAV_GROUPS
+  // Online the rail is about projects; offline it is about the two things the
+  // machine can do on its own. lib/nav.ts decides, so a simulation can check it.
+  const groups = navGroups(offline)
 
   return (
     <aside className={collapsed ? 'sidebar sidebar--collapsed' : 'sidebar'} aria-label="Primary">
@@ -110,7 +75,7 @@ export default function Sidebar() {
                 }
                 title={collapsed ? item.label : undefined}
               >
-                <span className="sidebar-icon">{item.icon}</span>
+                <span className="sidebar-icon">{ICONS[item.to]}</span>
                 <span className="sidebar-label">{item.label}</span>
               </NavLink>
             ))}
