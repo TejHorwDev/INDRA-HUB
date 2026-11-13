@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   installer:
@@ -71,10 +71,31 @@ jobs:
         working-directory: installer
         run: npx electron-builder --win --publish never
 
-      - name: Upload the artifact
+      - name: Keep the artifact
         uses: actions/upload-artifact@v4
         with:
           name: INDRA-HUB-Setup-custom-${{ steps.version.outputs.value }}
           path: installer/dist/*.exe
           if-no-files-found: error
           retention-days: 14
+
+      # A link that can just be clicked, instead of a trip through Actions.
+      # It is a PRE-RELEASE on purpose: `releases/latest` is where the app's
+      # updater reads payload.json from, and a newer "latest" release with no
+      # payload in it would break updating for everyone.
+      - name: Publish it as a download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: custom-installer
+          name: INDRA HUB — custom installer (test build)
+          prerelease: true
+          make_latest: false
+          files: installer/dist/*.exe
+          body: |
+            The custom install window, wrapping the current stock installer
+            (${{ steps.version.outputs.value }}).
+
+            This is a test build: it has not been installed, uninstalled or
+            reinstalled on Windows yet. `releases/latest` still serves the proven
+            installer, and the app's updater keeps reading its payload from
+            there.
