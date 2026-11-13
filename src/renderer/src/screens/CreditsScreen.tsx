@@ -335,7 +335,7 @@ export default function CreditsScreen() {
               ) : offered.length === 0 ? (
                 <p className="token-group-note">Every tier is switched off right now. Ask the administrator.</p>
               ) : (
-                <div className="tier-row">
+                <div className="plan-list">
                   {offered.map((plan) => (
                     <article
                       key={plan.id}
@@ -400,7 +400,7 @@ export default function CreditsScreen() {
                 <>
                   <div className="buy-row">
                     <label className="admin-field buy-field">
-                      <span className="field-label">Credits</span>
+                      <span className="field-label">Tokens</span>
                       <input
                         className="field-input"
                         inputMode="numeric"
@@ -473,7 +473,9 @@ export default function CreditsScreen() {
                 <p className="token-group-note">
                   {offline
                     ? 'Prices are read from the cloud, so top-ups are unavailable offline.'
-                    : 'Loading the price of a top-up…'}
+                    : loading
+                      ? 'Reading the price of a top-up…'
+                      : 'The server did not send its pricing rules, so a top-up cannot be priced. Refresh to try again.'}
                 </p>
               )}
             </div>
@@ -500,23 +502,25 @@ export default function CreditsScreen() {
                   <span className="token-row-kind">{request.kind === 'plan' ? 'Plan' : 'Top-up'}</span>
                   <span className="token-row-what">
                     {request.kind === 'plan'
-                      ? request.planName ?? request.planId ?? 'Plan'
+                      ? (request.planName ?? request.planId ?? 'Plan')
                       : `${tokens(request.tokens ?? 0)} tokens`}
-                    {request.amountMinor !== null
-                      ? ` · ${money(request.amountMinor, shapeFor(request.currency, settings))}`
-                      : ''}
+                  </span>
+                  <span className="token-row-amount">
+                    {request.amountMinor === null
+                      ? '—'
+                      : money(request.amountMinor, shapeFor(request.currency, settings))}
                   </span>
                   {request.status === 'pending' ? (
                     <button
                       type="button"
-                      className="link-quiet text-[0.6875rem]"
+                      className="link-quiet token-row-action"
                       onClick={() => void withdraw(request.id)}
                     >
                       Withdraw
                     </button>
                   ) : (
-                    <span className="token-row-when">
-                      {request.status === 'approved' ? 'approved' : 'declined'}
+                    <span className="token-row-status token-row-status--decided">
+                      {request.status === 'approved' ? 'Approved' : 'Declined'}
                     </span>
                   )}
                 </div>

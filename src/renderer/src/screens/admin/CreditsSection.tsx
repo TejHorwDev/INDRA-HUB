@@ -548,7 +548,7 @@ export default function CreditsSection(_props: SectionProps) {
                   disabled={busy !== null}
                 >
                   {busy === 'claim' ? <span className="spinner" aria-hidden="true" /> : null}
-                  Take credit administration
+                  Take token administration
                 </button>
               ) : (
                 <button
@@ -785,7 +785,7 @@ export default function CreditsSection(_props: SectionProps) {
                               (minorFrom(settingsDraft.topupPrice, decimals) ?? 0) / Math.max(Number(settingsDraft.topupTokens), 1)
                             ),
                             settings
-                          )} per credit`
+                          )} per token`
                         : 'One pack costs this much.'}
                     </span>
                   </label>
@@ -924,7 +924,7 @@ export default function CreditsSection(_props: SectionProps) {
                   />
                 </label>
                 <label className="admin-field">
-                  <span className="field-label">Credits a day</span>
+                  <span className="field-label">Tokens a day</span>
                   <input
                     className="field-input"
                     inputMode="numeric"
@@ -981,12 +981,12 @@ export default function CreditsSection(_props: SectionProps) {
                   </label>
 
                   <label className="admin-field">
-                    <span className="field-label">Credits a day</span>
+                    <span className="field-label">Tokens a day</span>
                     <input
                       className="field-input"
                       inputMode="numeric"
                       value={draft.daily}
-                      aria-label={`${plan.id} daily credits`}
+                      aria-label={`${plan.id} daily tokens`}
                       onChange={(event) =>
                         setPlanDraft((current) => ({
                           ...current,
@@ -1291,7 +1291,7 @@ export default function CreditsSection(_props: SectionProps) {
                           {openAccount === account.id && (
                             <div className="mt-2 flex flex-wrap items-end gap-2">
                               <label className="admin-field w-[110px]">
-                                <span className="field-label">Credits</span>
+                                <span className="field-label">Tokens</span>
                                 <input
                                   className="field-input"
                                   inputMode="numeric"
@@ -1426,7 +1426,7 @@ export default function CreditsSection(_props: SectionProps) {
           onCancel={() => setConfirmOff(null)}
           onConfirm={() => void savePlanFlag(confirmOff, false)}
         >
-          The tier disappears from the Credits page. Accounts already on it keep it until they are
+          The tier disappears from the Tokens page. Accounts already on it keep it until they are
           moved, and the server refuses the change while any account is on it.
         </ConfirmDialog>
       )}
