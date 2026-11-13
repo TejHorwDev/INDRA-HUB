@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
-  AdminCreditAccountDetail,
-  AdminCreditLedgerRow,
-  AdminCreditSnapshot,
+  AdminTokenAccountDetail,
+  AdminTokenLedgerRow,
+  AdminTokenSnapshot,
   AdminSpendRow,
-  CreditPlan,
-  CreditSettings
+  TokenPlan,
+  TokenSettings
 } from '@shared/types'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { useToast } from '../../components/ToastProvider'
 import { PlusIcon } from '../../components/icons'
 import { api, errorMessage } from '../../lib/api'
-import { credits, minorFrom, minorToText, money } from '../../lib/money'
+import { minorFrom, minorToText, money, tokens } from '../../lib/money'
 import { Badge, SectionHead, SearchField, formatDate, formatDateTime } from './shared'
 import type { SectionProps } from './shared'
 
@@ -57,23 +57,23 @@ interface PlanDraft {
  * is its own action with its own confirmation; if it rode along with the text
  * fields, saving a reworded blurb could silently switch a retired tier back on.
  */
-function draftOf(plan: CreditPlan, settings: CreditSettings | null): PlanDraft {
+function draftOf(plan: TokenPlan, settings: TokenSettings | null): PlanDraft {
   return {
     name: plan.name,
     blurb: plan.blurb,
-    daily: String(plan.dailyCredits),
+    daily: String(plan.dailyTokens),
     price: minorToText(plan.priceMinor, settings?.decimals ?? 2)
   }
 }
 
 export default function CreditsSection(_props: SectionProps) {
   const toast = useToast()
-  const [snapshot, setSnapshot] = useState<AdminCreditSnapshot | null>(null)
+  const [snapshot, setSnapshot] = useState<AdminTokenSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [openAccount, setOpenAccount] = useState<string | null>(null)
-  const [ledger, setLedger] = useState<AdminCreditLedgerRow[]>([])
+  const [ledger, setLedger] = useState<AdminTokenLedgerRow[]>([])
   const [ledgerFor, setLedgerFor] = useState<string | null>(null)
   const [grantAmount, setGrantAmount] = useState('')
   const [grantReason, setGrantReason] = useState('')
@@ -82,8 +82,7 @@ export default function CreditsSection(_props: SectionProps) {
     currency: string
     symbol: string
     decimals: string
-    tokensPerCredit: string
-    topupCredits: string
+    topupTokens: string
     topupPrice: string
     minTopup: string
     maxTopup: string
@@ -92,9 +91,9 @@ export default function CreditsSection(_props: SectionProps) {
   const [newPlan, setNewPlan] = useState<{ open: boolean; id: string; name: string; daily: string; price: string }>(
     { open: false, id: '', name: '', daily: '', price: '' }
   )
-  const [confirmOff, setConfirmOff] = useState<CreditPlan | null>(null)
+  const [confirmOff, setConfirmOff] = useState<TokenPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [detail, setDetail] = useState<AdminCreditAccountDetail | null>(null)
+  const [detail, setDetail] = useState<AdminTokenAccountDetail | null>(null)
   const [detailFor, setDetailFor] = useState<string | null>(null)
   const [spend, setSpend] = useState<AdminSpendRow[]>([])
   const [spendOpen, setSpendOpen] = useState(false)
@@ -106,7 +105,7 @@ export default function CreditsSection(_props: SectionProps) {
 
   const load = useCallback(async () => {
     try {
-      const next = await api.admin.credits()
+      const next = await api.admin.tokens()
       setSnapshot(next)
       setPlanDraft((current) => {
         const draft: Record<string, PlanDraft> = {}
@@ -121,8 +120,7 @@ export default function CreditsSection(_props: SectionProps) {
             currency: next.settings!.currency,
             symbol: next.settings!.symbol,
             decimals: String(next.settings!.decimals),
-            tokensPerCredit: String(next.settings!.tokensPerCredit),
-            topupCredits: String(next.settings!.topupCredits),
+            topupTokens: String(next.settings!.topupTokens),
             topupPrice: minorToText(next.settings!.topupPriceMinor, next.settings!.decimals),
             minTopup: String(next.settings!.minTopup),
             maxTopup: String(next.settings!.maxTopup),
@@ -150,7 +148,7 @@ export default function CreditsSection(_props: SectionProps) {
     )
   }, [snapshot, query])
 
-  async function act(key: string, run: () => Promise<AdminCreditSnapshot>, success: string) {
+  async function act(key: string, run: () => Promise<AdminTokenSnapshot>, success: string) {
     setBusy(key)
     setError(null)
     try {
@@ -166,7 +164,7 @@ export default function CreditsSection(_props: SectionProps) {
   async function decide(id: string, approve: boolean) {
     await act(
       `decide:${id}`,
-      () => api.admin.decidePurchase(id, approve, approve ? 'Approved in the credit console.' : 'Declined.'),
+      () => api.admin.decidePurchase(id, approve, approve ? 'Approved in the token console.' : 'Declined.'),
       approve ? 'Request approved — the balance is updated.' : 'Request declined.'
     )
   }
@@ -178,20 +176,20 @@ export default function CreditsSection(_props: SectionProps) {
   async function grant(userId: string) {
     const amount = Math.round(Number(grantAmount))
     if (!Number.isFinite(amount) || amount === 0) {
-      setError('Give an amount of credits, positive or negative.')
+      setError('Give an amount of tokens, positive or negative.')
       return
     }
     await act(
       `grant:${userId}`,
-      () => api.admin.grantCredits(userId, amount, grantReason),
-      `${credits(amount)} credits applied.`
+      () => api.admin.grantTokens(userId, amount, grantReason),
+      `${tokens(amount)} tokens applied.`
     )
     setGrantAmount('')
     setGrantReason('')
   }
 
   /** Saves every field of one tier, including whether it is still offered. */
-  async function savePlan(plan: CreditPlan) {
+  async function savePlan(plan: TokenPlan) {
     const draft = planDraft[plan.id]
     if (!draft) return
     const decimals = settings?.decimals ?? 2
@@ -202,7 +200,7 @@ export default function CreditsSection(_props: SectionProps) {
     }
     const daily = Number(draft.daily)
     if (!Number.isFinite(daily) || daily < 0) {
-      setError('A daily allowance is a whole number of credits, zero or more.')
+      setError('A daily allowance is a whole number of tokens, zero or more.')
       return
     }
     setBusy(`planEdit:${plan.id}`)
@@ -212,10 +210,10 @@ export default function CreditsSection(_props: SectionProps) {
         id: plan.id,
         name: draft.name,
         blurb: draft.blurb,
-        dailyCredits: Math.round(daily),
+        dailyTokens: Math.round(daily),
         priceMinor
       })
-      const next = await api.admin.credits()
+      const next = await api.admin.tokens()
       setSnapshot(next)
       setPlanDraft((current) => {
         const nextDraft: Record<string, PlanDraft> = {}
@@ -224,7 +222,7 @@ export default function CreditsSection(_props: SectionProps) {
         }
         return nextDraft
       })
-      toast.success(`${draft.name} saved: ${credits(daily)} credits a day.`)
+      toast.success(`${draft.name} saved: ${tokens(daily)} tokens a day.`)
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -253,7 +251,7 @@ export default function CreditsSection(_props: SectionProps) {
       await api.admin.updatePlan({
         id,
         name: newPlan.name.trim(),
-        dailyCredits: Math.max(0, Math.round(Number(newPlan.daily) || 0)),
+        dailyTokens: Math.max(0, Math.round(Number(newPlan.daily) || 0)),
         priceMinor,
         create: true
       })
@@ -267,7 +265,7 @@ export default function CreditsSection(_props: SectionProps) {
     }
   }
 
-  async function toggleEnabled(plan: CreditPlan, enabled: boolean) {
+  async function toggleEnabled(plan: TokenPlan, enabled: boolean) {
     if (!enabled) {
       setConfirmOff(plan)
       return
@@ -275,7 +273,7 @@ export default function CreditsSection(_props: SectionProps) {
     await savePlanFlag(plan, true)
   }
 
-  async function savePlanFlag(plan: CreditPlan, enabled: boolean) {
+  async function savePlanFlag(plan: TokenPlan, enabled: boolean) {
     setBusy(`toggle:${plan.id}`)
     setError(null)
     try {
@@ -306,8 +304,7 @@ export default function CreditsSection(_props: SectionProps) {
       currency: settingsDraft.currency.trim().toUpperCase(),
       symbol: settingsDraft.symbol.trim(),
       decimals,
-      tokensPerCredit: numeric(settingsDraft.tokensPerCredit),
-      topupCredits: numeric(settingsDraft.topupCredits),
+      topupTokens: numeric(settingsDraft.topupTokens),
       topupPriceMinor,
       minTopup: numeric(settingsDraft.minTopup),
       maxTopup: numeric(settingsDraft.maxTopup),
@@ -320,12 +317,11 @@ export default function CreditsSection(_props: SectionProps) {
     setBusy('settings')
     setError(null)
     try {
-      const saved = await api.admin.updateCreditSettings({
+      const saved = await api.admin.updateTokenSettings({
         currency: payload.currency,
         symbol: payload.symbol,
         decimals: payload.decimals,
-        tokensPerCredit: payload.tokensPerCredit ?? undefined,
-        topupCredits: payload.topupCredits ?? undefined,
+        topupTokens: payload.topupTokens ?? undefined,
         topupPriceMinor: payload.topupPriceMinor ?? undefined,
         minTopup: payload.minTopup ?? undefined,
         maxTopup: payload.maxTopup ?? undefined,
@@ -336,8 +332,7 @@ export default function CreditsSection(_props: SectionProps) {
         currency: saved.currency,
         symbol: saved.symbol,
         decimals: String(saved.decimals),
-        tokensPerCredit: String(saved.tokensPerCredit),
-        topupCredits: String(saved.topupCredits),
+        topupTokens: String(saved.topupTokens),
         topupPrice: minorToText(saved.topupPriceMinor, saved.decimals),
         minTopup: String(saved.minTopup),
         maxTopup: String(saved.maxTopup),
@@ -374,9 +369,9 @@ export default function CreditsSection(_props: SectionProps) {
     setBusy('claim')
     setError(null)
     try {
-      const next = await api.admin.claimCreditRole()
+      const next = await api.admin.claimTokenAdmin()
       setSnapshot(next)
-      if (next.live) toast.success('This installation now administers credits.')
+      if (next.live) toast.success('This installation now administers tokens.')
       else setError(next.message ?? 'The server did not grant the role.')
     } catch (caught) {
       setError(errorMessage(caught))
@@ -427,7 +422,7 @@ export default function CreditsSection(_props: SectionProps) {
     setDetail(null)
     setBusy(`detail:${userId}`)
     try {
-      setDetail(await api.admin.creditAccount(userId))
+      setDetail(await api.admin.tokenAccount(userId))
     } catch (caught) {
       setError(errorMessage(caught))
       setDetailFor(null)
@@ -444,7 +439,7 @@ export default function CreditsSection(_props: SectionProps) {
     setSpendOpen(true)
     setBusy('spend')
     try {
-      setSpend(await api.admin.creditSpend(60))
+      setSpend(await api.admin.tokenSpend(60))
     } catch (caught) {
       setError(errorMessage(caught))
       setSpend([])
@@ -461,7 +456,7 @@ export default function CreditsSection(_props: SectionProps) {
     setLedgerFor(userId)
     setBusy(`ledger:${userId}`)
     try {
-      setLedger(await api.admin.creditLedger(userId, 40))
+      setLedger(await api.admin.tokenLedger(userId, 40))
     } catch (caught) {
       setError(errorMessage(caught))
       setLedger([])
@@ -478,8 +473,8 @@ export default function CreditsSection(_props: SectionProps) {
   return (
     <>
       <SectionHead
-        title="Credits"
-        description="Everything a credit costs, what each tier grants, what a top-up buys, and every movement of every balance. Prices are enforced by the server, not by this console."
+        title="Tokens"
+        description="The daily allowance each tier grants, what a top-up costs, and every movement of every balance. The server enforces all of it; this console only asks."
       >
         <span className="admin-credits-live">
           <span
@@ -487,7 +482,7 @@ export default function CreditsSection(_props: SectionProps) {
             aria-hidden="true"
           />
           {snapshot?.live
-            ? 'Managing credits'
+            ? 'Managing tokens'
             : snapshot?.reachable
               ? 'Role not held'
               : 'Server unreachable'}
@@ -510,14 +505,14 @@ export default function CreditsSection(_props: SectionProps) {
        * Each is answered on its own now, with the action that resolves it.
        */}
       {snapshot && !snapshot.live && (
-        <section className="admin-card">
-          <div className="admin-card-head">
-            <h2>{snapshot.reachable ? 'Credit administration is not granted yet' : 'The server did not answer'}</h2>
+        <section className="admin-group">
+          <div className="admin-group-head">
+            <h2>{snapshot.reachable ? 'Token administration is not granted yet' : 'The server did not answer'}</h2>
           </div>
-          <div className="admin-card-body">
-            <p className="admin-empty admin-empty--lead">
+          <div className="admin-group-body">
+            <p className="admin-group-note admin-group-note--lead">
               {snapshot.message ??
-                'The server has not granted credit administration to this installation.'}
+                'The server has not granted token administration to this installation.'}
             </p>
             {/*
              * Which cloud account this PC is. Without it, "the role is not
@@ -539,7 +534,7 @@ export default function CreditsSection(_props: SectionProps) {
              * promise this page could not keep. Say what is true instead.
              */}
             {!snapshot.reachable && (
-              <p className="admin-empty">
+              <p className="admin-group-note">
                 Nothing can be read or changed until it does. Every figure this section shows comes from the server,
                 never from a local copy, so there is no stale balance here to mistake for a real one.
               </p>
@@ -566,7 +561,7 @@ export default function CreditsSection(_props: SectionProps) {
                 </button>
               )}
             </div>
-            <p className="admin-empty">
+            <p className="admin-group-note">
               The role belongs to the server, not to this PC. The button never takes it from an administrator who is
               still using the console: if one is, the server refuses and says so. An installation that has been
               abandoned for a day stops counting as in use, so a reinstalled PC can pick the role back up without
@@ -578,34 +573,22 @@ export default function CreditsSection(_props: SectionProps) {
 
       {snapshot?.live && (
         <>
-          <div className="admin-summary">
-            <span>{pending.length} waiting</span>
-            {/*
-             * The account count comes from the server, not from the length of
-             * the list: the list is capped, so counting rows here would quietly
-             * under-report a large fleet.
-             */}
-            <span>
-              {snapshot.reset?.totalAccounts ?? snapshot.accounts.length} accounts
-              {snapshot.reset?.suspendedAccounts
-                ? ` · ${snapshot.reset.suspendedAccounts} suspended`
-                : ''}
-            </span>
-            <span>
-              {snapshot.plans.filter((plan) => plan.enabled).length} of {snapshot.plans.length} tiers offered
-            </span>
-            {settings && (
-              <span>
-                priced in {settings.currency} · 1 credit = {credits(settings.tokensPerCredit)} tokens
-              </span>
-            )}
-            {snapshot.reset?.nextResetAt && (
-              <span>
-                daily allowance refills {formatDateTime(snapshot.reset.nextResetAt)}
-                {snapshot.reset.lastRefillAt ? ` · last refill ${formatDateTime(snapshot.reset.lastRefillAt)}` : ''}
-              </span>
-            )}
-          </div>
+          {/*
+           * One sentence of state, not a row of tiles. What an administrator
+           * needs at a glance is: who is waiting on me, and when does everyone
+           * refill. Everything else is below, where it is acted on.
+           */}
+          <p className="admin-lede">
+            <strong>{pending.length === 0 ? 'Nothing is waiting' : `${pending.length} waiting`}</strong>
+            {pending.length === 1 ? ' request' : ' requests'} ·{' '}
+            {snapshot.reset?.totalAccounts ?? snapshot.accounts.length}{' '}
+            {(snapshot.reset?.totalAccounts ?? snapshot.accounts.length) === 1 ? 'account' : 'accounts'}
+            {snapshot.reset?.suspendedAccounts ? `, ${snapshot.reset.suspendedAccounts} suspended` : ''} ·{' '}
+            {snapshot.plans.filter((plan) => plan.enabled).length} of {snapshot.plans.length} tiers offered
+            {snapshot.reset?.nextResetAt
+              ? ` · daily tokens refill ${formatDateTime(snapshot.reset.nextResetAt)}`
+              : ''}
+          </p>
 
           {/*
            * The two fleet-wide actions. Both are idempotent and both say what
@@ -621,7 +604,7 @@ export default function CreditsSection(_props: SectionProps) {
               title="Refills every account's daily allowance now. Accounts already refilled today are untouched."
             >
               {busy === 'reset' ? <span className="spinner" aria-hidden="true" /> : null}
-              Refill everyone's daily credits
+              Refill everyone's daily tokens
             </button>
             <button
               type="button"
@@ -634,14 +617,14 @@ export default function CreditsSection(_props: SectionProps) {
           </div>
 
           {spendOpen && (
-            <section className="admin-card">
-              <div className="admin-card-head">
+            <section className="admin-group">
+              <div className="admin-group-head">
                 <h2>All movements</h2>
-                <span className="admin-card-count">{spend.length}</span>
+                <span className="admin-group-count">{spend.length}</span>
               </div>
               {spend.length === 0 ? (
-                <p className="admin-empty">
-                  {busy === 'spend' ? 'Reading…' : 'No credit movement has been recorded yet.'}
+                <p className="admin-group-note">
+                  {busy === 'spend' ? 'Reading…' : 'No token movement has been recorded yet.'}
                 </p>
               ) : (
                 <div className="admin-table-wrap">
@@ -666,9 +649,9 @@ export default function CreditsSection(_props: SectionProps) {
                           <td className="admin-dim">{row.kind}</td>
                           <td className="admin-num">
                             {row.amount > 0 ? '+' : ''}
-                            {credits(row.amount)}
+                            {tokens(row.amount)}
                           </td>
-                          <td className="admin-num">{credits(row.balanceAfter)}</td>
+                          <td className="admin-num">{tokens(row.balanceAfter)}</td>
                           <td className="admin-dim">{formatDateTime(row.createdAt)}</td>
                         </tr>
                       ))}
@@ -680,15 +663,15 @@ export default function CreditsSection(_props: SectionProps) {
           )}
 
           {/* ---------------- pricing rules ---------------- */}
-          <section className="admin-card">
-            <div className="admin-card-head">
+          <section className="admin-group">
+            <div className="admin-group-head">
               <h2>Pricing</h2>
-              <span className="admin-card-count">
+              <span className="admin-group-count">
                 {settings ? `saved ${formatDateTime(settings.updatedAt)}` : 'not read yet'}
               </span>
             </div>
             {settingsDraft ? (
-              <div className="admin-card-body">
+              <div className="admin-group-body">
                 <div className="admin-form-grid">
                   <label className="admin-field">
                     <span className="field-label">Currency</span>
@@ -771,34 +754,17 @@ export default function CreditsSection(_props: SectionProps) {
 
                 <div className="admin-form-grid admin-form-grid--wide">
                   <label className="admin-field">
-                    <span className="field-label">Tokens per credit</span>
+                    <span className="field-label">Pack size (tokens)</span>
                     <input
                       className="field-input"
                       inputMode="numeric"
-                      value={settingsDraft.tokensPerCredit}
+                      value={settingsDraft.topupTokens}
                       onChange={(event) =>
                         setSettingsDraft((current) =>
-                          current
-                            ? { ...current, tokensPerCredit: event.target.value.replace(/[^\d]/g, '') }
-                            : current
+                          current ? { ...current, topupTokens: event.target.value.replace(/[^\d]/g, '') } : current
                         )
                       }
-                      aria-label="Tokens per credit"
-                    />
-                    <span className="admin-field-hint">What the AI function divides a model's tokens by.</span>
-                  </label>
-                  <label className="admin-field">
-                    <span className="field-label">Pack size (credits)</span>
-                    <input
-                      className="field-input"
-                      inputMode="numeric"
-                      value={settingsDraft.topupCredits}
-                      onChange={(event) =>
-                        setSettingsDraft((current) =>
-                          current ? { ...current, topupCredits: event.target.value.replace(/[^\d]/g, '') } : current
-                        )
-                      }
-                      aria-label="Credits per pack"
+                      aria-label="Tokens per pack"
                     />
                   </label>
                   <label className="admin-field">
@@ -813,10 +779,10 @@ export default function CreditsSection(_props: SectionProps) {
                       aria-label="Price of one pack"
                     />
                     <span className="admin-field-hint">
-                      {minorFrom(settingsDraft.topupPrice, decimals) !== null && Number(settingsDraft.topupCredits) > 0
+                      {minorFrom(settingsDraft.topupPrice, decimals) !== null && Number(settingsDraft.topupTokens) > 0
                         ? `= ${money(minorFrom(settingsDraft.topupPrice, decimals) ?? 0, settings)} per pack · ${money(
                             Math.round(
-                              (minorFrom(settingsDraft.topupPrice, decimals) ?? 0) / Math.max(Number(settingsDraft.topupCredits), 1)
+                              (minorFrom(settingsDraft.topupPrice, decimals) ?? 0) / Math.max(Number(settingsDraft.topupTokens), 1)
                             ),
                             settings
                           )} per credit`
@@ -887,8 +853,7 @@ export default function CreditsSection(_props: SectionProps) {
                         currency: settings.currency,
                         symbol: settings.symbol,
                         decimals: String(settings.decimals),
-                        tokensPerCredit: String(settings.tokensPerCredit),
-                        topupCredits: String(settings.topupCredits),
+                        topupTokens: String(settings.topupTokens),
                         topupPrice: minorToText(settings.topupPriceMinor, settings.decimals),
                         minTopup: String(settings.minTopup),
                         maxTopup: String(settings.maxTopup),
@@ -899,23 +864,23 @@ export default function CreditsSection(_props: SectionProps) {
                     Reset
                   </button>
                 </div>
-                <p className="admin-empty">
+                <p className="admin-group-note">
                   Prices are stored in whole minor units of {settings?.currency ?? 'the workspace currency'} — a
                   price of {money(199, settings)} is stored as 199. Changing the currency changes how prices are
                   read, not what they are worth in another country, so re-enter them after a change.
                 </p>
               </div>
             ) : (
-              <p className="admin-empty">Reading the pricing rules…</p>
+              <p className="admin-group-note">Reading the pricing rules…</p>
             )}
           </section>
 
           {/* ---------------- tiers ---------------- */}
-          <section className="admin-card">
-            <div className="admin-card-head">
+          <section className="admin-group">
+            <div className="admin-group-head">
               <h2>Tiers</h2>
               <div className="admin-row-actions">
-                <span className="admin-card-count">{snapshot.plans.length}</span>
+                <span className="admin-group-count">{snapshot.plans.length}</span>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm w-auto"
@@ -1077,20 +1042,20 @@ export default function CreditsSection(_props: SectionProps) {
                 </div>
               )
             })}
-            <p className="admin-empty">
+            <p className="admin-group-note">
               A tier that accounts are on cannot be switched off — move those accounts first. A change to an
               allowance applies from each account's next daily reset; existing balances are not rewritten.
             </p>
           </section>
 
           {/* ---------------- waiting ---------------- */}
-          <section className="admin-card">
-            <div className="admin-card-head">
+          <section className="admin-group">
+            <div className="admin-group-head">
               <h2>Waiting for an answer</h2>
-              <span className="admin-card-count">{pending.length}</span>
+              <span className="admin-group-count">{pending.length}</span>
             </div>
             {pending.length === 0 ? (
-              <p className="admin-empty">Nothing is waiting. Requests appear here the moment they are made.</p>
+              <p className="admin-group-note">Nothing is waiting. Requests appear here the moment they are made.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -1115,7 +1080,7 @@ export default function CreditsSection(_props: SectionProps) {
                         <td className="admin-dim">
                           {request.kind === 'plan'
                             ? `Plan · ${request.planName ?? request.planId}`
-                            : `Top-up · ${credits(request.credits ?? 0)} credits`}
+                            : `Top-up · ${tokens(request.tokens ?? 0)} tokens`}
                           {request.note ? <span className="admin-inline-note"> · {request.note}</span> : null}
                         </td>
                         <td className="admin-num">
@@ -1154,8 +1119,8 @@ export default function CreditsSection(_props: SectionProps) {
           </section>
 
           {/* ---------------- accounts ---------------- */}
-          <section className="admin-card">
-            <div className="admin-card-head">
+          <section className="admin-group">
+            <div className="admin-group-head">
               <h2>Accounts</h2>
               {/*
                * A filtered list says it is filtered. The count beside the search
@@ -1170,7 +1135,7 @@ export default function CreditsSection(_props: SectionProps) {
               <SearchField value={query} onChange={setQuery} placeholder="Search accounts" />
             </div>
             {accounts.length === 0 ? (
-              <p className="admin-empty">
+              <p className="admin-group-note">
                 {query.trim() === ''
                   ? 'No accounts exist yet. The first person to sign up appears here.'
                   : `No account matches “${query.trim()}”.`}
@@ -1218,9 +1183,9 @@ export default function CreditsSection(_props: SectionProps) {
                             ))}
                           </select>
                         </td>
-                        <td className="admin-num">{credits(account.daily)}</td>
-                        <td className="admin-num">{credits(account.purchased)}</td>
-                        <td className="admin-num">{credits(account.total)}</td>
+                        <td className="admin-num">{tokens(account.daily)}</td>
+                        <td className="admin-num">{tokens(account.purchased)}</td>
+                        <td className="admin-num">{tokens(account.total)}</td>
                         <td className="admin-dim">{formatDate(account.lastSignInAt)}</td>
                         <td>
                           <div className="admin-row-actions">
@@ -1286,19 +1251,19 @@ export default function CreditsSection(_props: SectionProps) {
                                     </div>
                                     <div>
                                       <dt>AI runs</dt>
-                                      <dd>{credits(detail.account.requests)}</dd>
+                                      <dd>{tokens(detail.account.requests)}</dd>
                                     </div>
                                     <div>
                                       <dt>Next daily refill</dt>
                                       <dd>
-                                        {detail.account.creditsResetAt
-                                          ? formatDateTime(detail.account.creditsResetAt)
+                                        {detail.account.tokensResetAt
+                                          ? formatDateTime(detail.account.tokensResetAt)
                                           : 'On the next refill'}
                                       </dd>
                                     </div>
                                   </dl>
                                   {detail.ledger.length === 0 ? (
-                                    <p className="admin-empty">This account has no movements yet.</p>
+                                    <p className="admin-group-note">This account has no movements yet.</p>
                                   ) : (
                                     <ul className="admin-account-history">
                                       {detail.ledger.slice(0, 12).map((entry) => (
@@ -1307,10 +1272,10 @@ export default function CreditsSection(_props: SectionProps) {
                                           <span>{entry.kind}</span>
                                           <span className="admin-num">
                                             {entry.amount > 0 ? '+' : ''}
-                                            {credits(entry.amount)}
+                                            {tokens(entry.amount)}
                                           </span>
                                           <span className="admin-num admin-dim">
-                                            → {credits(entry.balanceAfter)}
+                                            → {tokens(entry.balanceAfter)}
                                           </span>
                                         </li>
                                       ))}
@@ -1318,7 +1283,7 @@ export default function CreditsSection(_props: SectionProps) {
                                   )}
                                 </>
                               ) : (
-                                <p className="admin-empty">Reading…</p>
+                                <p className="admin-group-note">Reading…</p>
                               )}
                             </div>
                           )}
@@ -1340,7 +1305,7 @@ export default function CreditsSection(_props: SectionProps) {
                                 <input
                                   className="field-input"
                                   value={grantReason}
-                                  placeholder="Support credit"
+                                  placeholder="Support token"
                                   onChange={(event) => setGrantReason(event.target.value)}
                                 />
                               </label>
@@ -1364,13 +1329,13 @@ export default function CreditsSection(_props: SectionProps) {
           </section>
 
           {ledgerFor && (
-            <section className="admin-card">
-              <div className="admin-card-head">
+            <section className="admin-group">
+              <div className="admin-group-head">
                 <h2>Ledger</h2>
-                <span className="admin-card-count">{ledger.length}</span>
+                <span className="admin-group-count">{ledger.length}</span>
               </div>
               {ledger.length === 0 ? (
-                <p className="admin-empty">No movements yet for this account.</p>
+                <p className="admin-group-note">No movements yet for this account.</p>
               ) : (
                 <div className="admin-table-wrap">
                   <table className="admin-table">
@@ -1393,9 +1358,9 @@ export default function CreditsSection(_props: SectionProps) {
                           <td className="admin-dim">{row.kind}</td>
                           <td className="admin-num">
                             {row.amount > 0 ? '+' : ''}
-                            {credits(row.amount)}
+                            {tokens(row.amount)}
                           </td>
-                          <td className="admin-num">{credits(row.balanceAfter)}</td>
+                          <td className="admin-num">{tokens(row.balanceAfter)}</td>
                           <td className="admin-dim">{JSON.stringify(row.meta)}</td>
                           <td className="admin-dim">{formatDateTime(row.createdAt)}</td>
                         </tr>
@@ -1407,13 +1372,13 @@ export default function CreditsSection(_props: SectionProps) {
             </section>
           )}
 
-          <section className="admin-card">
-            <div className="admin-card-head">
+          <section className="admin-group">
+            <div className="admin-group-head">
               <h2>Answered</h2>
-              <span className="admin-card-count">{decided.length}</span>
+              <span className="admin-group-count">{decided.length}</span>
             </div>
             {decided.length === 0 ? (
-              <p className="admin-empty">No request has been answered yet.</p>
+              <p className="admin-group-note">No request has been answered yet.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -1432,7 +1397,7 @@ export default function CreditsSection(_props: SectionProps) {
                         <td className="admin-dim">
                           {request.kind === 'plan'
                             ? `Plan · ${request.planName ?? request.planId}`
-                            : `Top-up · ${credits(request.credits ?? 0)} credits`}
+                            : `Top-up · ${tokens(request.tokens ?? 0)} tokens`}
                         </td>
                         <td>
                           {request.status === 'approved' ? (
@@ -1476,8 +1441,8 @@ export default function CreditsSection(_props: SectionProps) {
           onConfirm={() => void toggleSuspended(confirmSuspend.id, confirmSuspend.suspended)}
         >
           {confirmSuspend.suspended
-            ? 'The server refuses their credit requests and AI runs while suspended. Their balance is kept exactly as it is, and restoring the account returns it untouched.'
-            : 'The account can request credits and use AI again. Nothing about its balance changes.'}
+            ? 'The server refuses their top-up requests and AI runs while suspended. Their balance is kept exactly as it is, and restoring the account returns it untouched.'
+            : 'The account can request a top-up and use AI again. Nothing about its balance changes.'}
         </ConfirmDialog>
       )}
     </>

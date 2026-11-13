@@ -7,8 +7,8 @@ import type {
   DocumentSummary,
   DocumentVersionSummary,
   AdminAccount,
-  AdminCreditAccountDetail,
-  AdminCreditSnapshot,
+  AdminTokenAccountDetail,
+  AdminTokenSnapshot,
   AdminSpendRow,
   AdminIdentityInput,
   AdminLoginInput,
@@ -49,16 +49,16 @@ import type {
   WorkspaceClaimInput,
   WorkspaceCredentialsInput,
   WorkspaceState,
-  AdminCreditLedgerRow,
-  AdminCreditSettingsInput,
+  AdminTokenLedgerRow,
+  AdminTokenSettingsInput,
   AdminPlanInput,
   AiActivity,
   AiAnswer,
   AiAskInput,
-  CreditLedgerEntry,
-  CreditPlan,
-  CreditSettings,
-  CreditsState,
+  TokenLedgerEntry,
+  TokenPlan,
+  TokenSettings,
+  TokensState,
   PurchaseRequest,
   PurchaseRequestInput,
   BackendConfigInput,
@@ -322,7 +322,7 @@ const api = {
   },
 
   /*
-   * Credits and AI. Every one of these is answered by the main process; the
+   * Tokens and AI. Every one of these is answered by the main process; the
    * renderer holds no token and cannot charge anything.
    */
   about: {
@@ -342,17 +342,17 @@ const api = {
     }
   },
 
-  credits: {
-    state: (payload?: { cached?: boolean }): Promise<ApiResult<CreditsState>> =>
-      ipcRenderer.invoke('credits:state', payload ?? {}),
-    plans: (): Promise<ApiResult<CreditPlan[]>> => ipcRenderer.invoke('credits:plans'),
-    ledger: (payload?: { limit?: number }): Promise<ApiResult<CreditLedgerEntry[]>> =>
-      ipcRenderer.invoke('credits:ledger', payload ?? {}),
-    purchases: (): Promise<ApiResult<PurchaseRequest[]>> => ipcRenderer.invoke('credits:purchases'),
+  tokens: {
+    state: (payload?: { cached?: boolean }): Promise<ApiResult<TokensState>> =>
+      ipcRenderer.invoke('tokens:state', payload ?? {}),
+    plans: (): Promise<ApiResult<TokenPlan[]>> => ipcRenderer.invoke('tokens:plans'),
+    ledger: (payload?: { limit?: number }): Promise<ApiResult<TokenLedgerEntry[]>> =>
+      ipcRenderer.invoke('tokens:ledger', payload ?? {}),
+    purchases: (): Promise<ApiResult<PurchaseRequest[]>> => ipcRenderer.invoke('tokens:purchases'),
     request: (input: PurchaseRequestInput): Promise<ApiResult<PurchaseRequest[]>> =>
-      ipcRenderer.invoke('credits:request', input),
+      ipcRenderer.invoke('tokens:request', input),
     cancel: (id: string): Promise<ApiResult<PurchaseRequest[]>> =>
-      ipcRenderer.invoke('credits:cancel', id)
+      ipcRenderer.invoke('tokens:cancel', id)
   },
 
   ai: {
@@ -374,48 +374,48 @@ const api = {
       ipcRenderer.invoke('admin:login', input),
     logout: (): Promise<ApiResult<null>> => ipcRenderer.invoke('admin:logout'),
     overview: (): Promise<ApiResult<AdminOverview>> => ipcRenderer.invoke('admin:overview'),
-    credits: (): Promise<ApiResult<AdminCreditSnapshot>> =>
-      ipcRenderer.invoke('admin:credits:snapshot'),
-    /** Takes the server's credit-administrator role, once, for this installation. */
-    claimCreditRole: (): Promise<ApiResult<AdminCreditSnapshot>> =>
-      ipcRenderer.invoke('admin:credits:claim'),
-    creditAccount: (userId: string): Promise<ApiResult<AdminCreditAccountDetail>> =>
-      ipcRenderer.invoke('admin:credits:account', { userId }),
-    creditSpend: (limit?: number): Promise<ApiResult<AdminSpendRow[]>> =>
-      ipcRenderer.invoke('admin:credits:spend', { limit }),
-    setSuspended: (userId: string, suspended: boolean): Promise<ApiResult<AdminCreditSnapshot>> =>
-      ipcRenderer.invoke('admin:credits:suspend', { userId, suspended }),
-    resetDaily: (): Promise<ApiResult<{ refilled: number; snapshot: AdminCreditSnapshot }>> =>
-      ipcRenderer.invoke('admin:credits:resetDaily'),
+    tokens: (): Promise<ApiResult<AdminTokenSnapshot>> =>
+      ipcRenderer.invoke('admin:tokens:snapshot'),
+    /** Takes the server's token-administrator role, once, for this installation. */
+    claimTokenAdmin: (): Promise<ApiResult<AdminTokenSnapshot>> =>
+      ipcRenderer.invoke('admin:tokens:claim'),
+    tokenAccount: (userId: string): Promise<ApiResult<AdminTokenAccountDetail>> =>
+      ipcRenderer.invoke('admin:tokens:account', { userId }),
+    tokenSpend: (limit?: number): Promise<ApiResult<AdminSpendRow[]>> =>
+      ipcRenderer.invoke('admin:tokens:spend', { limit }),
+    setSuspended: (userId: string, suspended: boolean): Promise<ApiResult<AdminTokenSnapshot>> =>
+      ipcRenderer.invoke('admin:tokens:suspend', { userId, suspended }),
+    resetDaily: (): Promise<ApiResult<{ refilled: number; snapshot: AdminTokenSnapshot }>> =>
+      ipcRenderer.invoke('admin:tokens:resetDaily'),
     decidePurchase: (payload: {
       id: string
       approve: boolean
       note?: string
-    }): Promise<ApiResult<AdminCreditSnapshot>> =>
-      ipcRenderer.invoke('admin:credits:decide', payload),
+    }): Promise<ApiResult<AdminTokenSnapshot>> =>
+      ipcRenderer.invoke('admin:tokens:decide', payload),
     setPlan: (payload: {
       userId: string
       planId: string
       days?: number
-    }): Promise<ApiResult<AdminCreditSnapshot>> =>
-      ipcRenderer.invoke('admin:credits:setPlan', payload),
-    grantCredits: (payload: {
+    }): Promise<ApiResult<AdminTokenSnapshot>> =>
+      ipcRenderer.invoke('admin:tokens:setPlan', payload),
+    grantTokens: (payload: {
       userId: string
       amount: number
       reason?: string
-    }): Promise<ApiResult<AdminCreditSnapshot>> =>
-      ipcRenderer.invoke('admin:credits:grant', payload),
-    updatePlan: (input: AdminPlanInput): Promise<ApiResult<CreditPlan[]>> =>
-      ipcRenderer.invoke('admin:credits:updatePlan', input),
-    updateCreditSettings: (
-      input: AdminCreditSettingsInput
-    ): Promise<ApiResult<CreditSettings>> =>
-      ipcRenderer.invoke('admin:credits:settings', input),
-    creditLedger: (payload: {
+    }): Promise<ApiResult<AdminTokenSnapshot>> =>
+      ipcRenderer.invoke('admin:tokens:grant', payload),
+    updatePlan: (input: AdminPlanInput): Promise<ApiResult<TokenPlan[]>> =>
+      ipcRenderer.invoke('admin:tokens:updatePlan', input),
+    updateTokenSettings: (
+      input: AdminTokenSettingsInput
+    ): Promise<ApiResult<TokenSettings>> =>
+      ipcRenderer.invoke('admin:tokens:settings', input),
+    tokenLedger: (payload: {
       userId: string
       limit?: number
-    }): Promise<ApiResult<AdminCreditLedgerRow[]>> =>
-      ipcRenderer.invoke('admin:credits:ledger', payload),
+    }): Promise<ApiResult<AdminTokenLedgerRow[]>> =>
+      ipcRenderer.invoke('admin:tokens:ledger', payload),
     suspendAccount: (payload: {
       userId: string
       suspended: boolean

@@ -1,19 +1,19 @@
 import type {
   AboutInfo,
   AdminAccount,
-  AdminCreditAccountDetail,
-  AdminCreditLedgerRow,
-  AdminCreditSettingsInput,
+  AdminTokenAccountDetail,
+  AdminTokenLedgerRow,
+  AdminTokenSettingsInput,
   AdminSpendRow,
-  AdminCreditSnapshot,
+  AdminTokenSnapshot,
   AdminPlanInput,
   AiActivity,
   AiAnswer,
   AiAskInput,
-  CreditLedgerEntry,
-  CreditPlan,
-  CreditSettings,
-  CreditsState,
+  TokenLedgerEntry,
+  TokenPlan,
+  TokenSettings,
+  TokensState,
   PurchaseRequest,
   PurchaseRequestInput,
   AdminIdentityInput,
@@ -280,27 +280,27 @@ export const api = {
     signIn: (input: AdminLoginInput): Promise<AdminAccount> => unwrap(bridge().admin.login(input)),
     signOut: (): Promise<null> => unwrap(bridge().admin.logout()),
     overview: (): Promise<AdminOverview> => unwrap(bridge().admin.overview()),
-    credits: (): Promise<AdminCreditSnapshot> => unwrap(bridge().admin.credits()),
-    claimCreditRole: (): Promise<AdminCreditSnapshot> => unwrap(bridge().admin.claimCreditRole()),
-    creditAccount: (userId: string): Promise<AdminCreditAccountDetail> =>
-      unwrap(bridge().admin.creditAccount(userId)),
-    creditSpend: (limit = 60): Promise<AdminSpendRow[]> => unwrap(bridge().admin.creditSpend(limit)),
-    setSuspended: (userId: string, suspended: boolean): Promise<AdminCreditSnapshot> =>
+    tokens: (): Promise<AdminTokenSnapshot> => unwrap(bridge().admin.tokens()),
+    claimTokenAdmin: (): Promise<AdminTokenSnapshot> => unwrap(bridge().admin.claimTokenAdmin()),
+    tokenAccount: (userId: string): Promise<AdminTokenAccountDetail> =>
+      unwrap(bridge().admin.tokenAccount(userId)),
+    tokenSpend: (limit = 60): Promise<AdminSpendRow[]> => unwrap(bridge().admin.tokenSpend(limit)),
+    setSuspended: (userId: string, suspended: boolean): Promise<AdminTokenSnapshot> =>
       unwrap(bridge().admin.setSuspended(userId, suspended)),
-    resetDaily: (): Promise<{ refilled: number; snapshot: AdminCreditSnapshot }> =>
+    resetDaily: (): Promise<{ refilled: number; snapshot: AdminTokenSnapshot }> =>
       unwrap(bridge().admin.resetDaily()),
-    decidePurchase: (id: string, approve: boolean, note = ''): Promise<AdminCreditSnapshot> =>
+    decidePurchase: (id: string, approve: boolean, note = ''): Promise<AdminTokenSnapshot> =>
       unwrap(bridge().admin.decidePurchase({ id, approve, note })),
-    setPlan: (userId: string, planId: string, days = 30): Promise<AdminCreditSnapshot> =>
+    setPlan: (userId: string, planId: string, days = 30): Promise<AdminTokenSnapshot> =>
       unwrap(bridge().admin.setPlan({ userId, planId, days })),
-    grantCredits: (userId: string, amount: number, reason = ''): Promise<AdminCreditSnapshot> =>
-      unwrap(bridge().admin.grantCredits({ userId, amount, reason })),
-    updatePlan: (input: AdminPlanInput): Promise<CreditPlan[]> =>
+    grantTokens: (userId: string, amount: number, reason = ''): Promise<AdminTokenSnapshot> =>
+      unwrap(bridge().admin.grantTokens({ userId, amount, reason })),
+    updatePlan: (input: AdminPlanInput): Promise<TokenPlan[]> =>
       unwrap(bridge().admin.updatePlan(input)),
-    updateCreditSettings: (input: AdminCreditSettingsInput): Promise<CreditSettings> =>
-      unwrap(bridge().admin.updateCreditSettings(input)),
-    creditLedger: (userId: string, limit = 40): Promise<AdminCreditLedgerRow[]> =>
-      unwrap(bridge().admin.creditLedger({ userId, limit })),
+    updateTokenSettings: (input: AdminTokenSettingsInput): Promise<TokenSettings> =>
+      unwrap(bridge().admin.updateTokenSettings(input)),
+    tokenLedger: (userId: string, limit = 40): Promise<AdminTokenLedgerRow[]> =>
+      unwrap(bridge().admin.tokenLedger({ userId, limit })),
     suspendAccount: (userId: string, suspended: boolean): Promise<null> =>
       unwrap(bridge().admin.suspendAccount({ userId, suspended })),
     resetPassword: (userId: string, password: string): Promise<null> =>
@@ -361,10 +361,6 @@ export const api = {
       bridge().workspace.onChange(listener)
   },
 
-  /*
-   * Credits and AI. `state` can be asked for the last copy this PC holds, which
-   * is what the screen draws while it waits for the live answer.
-   */
   about: {
     read: (): Promise<AboutInfo> => unwrap(bridge().about.read()),
     photo: (): Promise<{ bytes: Uint8Array; mime: string } | null> =>
@@ -373,15 +369,19 @@ export const api = {
       bridge().about.onChange(listener)
   },
 
-  credits: {
-    state: (cached = false): Promise<CreditsState> => unwrap(bridge().credits.state({ cached })),
-    plans: (): Promise<CreditPlan[]> => unwrap(bridge().credits.plans()),
-    ledger: (limit = 40): Promise<CreditLedgerEntry[]> =>
-      unwrap(bridge().credits.ledger({ limit })),
-    purchases: (): Promise<PurchaseRequest[]> => unwrap(bridge().credits.purchases()),
+  /*
+   * Tokens and AI. Every call here reads or writes the server; the app holds no
+   * copy of a balance, so `state()` has nothing to fall back to.
+   */
+  tokens: {
+    state: (): Promise<TokensState> => unwrap(bridge().tokens.state({})),
+    plans: (): Promise<TokenPlan[]> => unwrap(bridge().tokens.plans()),
+    ledger: (limit = 40): Promise<TokenLedgerEntry[]> =>
+      unwrap(bridge().tokens.ledger({ limit })),
+    purchases: (): Promise<PurchaseRequest[]> => unwrap(bridge().tokens.purchases()),
     request: (input: PurchaseRequestInput): Promise<PurchaseRequest[]> =>
-      unwrap(bridge().credits.request(input)),
-    cancel: (id: string): Promise<PurchaseRequest[]> => unwrap(bridge().credits.cancel(id))
+      unwrap(bridge().tokens.request(input)),
+    cancel: (id: string): Promise<PurchaseRequest[]> => unwrap(bridge().tokens.cancel(id))
   },
 
   ai: {

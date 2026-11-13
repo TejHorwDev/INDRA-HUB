@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AiAnswer, AiDepth, AiMode, CreditsState } from '@shared/types'
+import type { AiAnswer, AiDepth, AiMode, TokensState } from '@shared/types'
 import { useToast } from './ToastProvider'
 import { Link } from 'react-router-dom'
 import { InfoIcon, SparkIcon } from './icons'
@@ -148,12 +148,12 @@ export default function AiPanel({
   const [elapsed, setElapsed] = useState(0)
   const [answer, setAnswer] = useState<AiAnswer | null>(null)
   const [failure, setFailure] = useState<{ message: string; credits: boolean } | null>(null)
-  const [state, setState] = useState<CreditsState | null>(null)
+  const [state, setState] = useState<TokensState | null>(null)
   const [history, setHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([])
   const bottom = useRef<HTMLDivElement | null>(null)
 
   const refreshState = useCallback(async () => {
-    const next = await api.credits.state(true).catch(() => null)
+    const next = await api.tokens.state().catch(() => null)
     if (next) setState(next)
   }, [])
 
@@ -177,7 +177,7 @@ export default function AiPanel({
     : !state.connected
       ? 'AI needs the cloud. Sign in to an account to use it — the offline workspace writes on its own.'
       : (ahead ?? 0) < 1
-        ? 'No credits left today. The allowance resets at midnight UTC.'
+        ? 'No tokens left today. The allowance resets at midnight UTC.'
         : null
 
   async function run() {
@@ -204,7 +204,7 @@ export default function AiPanel({
       if (result.balance) setState(result.balance)
       setPrompt('')
       if (result.exhausted) {
-        toast.error('The run stopped when the credits ran out. What was written before that is below.')
+        toast.error('The run stopped when the tokens ran out. What was written before that is below.')
       }
       window.setTimeout(() => bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 60)
     } catch (error) {
@@ -248,9 +248,9 @@ export default function AiPanel({
         </span>
         <span
           className={`ai-credit-chip${(ahead ?? 0) < 5 ? ' ai-credit-chip--low' : ''}`}
-          title="Credits left on this account, as last confirmed by the server"
+          title="Tokens left on this account, as last read from the server"
         >
-          {state?.connected ? `${(ahead ?? 0).toLocaleString('en-IN')} credits` : 'no cloud'}
+          {state?.connected ? `${(ahead ?? 0).toLocaleString('en-IN')} tokens` : 'no cloud'}
         </span>
         {selection.trim() && (
           <span className="ai-credit-chip" title="The selected passage is sent with the question">
@@ -385,7 +385,7 @@ export default function AiPanel({
             <div className="ai-cost">
               <span>{answer.usage.total.toLocaleString('en-IN')} tokens</span>
               <span aria-hidden="true">·</span>
-              <span>{answer.usage.cost.toLocaleString('en-IN')} credits charged</span>
+              <span>{answer.usage.cost.toLocaleString('en-IN')} tokens charged</span>
               {answer.balance && (
                 <>
                   <span aria-hidden="true">·</span>

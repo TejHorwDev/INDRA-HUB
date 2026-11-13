@@ -63,7 +63,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Control',
     items: [
       { id: 'keys', label: 'Activation keys', icon: <SparkIcon size={15} /> },
-      { id: 'credits', label: 'Credits', icon: <WalletIcon size={15} /> },
+      { id: 'credits', label: 'Tokens', icon: <WalletIcon size={15} /> },
       { id: 'access', label: 'Access & controls', icon: <SettingsIcon size={15} /> },
       { id: 'appearance', label: 'Appearance', icon: <PaletteIcon size={15} /> }
     ]

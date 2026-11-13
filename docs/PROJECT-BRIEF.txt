@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 2.1.4 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.1.5 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            2.1.4
-  Latest release:     v2.1.3
+  Version:            2.1.5
+  Latest release:     v2.1.5
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -54,7 +54,8 @@ Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
 v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
-v1.9.4, v1.9.5, v1.9.6, v1.9.7, v2.0.0, v2.0.1, v2.1.0.
+v1.9.4, v1.9.5, v1.9.6, v1.9.7, v2.0.0, v2.0.1, v2.1.0, v2.1.1, v2.1.3,
+v2.1.4, v2.1.5.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -450,7 +451,7 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Nothing was removed, re-routed, renamed or re-wired: 1.9.6 changes tokens,
     spacing, typography and the project card's markup only. All ten
     simulations and the typecheck/build pass unchanged. 2.0.0 adds the research
-    panel and the credit screens in the same monochrome language: hairlines,
+    panel and the token screens in the same monochrome language: hairlines,
     tabular figures, one filled control.
   - **The interface is monochrome (1.9.7).** Black, greys and white; no hue
     anywhere. Emphasis is contrast, weight and space: the primary action is a
@@ -577,16 +578,20 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     - System: the same About card — the only place with the portrait controls —
       then database path and size, runtime versions, platform and uptime
 
-5.9 Developer and credits screens
+5.9 Developer and tokens screens
   - /developers: notes for this build
-  - /credits: the real balance, the pricing rules, the tiers, a top-up priced
-    before it is requested, the requests waiting on an administrator, and the
-    ledger — see 5.11. Everything it draws is the server's: the currency, what
-    a credit buys, what a pack costs, what each tier is worth and what counts as
-    a low balance are settings, and not one of them lives in a build.
+  - /tokens (still routed at /credits so old links resolve): the real balance,
+    the tiers, a top-up priced before it is requested, the requests waiting on
+    an administrator, and the ledger — see 5.11. Everything it draws is the
+    server's: the currency, what a pack holds and costs, what each tier grants
+    and what counts as a low balance are settings, and not one of them lives in
+    a build.
+  - Presentation: a balance as a number on the page, and each section below it
+    as a title and a hairline — no bordered cards, no filled header bars. Plans
+    are one line each, history rows are separated by their own rule.
 
 
-5.11 AI research and credits (2.0.0, pricing console 2.1.0)
+5.11 AI research and tokens (2.0.0; tokens 2.1.5)
   - **Where the model lives.** Not in the app. `supabase/functions/ai` (the
     Edge Function `indra-ai`) holds the provider key in the project's
     environment and is the only thing that calls a model. The desktop app sends
@@ -602,7 +607,7 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     searches run in parallel with Google Search grounding; finally a synthesis
     step writes a brief with `[n]` citations against the sources that were
     actually retrieved. The panel shows the questions, the brief, every source
-    with its URL, the token count, the credits charged and the balance after.
+    with its URL, the token count, the tokens charged and the balance after.
     Deep uses `gemini-2.5-pro`; standard uses `gemini-2.5-flash`. Both are
     environment overrides (`AI_CHAT_MODEL`, `AI_PLAN_MODEL`, `AI_SEARCH_MODEL`,
     `AI_RESEARCH_MODEL`).
@@ -610,23 +615,25 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     into the same blocks the editor owns (headings keep the structure the
     presentation converter reads), appends a "Sources" section with real links,
     and marks the document dirty. Nothing is written behind the editor's back.
-  - **What a credit buys is a setting.** One credit is `tokens_per_credit`
-    tokens (1,000 by default), input and output, rounded up, minimum 1. The
-    Edge Function reads that number from `indra_credit_settings` — the same row
-    the app reads — so a charge and the price on screen can never disagree, and
-    changing it changes the price of every future run without a new build. The
-    cost is computed from the `usageMetadata` the provider reports — never
-    estimated. If the provider reports no usage, the request fails rather than
-    guessing a price.
+  - **The unit is tokens, and there is no exchange rate.** A charge is exactly
+    the token count the provider reports in `usageMetadata` — input and output,
+    no division, no rounding, no minimum. (2.1.5 removed `tokens_per_credit`:
+    a rate between two units only exists when the units differ, and after the
+    rename they do not.) If the provider reports no usage, the request fails
+    rather than guessing a charge.
   - **Charging is incremental.** Each step of a research run is charged as it
     completes, through `indra_spend_ai()` with the service role. A run that
     exhausts the balance stops, keeps what was written, and says so
     (`exhausted: true`) — the balance never goes below zero.
-  - **Tiers are rows, not constants.** `indra_plans` holds Free (100
-    credits/day, $0), Basic (600, $3.99) and Pro (2,500, $9.99), each with a
+  - **Tiers are rows, not constants.** `indra_plans` holds Free (10,000
+    tokens/day, free), Basic (40,000) and Pro (120,000), each with a
     `price_minor`, a blurb, a sort order and an `enabled` switch. The
     administrator edits every field — and creates a new tier — from
-    Admin → Credits; a change applies from each account's next daily reset.
+    Admin → Tokens; a change applies from each account's next daily reset.
+    The allowances are sized against real cost: one chat reply is roughly 3,000
+    tokens, and a deep research run roughly 20,000, so every tier can use the
+    feature it is selling. An allowance of 100 — the first number shipped — could
+    not fund a single reply, and the Edge Function refuses to start below 800.
     A tier that accounts are on cannot be switched off, and the refusal says how
     many are.
   - **Money is integer, and the currency is a setting.** Prices are whole minor
@@ -637,12 +644,15 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     `src/renderer/src/lib/money.ts` is the only place that turns a number into
     money or typed text into a number. A request records the currency it was
     quoted in, so an old receipt keeps its own symbol after a currency change.
-  - **Top-ups are priced by the pack.** A pack is `topup_credits` credits for
-    `topup_price_minor`; a top-up is charged in whole packs, and the minimum and
-    maximum are settings (`min_topup_credits`, `max_topup_credits`). The Credits
+  - **Top-ups are priced by the pack.** A pack is `topup_tokens` tokens for
+    `topup_price_minor` (100,000 for Rs 100 by default — about a rupee per
+    thousand tokens); a top-up is charged in whole packs, and the minimum and
+    maximum are settings (`min_topup_credits`, `max_topup_credits`). The Tokens
     screen quotes the exact price before the request is sent, using the same
     arithmetic the server uses, then the server prices it again.
-  - **A low balance is a setting too.** Below `low_balance` the Credits screen
+    `indra_request_purchase` accepts both `p_tokens` and `p_credits` so an older
+    installed build keeps working while a newer one sends the new name.
+  - **A low balance is a setting too.** Below `low_balance` the Tokens screen
     says so and points at a top-up; the number is not hardcoded.
   - **Daily reset on the server's clock.** `pg_cron` runs
     `indra_reset_all_daily()` at 00:05 UTC. `indra_ensure_credit_day()` is the
@@ -652,21 +662,27 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - **Purchases are requests.** No card, no gateway. A plan change or a top-up
     is a row in `indra_purchase_requests`, carrying `amount_minor` and the
     `currency` it was quoted in; the administrator approves or declines it in
-    Admin → Credits, and approval sets the plan (30 days) or adds
-    purchased credits (which never expire and are spent after the daily
+    Admin → Tokens, and approval sets the plan (30 days) or adds
+    purchased tokens (which never expire and are spent after the daily
     allowance). Duplicate pending requests are refused by a partial unique
     index.
   - **Two gates on the admin console.** The local administrator session, and
     the server's own check that the signed-in cloud account holds the
-    administrator role. With the second missing, Admin → Credits renders
+    administrator role. With the second missing, Admin → Tokens renders
     read-only and says why.
   - **The app never holds authority.** `indra_spend_ai`,
     `indra_ensure_credit_day` and `indra_reset_all_daily` are revoked from
     `authenticated`/`anon` and granted only to `service_role`;
     `grant update` on `indra_users` is narrowed to username, display name and
-    contact address, so no client can write a balance column. SQLite keeps the
-    last balance for display with the time it was true, and it is never
-    consulted before a request.
+    contact address, so no client can write a balance column.
+  - **Nothing about a balance is stored on the PC.** There used to be a SQLite
+    table holding the last balance so the screen could draw a number offline.
+    It is gone (app migration 12 drops it). A balance decides whether a person
+    may spend, so a copy on the machine is a copy that can disagree with the
+    server — and while it disagrees the number on screen is simply wrong. It
+    also meant the machine held, in plain JSON, what every account on it had
+    left. Offline, the answer is that there is no answer: the Tokens screen says
+    so, and the AI panel refuses before it builds a request.
   - **Offline is honest.** AI needs a route out; a request is refused rather
     than queued, and the panel says so. The Credits screen draws the last known
     balance, labelled as such, and refreshes when the cloud is reachable.
@@ -692,12 +708,19 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 
 6. DATA MODEL (SQLite)
 ----------------------
-Seventeen tables, created by ordered migrations in src/main/db/schema.ts; the
-schema version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the
-number of migrations (eleven; the last added the credit cache and the AI run
-log). The server side has its own schema in supabase/, applied in this order:
+Tables created by ordered migrations in src/main/db/schema.ts; the schema
+version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the number
+of migrations (fourteen; the last dropped the local balance cache and added the
+AI run log). The server side has its own schema in supabase/, applied in this order:
 schema.sql, auth.sql, sharing.sql, ai-credits.sql, credit-console.sql,
 credit-console-tools.sql.
+
+Those files describe the schema as it was before 2.1.5 and are kept in step
+with the names the live database now uses (`daily_tokens`, `purchased_tokens`,
+`topup_tokens`, `p_tokens`); the migrations that renamed the live columns are
+in the Supabase project's migration history, and the Edge Function was deployed
+from this repository. The file-level source has not been replayed end to end
+against an empty database since the rename.
 
   users              id, username, display_name, email, password_hash,
                      password_salt, created_at, suspended_at

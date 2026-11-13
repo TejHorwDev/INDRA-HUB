@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type {
   AiActivity,
-  CreditLedgerEntry,
-  CreditPlan,
-  CreditSettings,
-  CreditsState,
+  TokenLedgerEntry,
+  TokenPlan,
+  TokenSettings,
+  TokensState,
   PurchaseRequest
 } from '@shared/types'
 import EmptyState from '../components/EmptyState'
@@ -13,22 +13,22 @@ import Page from '../components/Page'
 import { useToast } from '../components/ToastProvider'
 import { InfoIcon, SparkIcon } from '../components/icons'
 import { api, errorMessage } from '../lib/api'
-import { credits, money, shapeFor } from '../lib/money'
+import { money, shapeFor, tokens } from '../lib/money'
 
 /*
- * Credits.
+ * Tokens.
  *
  * What this page may and may not know is the point of it. Every number here
  * comes from the server: the balance, the allowance, the price of a tier, what
- * a top-up costs, what a credit buys. The app formats those numbers and asks
- * questions; it never decides a price and never changes a balance.
+ * a top-up costs. The app formats those numbers and asks questions; it never
+ * decides a price and never changes a balance.
  *
  * The pricing rules arrive with the balance, so a workspace priced in rupees or
  * dollars — or in a currency it invented this morning — draws the same screen
  * without a new build.
  */
 
-const KIND_LABEL: Record<CreditLedgerEntry['kind'], string> = {
+const KIND_LABEL: Record<TokenLedgerEntry['kind'], string> = {
   usage: 'Used',
   purchase: 'Top-up',
   grant: 'Granted',
@@ -52,7 +52,7 @@ function when(iso: string | null): string {
   return date.toLocaleDateString()
 }
 
-function resetLabel(state: CreditsState): string {
+function resetLabel(state: TokensState): string {
   if (!state.resetAt) return 'no reset scheduled'
   const at = new Date(state.resetAt).getTime()
   const hours = Math.max(0, Math.round((at - Date.now()) / 3_600_000))
@@ -61,7 +61,7 @@ function resetLabel(state: CreditsState): string {
   return `resets ${when(state.resetAt)}`
 }
 
-function describe(entry: CreditLedgerEntry, settings: CreditSettings | null): string {
+function describe(entry: TokenLedgerEntry, settings: TokenSettings | null): string {
   const meta = entry.meta ?? {}
   if (entry.kind === 'reset') return `${String(meta.plan ?? 'daily')} allowance`
   if (entry.kind === 'usage') return typeof meta.stage === 'string' ? `AI run · ${meta.stage}` : 'AI run'
@@ -79,9 +79,9 @@ function describe(entry: CreditLedgerEntry, settings: CreditSettings | null): st
 
 export default function CreditsScreen() {
   const toast = useToast()
-  const [state, setState] = useState<CreditsState | null>(null)
-  const [plans, setPlans] = useState<CreditPlan[]>([])
-  const [ledger, setLedger] = useState<CreditLedgerEntry[]>([])
+  const [state, setState] = useState<TokensState | null>(null)
+  const [plans, setPlans] = useState<TokenPlan[]>([])
+  const [ledger, setLedger] = useState<TokenLedgerEntry[]>([])
   const [purchases, setPurchases] = useState<PurchaseRequest[]>([])
   const [activity, setActivity] = useState<AiActivity[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,25 +92,22 @@ export default function CreditsScreen() {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   /*
-   * Two reads, on purpose: the cached copy paints immediately, the live one
-   * replaces it when the cloud answers. The cached number is never shown as
-   * if it were current — it carries the line above it.
+   * One read, from the server. There is no local copy of a balance to paint
+   * first, so while the cloud is answering the screen says nothing rather than
+   * something old.
    */
   const load = useCallback(async (mode: 'first' | 'refresh') => {
     if (mode === 'refresh') setRefreshing(true)
     try {
-      const cached = await api.credits.state(true)
-      setState((current) => current ?? cached)
-
-      const live = await api.credits.state(false)
+      const live = await api.tokens.state()
       setState(live)
       setLoadError(live.connected ? null : live.message)
 
       if (live.connected) {
         const [tiers, history, requests, runs] = await Promise.all([
-          api.credits.plans().catch(() => []),
-          api.credits.ledger(40).catch(() => []),
-          api.credits.purchases().catch(() => []),
+          api.tokens.plans().catch(() => []),
+          api.tokens.ledger(40).catch(() => []),
+          api.tokens.purchases().catch(() => []),
           api.ai.activity(12).catch(() => [])
         ])
         setPlans(tiers)
@@ -139,14 +136,13 @@ export default function CreditsScreen() {
       ? Math.min(1, Math.max(0, state.spentToday / (state.dailyAllowance + state.spentToday)))
       : 0
 
-  /* What one credit costs is derived from the pack the server set, for display
-     only — the price of a top-up itself is always the server's answer. */
+  /* The pack is what the server set. A top-up is priced in whole packs, and the
+     price of a top-up itself is always the server's answer — never computed
+     into a balance here. */
   const pack = settings
     ? {
-        credits: settings.topupCredits,
+        tokens: settings.topupTokens,
         price: settings.topupPriceMinor,
-        perCredit:
-          settings.topupCredits > 0 ? settings.topupPriceMinor / settings.topupCredits : 0
       }
     : null
 
@@ -156,23 +152,23 @@ export default function CreditsScreen() {
     topUpAmount > 0 &&
     (!settings || (topUpAmount >= settings.minTopup && topUpAmount <= settings.maxTopup))
   const topUpPacks =
-    settings && pack ? Math.ceil(Math.max(topUpAmount, 0) / Math.max(pack.credits, 1)) : 0
+    settings && pack ? Math.ceil(Math.max(topUpAmount, 0) / Math.max(pack.tokens, 1)) : 0
   const topUpPrice = pack ? topUpPacks * pack.price : 0
   const low = settings !== null && state !== null && state.total <= settings.lowBalance
 
   useEffect(() => {
     if (!settings || topUp !== '') return
     const suggestion = Math.min(
-      Math.max(settings.topupCredits, settings.minTopup),
+      Math.max(settings.topupTokens, settings.minTopup),
       settings.maxTopup
     )
     setTopUp(String(suggestion))
   }, [settings, topUp])
 
-  async function requestPlan(plan: CreditPlan) {
+  async function requestPlan(plan: TokenPlan) {
     setBusyTier(plan.id)
     try {
-      const next = await api.credits.request({ kind: 'plan', planId: plan.id, note: '' })
+      const next = await api.tokens.request({ kind: 'plan', planId: plan.id, note: '' })
       setPurchases(next)
       toast.success(`Asked to move to ${plan.name}. An administrator approves it.`)
     } catch (error) {
@@ -187,16 +183,16 @@ export default function CreditsScreen() {
     if (!topUpValid) {
       setTopUpError(
         settings
-          ? `Top-ups run from ${credits(settings.minTopup)} to ${credits(settings.maxTopup)} credits.`
-          : 'Give a whole number of credits.'
+          ? `Top-ups run from ${tokens(settings.minTopup)} to ${tokens(settings.maxTopup)} tokens.`
+          : 'Give a whole number of tokens.'
       )
       return
     }
     setBusyTier('topup')
     try {
-      const next = await api.credits.request({ kind: 'credits', credits: topUpAmount, note: '' })
+      const next = await api.tokens.request({ kind: 'topup', tokens: topUpAmount, note: '' })
       setPurchases(next)
-      toast.success(`Asked for ${credits(topUpAmount)} credits. An administrator approves it.`)
+      toast.success(`Asked for ${tokens(topUpAmount)} tokens. An administrator approves it.`)
     } catch (error) {
       setTopUpError(errorMessage(error))
     } finally {
@@ -206,7 +202,7 @@ export default function CreditsScreen() {
 
   async function withdraw(id: string) {
     try {
-      const next = await api.credits.cancel(id)
+      const next = await api.tokens.cancel(id)
       setPurchases(next)
       toast.success('Request withdrawn.')
     } catch (error) {
@@ -218,7 +214,7 @@ export default function CreditsScreen() {
 
   return (
     <Page
-      title="Credits"
+      title="Tokens"
       description="What AI costs in this workspace, what is left today, and every movement of the balance."
       actions={
         <button
@@ -232,19 +228,18 @@ export default function CreditsScreen() {
       }
     >
       {/* ---------------- the balance ---------------- */}
-      <section className="credit-hero" aria-label="Balance">
-        <div className="credit-hero-main">
-          <div className="credit-hero-figure">
-            <p className="credits-eyebrow">Available now</p>
-            <div className="credits-figure">
-              <strong>{state ? credits(state.total) : '—'}</strong>
-              <span>credits</span>
+      <section className="token-balance" aria-label="Balance">
+        <div className="token-balance-main">
+          <div className="token-balance-figure">
+            <p className="token-eyebrow">Available now</p>
+            <div className="token-figure">
+              <strong>{state ? tokens(state.total) : '—'}</strong>
+              <span>tokens</span>
             </div>
-            <p className="credits-meta">
+            <p className="token-meta">
               {state?.connected ? (
                 <>
                   {resetLabel(state)}
-                  {settings ? ` · 1 credit is ${credits(settings.tokensPerCredit)} tokens` : ''}
                   {state.syncedAt && !state.cached ? ` · read ${when(state.syncedAt)}` : ''}
                   {state.cached && state.syncedAt ? ` · last known ${when(state.syncedAt)}` : ''}
                 </>
@@ -254,38 +249,38 @@ export default function CreditsScreen() {
             </p>
           </div>
 
-          <div className="credit-hero-side">
-            <span className="credits-plan">
-              <span className="credits-plan-dot" aria-hidden="true" />
+          <div className="token-balance-side">
+            <span className="token-plan">
+              <span className="token-plan-dot" aria-hidden="true" />
               {state?.planName ?? 'Free'}
             </span>
             {current?.expiresAt && (
-              <span className="credits-meta">renews {when(current.expiresAt)}</span>
+              <span className="token-meta">renews {when(current.expiresAt)}</span>
             )}
           </div>
         </div>
 
         {state?.connected && (
-          <dl className="credits-split" aria-label="Balance breakdown">
-            <div className="credits-cell">
+          <dl className="token-split" aria-label="Balance breakdown">
+            <div className="token-split-cell">
               <dt>Daily allowance</dt>
               <dd>
-                {credits(state.daily)} <small>of {credits(state.dailyAllowance)}</small>
+                {tokens(state.daily)} <small>of {tokens(state.dailyAllowance)}</small>
               </dd>
             </div>
-            <div className="credits-cell">
+            <div className="token-split-cell">
               <dt>Purchased</dt>
               <dd>
-                {credits(state.purchased)} <small>carries over</small>
+                {tokens(state.purchased)} <small>carries over</small>
               </dd>
             </div>
-            <div className="credits-cell">
+            <div className="token-split-cell">
               <dt>Used today</dt>
               <dd>
-                {credits(state.spentToday)} <small>in {state.requestsToday} runs</small>
+                {tokens(state.spentToday)} <small>in {state.requestsToday} runs</small>
               </dd>
             </div>
-            <div className="credits-bar" aria-hidden="true">
+            <div className="token-meter" aria-hidden="true">
               <span style={{ width: `${Math.round(usedRatio * 100)}%` }} />
             </div>
           </dl>
@@ -315,52 +310,50 @@ export default function CreditsScreen() {
           <span>
             {state.total === 0
               ? 'Nothing is left in the balance. It refills at the next daily reset, or an administrator can top it up.'
-              : `Only ${credits(state.total)} credits left — that is below the ${credits(
+              : `Only ${tokens(state.total)} tokens left — that is below the ${tokens(
                   settings?.lowBalance ?? 0
                 )} this workspace warns at.`}
           </span>
         </div>
       )}
 
-      <div className="credits-body">
+      <div className="token-body">
         <div>
           {/* ---------------- plans ---------------- */}
-          <section className="credits-panel" aria-label="Plans">
-            <div className="credits-panel-head">
+          <section className="token-group" aria-label="Plans">
+            <div className="token-group-head">
               <span>Plans</span>
               <span>{current ? `You are on ${current.name}` : 'Free by default'}</span>
             </div>
-            <div className="credits-panel-body">
+            <div className="token-group-body">
               {plans.length === 0 ? (
-                <p className="ai-empty">
+                <p className="token-group-note">
                   {offline
                     ? 'Plans are read from the cloud, so they are not available offline.'
                     : 'Loading the plans from the cloud…'}
                 </p>
               ) : offered.length === 0 ? (
-                <p className="ai-empty">Every tier is switched off right now. Ask the administrator.</p>
+                <p className="token-group-note">Every tier is switched off right now. Ask the administrator.</p>
               ) : (
                 <div className="tier-row">
                   {offered.map((plan) => (
                     <article
                       key={plan.id}
-                      className={`tier${plan.current ? ' tier--current' : ''}`}
+                      className={`plan-row${plan.current ? ' plan-row--current' : ''}`}
                       aria-current={plan.current ? 'true' : undefined}
                     >
-                      <div className="tier-top">
-                        <span className="tier-name">{plan.name}</span>
-                        <span className={`tier-tag${plan.current ? ' tier-tag--current' : ''}`}>
-                          {plan.current ? 'Current' : 'Available'}
-                        </span>
+                      <div className="plan-row-name">
+                        <span>{plan.name}</span>
+                        {plan.current && <span className="plan-row-tag">Current</span>}
                       </div>
-                      <p className="tier-price">
+                      <p className="plan-row-allowance">
+                        <strong>{tokens(plan.dailyTokens)}</strong> tokens a day
+                        <span className="plan-row-blurb">{plan.blurb}</span>
+                      </p>
+                      <p className="plan-row-price">
                         {money(plan.priceMinor, settings)}
-                        {plan.priceMinor > 0 && <small>per month</small>}
+                        {plan.priceMinor > 0 && <small>a month</small>}
                       </p>
-                      <p className="tier-allowance">
-                        {credits(plan.dailyCredits)} credits every day
-                      </p>
-                      <p className="tier-blurb">{plan.blurb}</p>
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm w-auto"
@@ -385,7 +378,7 @@ export default function CreditsScreen() {
                 </div>
               )}
             </div>
-            <p className="credits-note">
+            <p className="token-group-note">
               Plans are approved by an administrator — there is no card on file and no automatic
               charge. A request sits here until it is answered, and the allowance changes the moment
               it is.
@@ -393,16 +386,16 @@ export default function CreditsScreen() {
           </section>
 
           {/* ---------------- top up ---------------- */}
-          <section className="credits-panel" aria-label="Top up">
-            <div className="credits-panel-head">
+          <section className="token-group" aria-label="Top up">
+            <div className="token-group-head">
               <span>Top up</span>
               <span>
                 {pack && settings
-                  ? `${money(pack.price, settings)} per ${credits(pack.credits)} credits`
+                  ? `${money(pack.price, settings)} per ${tokens(pack.tokens)} tokens`
                   : 'priced by the server'}
               </span>
             </div>
-            <div className="credits-panel-body">
+            <div className="token-group-body">
               {pack && settings ? (
                 <>
                   <div className="buy-row">
@@ -416,7 +409,7 @@ export default function CreditsScreen() {
                           setTopUp(event.target.value.replace(/[^\d]/g, ''))
                           setTopUpError(null)
                         }}
-                        aria-label="Credits to buy"
+                        aria-label="Tokens to buy"
                       />
                     </label>
                     <div className="buy-quote" aria-live="polite">
@@ -426,8 +419,8 @@ export default function CreditsScreen() {
                       </span>
                       <span className="buy-quote-note">
                         {topUpValid
-                          ? `${topUpPacks} ${topUpPacks === 1 ? 'pack' : 'packs'} of ${credits(
-                              pack.credits
+                          ? `${topUpPacks} ${topUpPacks === 1 ? 'pack' : 'packs'} of ${tokens(
+                              pack.tokens
                             )} · ${money(pack.price, settings)} each`
                           : 'Enter an amount to see its price'}
                       </span>
@@ -444,10 +437,10 @@ export default function CreditsScreen() {
 
                   <div className="buy-presets" role="group" aria-label="Common top-ups">
                     {[1, 2, 5, 10].map((multiplier) => {
-                      const amount = Math.min(pack.credits * multiplier, settings.maxTopup)
+                      const amount = Math.min(pack.tokens * multiplier, settings.maxTopup)
                       if (amount < settings.minTopup) return null
                       /* Priced the way the server prices it: whole packs. */
-                      const packs = Math.ceil(amount / Math.max(pack.credits, 1))
+                      const packs = Math.ceil(amount / Math.max(pack.tokens, 1))
                       return (
                         <button
                           key={multiplier}
@@ -458,7 +451,7 @@ export default function CreditsScreen() {
                             setTopUpError(null)
                           }}
                         >
-                          <span>{credits(amount)} credits</span>
+                          <span>{tokens(amount)} tokens</span>
                           <span className="buy-preset-price">
                             {money(packs * pack.price, settings)}
                           </span>
@@ -469,15 +462,15 @@ export default function CreditsScreen() {
 
                   {topUpError && <p className="member-hint">{topUpError}</p>}
                   <p className="member-hint mt-3">
-                    {`Top-ups run from ${credits(settings.minTopup)} to ${credits(
+                    {`Top-ups run from ${tokens(settings.minTopup)} to ${tokens(
                       settings.maxTopup
-                    )} credits, in whole packs.`}{' '}
-                    Purchased credits never expire and are spent after the daily allowance runs out.
+                    )} tokens, in whole packs.`}{' '}
+                    Purchased tokens never expire and are spent after the daily allowance runs out.
                     An administrator approves the request; nothing is charged automatically.
                   </p>
                 </>
               ) : (
-                <p className="ai-empty">
+                <p className="token-group-note">
                   {offline
                     ? 'Prices are read from the cloud, so top-ups are unavailable offline.'
                     : 'Loading the price of a top-up…'}
@@ -489,26 +482,26 @@ export default function CreditsScreen() {
 
         <div>
           {/* ---------------- requests ---------------- */}
-          <section className="credits-panel" aria-label="Requests">
-            <div className="credits-panel-head">
+          <section className="token-group" aria-label="Requests">
+            <div className="token-group-head">
               <span>Requests</span>
               <span>{pending.length > 0 ? `${pending.length} waiting` : 'none waiting'}</span>
             </div>
             {purchases.length === 0 ? (
-              <div className="credits-panel-body">
-                <p className="ai-empty">
+              <div className="token-group-body">
+                <p className="token-group-note">
                   Nothing requested yet. A plan change or a top-up starts here and is answered by an
                   administrator.
                 </p>
               </div>
             ) : (
               purchases.slice(0, 8).map((request) => (
-                <div className="credit-row" key={request.id}>
-                  <span className="credit-kind">{request.kind === 'plan' ? 'Plan' : 'Top-up'}</span>
-                  <span className="credit-what">
+                <div className="token-row" key={request.id}>
+                  <span className="token-row-kind">{request.kind === 'plan' ? 'Plan' : 'Top-up'}</span>
+                  <span className="token-row-what">
                     {request.kind === 'plan'
                       ? request.planName ?? request.planId ?? 'Plan'
-                      : `${credits(request.credits ?? 0)} credits`}
+                      : `${tokens(request.tokens ?? 0)} tokens`}
                     {request.amountMinor !== null
                       ? ` · ${money(request.amountMinor, shapeFor(request.currency, settings))}`
                       : ''}
@@ -522,7 +515,7 @@ export default function CreditsScreen() {
                       Withdraw
                     </button>
                   ) : (
-                    <span className="credit-when">
+                    <span className="token-row-when">
                       {request.status === 'approved' ? 'approved' : 'declined'}
                     </span>
                   )}
@@ -532,14 +525,14 @@ export default function CreditsScreen() {
           </section>
 
           {/* ---------------- history ---------------- */}
-          <section className="credits-panel" aria-label="Usage history">
-            <div className="credits-panel-head">
+          <section className="token-group" aria-label="Usage history">
+            <div className="token-group-head">
               <span>Balance history</span>
               <span>from the server</span>
             </div>
             {loading ? (
-              <div className="credits-panel-body">
-                <p className="ai-empty">Reading the ledger…</p>
+              <div className="token-group-body">
+                <p className="token-group-note">Reading the ledger…</p>
               </div>
             ) : ledger.length === 0 ? (
               <EmptyState
@@ -550,14 +543,14 @@ export default function CreditsScreen() {
               />
             ) : (
               ledger.slice(0, 14).map((entry) => (
-                <div className="credit-row" key={entry.id}>
-                  <span className="credit-kind">{KIND_LABEL[entry.kind]}</span>
-                  <span className="credit-what">{describe(entry, settings)}</span>
-                  <span className={`credit-amount${entry.amount < 0 ? ' credit-amount--down' : ''}`}>
+                <div className="token-row" key={entry.id}>
+                  <span className="token-row-kind">{KIND_LABEL[entry.kind]}</span>
+                  <span className="token-row-what">{describe(entry, settings)}</span>
+                  <span className={`token-row-amount${entry.amount < 0 ? ' token-row-amount--down' : ''}`}>
                     {entry.amount > 0 ? '+' : ''}
-                    {credits(entry.amount)}
+                    {tokens(entry.amount)}
                   </span>
-                  <span className="credit-when">{when(entry.createdAt)}</span>
+                  <span className="token-row-when">{when(entry.createdAt)}</span>
                 </div>
               ))
             )}
@@ -565,40 +558,40 @@ export default function CreditsScreen() {
         </div>
       </div>
 
-      <section className="credits-panel mt-4" aria-label="Recent AI work">
-        <div className="credits-panel-head">
+      <section className="token-group token-group--spaced" aria-label="Recent AI work">
+        <div className="token-group-head">
           <span>Recent research on this PC</span>
           <span>{activity.length > 0 ? `${activity.length} runs` : 'nothing yet'}</span>
         </div>
         {activity.length === 0 ? (
-          <div className="credits-panel-body">
-            <p className="ai-empty">
+          <div className="token-group-body">
+            <p className="token-group-note">
               Open a document and use <strong>Research</strong> to plan a topic, read sources and
               write the brief into the page. What it cost appears here and in the ledger above.
             </p>
           </div>
         ) : (
           activity.map((run) => (
-            <div className="credit-row" key={run.id}>
-              <span className="credit-kind">{run.mode === 'research' ? 'Research' : 'Writing'}</span>
-              <span className="credit-what">
+            <div className="token-row" key={run.id}>
+              <span className="token-row-kind">{run.mode === 'research' ? 'Research' : 'Writing'}</span>
+              <span className="token-row-what">
                 {run.prompt} · {run.documentTitle}
               </span>
-              <span className="credit-amount credit-amount--down">−{credits(run.credits)}</span>
-              <span className="credit-when">{when(run.createdAt)}</span>
+              <span className="token-row-amount token-row-amount--down">−{tokens(run.tokens)}</span>
+              <span className="token-row-when">{when(run.createdAt)}</span>
             </div>
           ))
         )}
       </section>
 
       <p className="member-hint mt-4 max-w-[760px]">
-        The balance in this app is a copy of the server's. It is refreshed whenever this page opens
-        and never authorises a request on its own — the charged amount is written by the database
-        after the model reports its tokens.{' '}
+        These numbers are the server's, read when the page opens. Nothing is stored on this PC, and
+        nothing here authorises a request: the database writes the charge itself, from the tokens the
+        model actually reported.{' '}
         {settings && (
           <>
             Prices are set by an administrator, in {settings.currency},{' '}
-            {money(settings.topupPriceMinor, settings)} for {credits(settings.topupCredits)} credits.{' '}
+            {money(settings.topupPriceMinor, settings)} for {tokens(settings.topupTokens)} tokens.{' '}
           </>
         )}
         <Link to="/settings" className="link-quiet">

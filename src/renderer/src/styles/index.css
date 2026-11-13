@@ -7993,3 +7993,467 @@ body {
   grid-column: 1 / -1;
   margin-top: 0;
 }
+
+/* ==================================================================
+ * The token console — groups, not cards
+ *
+ * The section used to be a stack of bordered, rounded, shadowed boxes, each
+ * with its own framed header. Eight of those on one page read as a dashboard
+ * of unrelated widgets, which is exactly what it is not: it is one page about
+ * one thing, read top to bottom.
+ *
+ * A group is a heading, a hairline, and its content. No border, no radius, no
+ * shadow, no filled header bar. The only line is the rule under the title, so
+ * the eye follows the headings instead of counting rectangles. Tables inside
+ * already carry their own row hairlines, so they need no frame at all.
+ * ================================================================== */
+
+.admin-group {
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line);
+}
+
+.admin-group + .admin-group {
+  margin-top: var(--space-6);
+}
+
+.admin-group:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.admin-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: 10px;
+}
+
+.admin-group-head h2 {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.admin-group-head h2 svg {
+  color: var(--ink-tertiary);
+}
+
+.admin-group-count {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-group-body {
+  padding-top: var(--space-2);
+}
+
+.admin-group-note {
+  max-width: 70ch;
+  padding: var(--space-3) 0;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.admin-group-note--lead {
+  color: var(--ink-secondary);
+  font-size: var(--fs-sm);
+}
+
+/* A table sits on the page, not inside a box. */
+.admin-group .admin-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.admin-group .admin-table th {
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.admin-group .admin-table td {
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-group .admin-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Form fields: one rule under each field, no filled boxes. */
+.admin-group .field-input,
+.admin-group .field-select {
+  border-radius: 0;
+  border-width: 0 0 1px 0;
+  background-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.admin-group .field-input:focus,
+.admin-group .field-select:focus {
+  background-color: transparent;
+  border-bottom-color: var(--ink);
+  box-shadow: none;
+  outline: none;
+}
+
+/* One line of state under the section title. */
+.admin-lede {
+  margin: var(--space-4) 0 var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+
+.admin-lede strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ==================================================================
+ * The tokens screen — a balance, then rules and rows
+ *
+ * The page answers three questions in order: what is left, what a plan
+ * grants, how to get more. It used to answer them in six bordered panels
+ * with filled header bars, which made a short page look like a dashboard.
+ *
+ * Now the balance is a number on the page with no frame around it, and each
+ * section below is a title and a hairline. Rows are separated by their own
+ * line, so nothing needs a box to be legible.
+ * ================================================================== */
+
+.token-balance {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.token-balance-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.token-balance-figure {
+  min-width: 0;
+}
+
+.token-balance-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.token-eyebrow {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.token-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.token-figure strong {
+  color: var(--ink);
+  font-size: clamp(2.8rem, 6vw, 4rem);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-figure span {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.token-meta {
+  margin-top: 10px;
+  max-width: 60ch;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.token-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 22px;
+  color: var(--ink);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.token-plan-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--ink);
+}
+
+/* Three figures, no boxes: a rule above, spacing between. */
+.token-split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.token-split-cell dt {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.token-split-cell dd {
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-split-cell dd small {
+  margin-left: 5px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+}
+
+.token-meter {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 2px;
+  margin-top: var(--space-2);
+  background-color: var(--line);
+  overflow: hidden;
+}
+
+.token-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background-color: var(--ink);
+}
+
+.token-body {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .token-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.token-group + .token-group {
+  margin-top: var(--space-6);
+}
+
+.token-group--spaced {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.token-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.token-group-head > span:first-child {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.token-group-body {
+  padding: var(--space-4) 0 0;
+}
+
+.token-group-note {
+  max-width: 70ch;
+  padding: var(--space-3) 0;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.65;
+}
+
+/* History rows: a line between them, nothing around them. */
+.token-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-xs);
+}
+
+.token-row:last-child {
+  border-bottom: 0;
+}
+
+.token-row-kind {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.token-row-what {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-row-amount {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.token-row-amount--down {
+  color: var(--ink-tertiary);
+}
+
+.token-row-when {
+  color: var(--ink-tertiary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .token-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .token-row-kind,
+  .token-row-when {
+    grid-column: span 2;
+  }
+}
+
+/* Plans: one line each, the allowance in ink and the rest in grey. */
+.plan-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.plan-row:last-child {
+  border-bottom: 0;
+}
+
+.plan-row--current {
+  /* The current plan is marked with weight, not a colour or a frame. */
+  box-shadow: inset 2px 0 0 var(--ink);
+  padding-left: var(--space-3);
+}
+
+.plan-row-name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.plan-row-tag {
+  color: var(--ink-tertiary);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.plan-row-allowance {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.plan-row-allowance strong {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-row-blurb {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-row-price {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.plan-row-price small {
+  display: block;
+  color: var(--ink-tertiary);
+  font-size: 0.5625rem;
+  font-weight: 400;
+}
+
+@media (max-width: 840px) {
+  .plan-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .plan-row-price {
+    text-align: left;
+  }
+}

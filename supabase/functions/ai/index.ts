@@ -83,16 +83,20 @@ function fail(status: number, code: string, message: string, extra: Record<strin
 }
 
 /**
- * What a run costs, in credits.
+ * What a run costs, in tokens.
  *
- * One credit buys `tokensPerCredit` tokens, in and out, rounded up and never
- * zero. That number is a setting the administrator owns — it travels with the
- * balance read at the start of the request — so a workspace can decide a credit
- * is worth 1,000 tokens or 250 without anyone shipping a build.
+ * It costs the tokens it used. There is no exchange rate and no rounding step:
+ * the provider reports a token count, and that count is the charge. One token
+ * is one token, which is the only definition that cannot drift between what a
+ * screen says and what a run spends.
  */
-function costOf(tokens: number, tokensPerCredit = 1000): number {
-  const per = Number.isFinite(tokensPerCredit) && tokensPerCredit > 0 ? tokensPerCredit : 1000
-  return Math.max(1, Math.ceil(tokens / per))
+/*
+ * The charge is the token count. There is no rate to apply: a "credit" no
+ * longer exists as a separate unit, so `costOf` is only here to refuse a
+ * nonsense number from a provider (negative, NaN, or a fraction).
+ */
+function costOf(tokens: number): number {
+  return Number.isFinite(tokens) && tokens > 0 ? Math.floor(tokens) : 0
 }
 
 /** A short, honest ceiling on how much of the document is worth sending. */
@@ -139,7 +143,7 @@ async function caller(supa: Supa, token: string): Promise<{ id: string; email?: 
   return { id: user.id, email: user.email }
 }
 
-/** The profile row the credit functions key on. Service role: the caller cannot see other rows anyway. */
+/** The profile row the token functions key on. Service role: the caller cannot see other rows anyway. */
 async function profileOf(supa: Supa, uid: string): Promise<string> {
   const rows = await rest<{ id: string }[]>(
     supa,
@@ -193,8 +197,6 @@ interface TurnInput {
   maxOutputTokens: number
   json: boolean
   timeoutMs: number
-  /** Tokens one credit buys, as the workspace's settings say. */
-  perCredit?: number
 }
 
 async function turn(input: TurnInput): Promise<TurnResult> {
@@ -252,7 +254,7 @@ async function turn(input: TurnInput): Promise<TurnResult> {
       text,
       citations,
       queries: candidate?.groundingMetadata?.webSearchQueries ?? [],
-      usage: { prompt: promptTokens, output: outputTokens, total, cost: costOf(total, input.perCredit) }
+      usage: { prompt: promptTokens, output: outputTokens, total, cost: costOf(total) }
     }
   } finally {
     clearTimeout(timer)
@@ -315,7 +317,7 @@ function chargeFrom(supa: Supa, profile: string): Charge {
 
 function isInsufficient(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error)
-  return text.includes('insufficient_credits')
+  return text.includes('insufficient_tokens') || text.includes('insufficient_credits')
 }
 
 interface Body {
@@ -395,25 +397,22 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return fail(409, 'no_profile', 'This account has no cloud profile yet. Open Cloud once, then try again.',
       { detail: error instanceof Error ? error.message : undefined })
   }
-  const available = Number(balance.total ?? 0)
-  const minimum = mode === 'research' ? 3 : 1
-  if (available < minimum) {
-    return fail(402, 'insufficient_credits',
-      mode === 'research'
-        ? 'Deep research needs at least 3 credits. Your daily allowance resets at midnight UTC.'
-        : 'You have no credits left today. Your daily allowance resets at midnight UTC.',
-      { balance })
-  }
-
   /*
-   * What one credit buys comes from the same settings row the app reads, so a
-   * charge and the price shown on the Credits page can never disagree. A
-   * workspace that has not configured it falls back to a thousand tokens.
+   * A floor, in tokens, before any provider call is made. A chat turn needs at
+   * least a couple of thousand tokens in and out to be worth starting; research
+   * reads several pages, so it needs more. Failing here costs nothing, whereas
+   * starting a run the balance cannot pay for wastes a provider call and then
+   * fails at the charge.
    */
-  const rawSettings = (balance.settings ?? {}) as Record<string, unknown>
-  const perCredit = Number(rawSettings.tokensPerCredit)
-  const tokensPerCredit =
-    Number.isFinite(perCredit) && perCredit > 0 ? Math.floor(perCredit) : 1000
+  const available = Number(balance.total ?? 0)
+  const minimum = mode === 'research' ? 4000 : 800
+  if (available < minimum) {
+    return fail(402, 'insufficient_tokens',
+      mode === 'research'
+        ? `Deep research needs about ${minimum.toLocaleString()} tokens free. This account has ${available.toLocaleString()}, and the allowance resets at midnight UTC.`
+        : `This run needs about ${minimum.toLocaleString()} tokens free. This account has ${available.toLocaleString()}, and the allowance resets at midnight UTC.`,
+      { balance, minimum, unit: 'tokens' })
+  }
 
   const charge = chargeFrom(supa, profile)
   const trace: TraceEntry[] = []
@@ -465,7 +464,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
         maxOutputTokens: 2400,
         json: false,
         timeoutMs: 60_000,
-        perCredit: tokensPerCredit
       }))
 
       const state = await rpc<Record<string, unknown>>(supa, 'indra_credit_state', {}, token).catch(() => balance)
@@ -501,7 +499,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
       maxOutputTokens: 700,
       json: true,
       timeoutMs: 30_000,
-      perCredit: tokensPerCredit
     }))
 
     let questions: string[] = []
@@ -520,6 +517,32 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
     if (!questions.length) questions = [prompt]
 
+    /*
+     * A spend that fails for want of balance stops the run here.
+     *
+     * Without this, the plan call could exhaust the balance and the searches
+     * and synthesis would still be sent — five or six provider calls the owner
+     * pays for and the person's balance never covers. Research is the expensive
+     * mode, so this is where that leak costs the most.
+     */
+    if (exhausted) {
+      const state = await rpc<Record<string, unknown>>(supa, 'indra_credit_state', {}, token).catch(() => balance)
+      return reply({
+        ok: true,
+        mode,
+        model: MODELS.plan,
+        answer: '',
+        outline: questions,
+        angle,
+        citations: [],
+        usage,
+        balance: state,
+        exhausted,
+        trace,
+        ms: Date.now() - startedAt
+      })
+    }
+
     const searches = await Promise.all(questions.map((question, index) => timed(`search:${index + 1}`, () => turn({
       key,
       model: MODELS.search,
@@ -530,7 +553,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
       maxOutputTokens: 1200,
       json: false,
       timeoutMs: SEARCH_TIMEOUT_MS,
-      perCredit: tokensPerCredit
     }))))
 
     const sources: Citation[] = []
@@ -565,7 +587,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       language ? `Write in ${language}.` : ''
     ].filter(Boolean).join('\n\n')
 
-    const synthesis = await timed('synthesis', () => turn({
+    const synthesis = exhausted ? null : await timed('synthesis', () => turn({
       key,
       model: deep ? MODELS.research : MODELS.search,
       system: synthesiseSystem(deep),
@@ -575,7 +597,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
       maxOutputTokens: deep ? 4000 : 2400,
       json: false,
       timeoutMs: deep ? 80_000 : 55_000,
-      perCredit: tokensPerCredit
     }))
 
     const state = await rpc<Record<string, unknown>>(supa, 'indra_credit_state', {}, token).catch(() => balance)

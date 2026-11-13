@@ -69,9 +69,8 @@ async function main() {
   }
 
   const calls = []
-  const balance = { daily: 20, purchased: 5, total: 25, spent: [] }
-  /* The pricing rules the workspace holds; a test can change them. */
-  const settings = { tokensPerCredit: 1000 }
+  const balance = { daily: 20000, purchased: 5000, total: 25000, spent: [] }
+  /* The Edge Function no longer divides by a rate: cost is the token count. */
   let geminiMode = 'normal'
 
   const gemini = (body) => {
@@ -157,13 +156,13 @@ async function main() {
     }
 
     if (url.includes('/rest/v1/rpc/indra_credit_state')) {
-      return new Response(JSON.stringify({ plan: 'free', planName: 'Free', daily: balance.daily, purchased: balance.purchased, total: balance.daily + balance.purchased, dailyAllowance: 100, spentToday: 0, requestsToday: 0, isAdmin: false, settings }), { status: 200 })
+      return new Response(JSON.stringify({ plan: 'free', planName: 'Free', daily: balance.daily, purchased: balance.purchased, total: balance.daily + balance.purchased, dailyAllowance: 100, spentToday: 0, requestsToday: 0, isAdmin: false, settings: { currency: 'USD', symbol: '$', decimals: 2, topupTokens: 100000, topupPriceMinor: 10000, minTopup: 100000, maxTopup: 100000000, lowBalance: 3000, updatedAt: null } }), { status: 200 })
     }
 
     if (url.includes('/rest/v1/rpc/indra_spend_ai')) {
       const cost = body.p_cost
       if (balance.daily + balance.purchased < cost) {
-        return new Response('insufficient_credits', { status: 400 })
+        return new Response('insufficient_tokens', { status: 400 })
       }
       const fromDaily = Math.min(balance.daily, cost)
       balance.daily -= fromDaily
@@ -218,23 +217,23 @@ async function main() {
   /* ---------------- chat: charged by real usage ---------------- */
 
   env.GEMINI_API_KEY = 'test-key'
-  balance.daily = 20
-  balance.purchased = 5
+  balance.daily = 20000
+  balance.purchased = 5000
   balance.spent.length = 0
   calls.length = 0
 
   const chat = await call({ mode: 'chat', prompt: 'Tighten the opening.', document: 'Batteries are displacing peaking plants.' })
   check(chat.status === 200 && chat.body.mode === 'chat', 'a chat turn answers')
-  check(chat.body.usage.total === 8400 && chat.body.usage.cost === 9, 'the cost is the reported tokens, rounded up in thousands', JSON.stringify(chat.body.usage))
+  check(chat.body.usage.total === 8400 && chat.body.usage.cost === 8400, 'the cost is the reported tokens, exactly', JSON.stringify(chat.body.usage))
   const chatSpend = calls.filter((entry) => entry.url.includes('indra_spend_ai'))
   check(chatSpend.length === 1, 'a chat turn is charged exactly once')
-  check(chatSpend[0]?.body?.p_cost === 9 && chatSpend[0]?.body?.p_user === 'profile-1', 'the charge names the profile and the real cost')
+  check(chatSpend[0]?.body?.p_cost === 8400 && chatSpend[0]?.body?.p_user === 'profile-1', 'the charge names the profile and the token count')
   check(chatSpend[0]?.headers?.authorization === 'Bearer service-role-key', 'the charge is made with the service key, which the app does not have')
-  check(chat.body.balance.total === 16, 'the answer carries the balance after the charge', String(chat.body.balance?.total))
+  check(chat.body.balance.total === 16600, 'the answer carries the balance after the charge', String(chat.body.balance?.total))
 
   /* ---------------- research: plan, search, synthesise ---------------- */
 
-  balance.daily = 40
+  balance.daily = 40000
   balance.purchased = 0
   balance.spent.length = 0
   calls.length = 0
@@ -249,54 +248,64 @@ async function main() {
   check(spendCalls.length === 5, 'every step is charged as it happens')
   check(research.body.usage.cost === balance.spent.reduce((sum, cost) => sum + cost, 0), 'the reported total is the sum of the charges')
   check(research.body.answer.includes('[1]'), 'the brief keeps its citations')
-  check(research.body.balance.total === 40 - research.body.usage.cost, 'the balance is the server’s after the run')
+  check(research.body.balance.total === 40000 - research.body.usage.cost, 'the balance is the server’s after the run')
 
   /* ---------------- running out mid-way is honest ---------------- */
 
-  balance.daily = 4
+  /*
+   * Just above the research floor, so the plan is paid for and the searches are
+   * not. The run must stop rather than send calls the balance cannot cover.
+   */
+  balance.daily = 4500
   balance.purchased = 0
   balance.spent.length = 0
   calls.length = 0
 
   const drained = await call({ mode: 'research', depth: 'deep', prompt: 'A long topic', document: '' })
   check(drained.status === 200 && drained.body.exhausted === true, 'a run that runs out says so', String(drained.body?.exhausted))
-  check(drained.body.answer.length > 0, 'what was written before the balance ran out is kept')
-  check(balance.daily === 0, 'nothing is charged past zero')
-  check(drained.body.balance.total === 0, 'the balance it reports is the real one')
+  /*
+   * The searches run together, so a balance can run dry part-way through them.
+   * What must be true is that the synthesis is never sent after that — it is
+   * the most expensive call in the run — and that no charge went past zero.
+   */
+  const stages = calls
+    .filter((entry) => entry.url.includes('generativelanguage'))
+    .map((entry) => (String(entry.body?.contents?.[0]?.parts?.[0]?.text ?? '').includes('writing a research brief') ? 'synthesis' : 'other'))
+  check(!stages.includes('synthesis'), 'the synthesis is not sent once the balance is exhausted', JSON.stringify(stages))
+  check(balance.daily >= 0, 'nothing is charged past zero')
+  check(drained.body.balance.total === balance.daily + balance.purchased, 'the balance it reports is the real one', String(drained.body.balance?.total))
 
-  /* ---------------- no credits at all ---------------- */
+  /* ---------------- no tokens at all ---------------- */
 
   balance.daily = 0
   balance.purchased = 0
   calls.length = 0
   const empty = await call({ mode: 'chat', prompt: 'Anything' })
-  check(empty.status === 402 && empty.body.error === 'insufficient_credits', 'no credits is refused before the provider is called', String(empty.status))
-  check(calls.every((entry) => !entry.url.includes('generativelanguage')), 'no credits: nothing is spent on a model')
+  check(empty.status === 402 && empty.body.error === 'insufficient_tokens', 'no tokens is refused before the provider is called', String(empty.status))
+  check(calls.every((entry) => !entry.url.includes('generativelanguage')), 'no tokens: nothing is spent on a model')
 
   /* ---------------- a provider failure is reported as one ---------------- */
 
-  /* ---------------- what a credit buys is a setting ---------------- */
+  /* ---------------- the charge is the token count, exactly ---------------- */
 
-  balance.daily = 60
+  balance.daily = 60000
   balance.purchased = 0
   balance.spent.length = 0
   calls.length = 0
-  settings.tokensPerCredit = 2000
 
-  const cheap = await call({ mode: 'chat', prompt: 'Anything', document: '' })
+  const exact = await call({ mode: 'chat', prompt: 'Anything', document: '' })
   check(
-    cheap.status === 200 && cheap.body.usage.cost === Math.max(1, Math.ceil(cheap.body.usage.total / 2000)),
-    'a credit worth 2,000 tokens halves the charge',
-    JSON.stringify({ tokens: cheap.body?.usage?.total, cost: cheap.body?.usage?.cost })
+    exact.status === 200 && exact.body.usage.cost === exact.body.usage.total,
+    'the charge equals the tokens the model reported, with no rate applied',
+    JSON.stringify({ tokens: exact.body?.usage?.total, cost: exact.body?.usage?.cost })
   )
-  const cheapSpend = calls.filter((entry) => entry.url.includes('indra_spend_ai'))
+  const exactSpend = calls.filter((entry) => entry.url.includes('indra_spend_ai'))
   check(
-    cheapSpend.length === 1 && cheapSpend[0].body.p_cost === cheap.body.usage.cost,
-    'the charge follows the setting, not a constant in the function'
+    exactSpend.length === 1 && exactSpend[0].body.p_cost === exact.body.usage.total,
+    'the function sends the token count straight to the charging call'
   )
-  settings.tokensPerCredit = 1000
 
-  balance.daily = 30
+  balance.daily = 30000
   geminiMode = 'failure'
   const broken = await call({ mode: 'chat', prompt: 'Anything', document: '' })
   check(broken.status === 502 && broken.body.error === 'provider_error', 'a provider error is passed on as a failure', String(broken.status))

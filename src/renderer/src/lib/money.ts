@@ -1,4 +1,4 @@
-import type { CreditSettings } from '@shared/types'
+import type { TokenSettings } from '@shared/types'
 
 /**
  * Money, as the server defines it.
@@ -14,7 +14,7 @@ import type { CreditSettings } from '@shared/types'
  */
 
 /** What a currency looks like when the server has not said yet. */
-export const FALLBACK_SETTINGS: Pick<CreditSettings, 'currency' | 'symbol' | 'decimals'> = {
+export const FALLBACK_SETTINGS: Pick<TokenSettings, 'currency' | 'symbol' | 'decimals'> = {
   currency: 'USD',
   symbol: '$',
   decimals: 2
@@ -98,8 +98,8 @@ export function minorToText(minor: number, decimals: number): string {
   return `${value < 0 ? '-' : ''}${whole}.${fraction}`
 }
 
-/** Credits are whole numbers; the server never sends fractions. */
-export function credits(value: number | null | undefined): string {
+/** Tokens are whole numbers; the server never sends fractions. */
+export function tokens(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   return Math.round(value).toLocaleString()
 }
@@ -131,7 +131,7 @@ const KNOWN: Record<string, { symbol: string; decimals: number }> = {
 
 export function shapeFor(
   currency: string | null | undefined,
-  settings: Pick<CreditSettings, 'currency' | 'symbol' | 'decimals'> | null | undefined
+  settings: Pick<TokenSettings, 'currency' | 'symbol' | 'decimals'> | null | undefined
 ): Shape {
   const code = (currency ?? '').toUpperCase()
   if (!code) return shapeOf(settings)

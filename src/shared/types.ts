@@ -21,6 +21,7 @@ export type ErrorCode =
   | 'MAINTENANCE'
   | 'REGISTRATION_CLOSED'
   /* The balance ran out, or the run was refused because it would have. */
+  | 'INSUFFICIENT_TOKENS'
   | 'INSUFFICIENT_CREDITS'
   /* AI could not run: not switched on, no route out, or the model refused. */
   | 'AI_UNAVAILABLE'
@@ -871,18 +872,18 @@ export interface ProjectGraph {
   counts: { members: number; documents: number; presentations: number }
 }
 
-/* ---------------- credits and AI ---------------- */
+/* ---------------- tokens and AI ---------------- */
 
 /*
  * The balance is the server's number, never the app's.
  *
  * Everything in this block is a *projection* of what Supabase said. The main
- * process keeps the last answer in SQLite so the Credits screen can draw
+ * process keeps the last answer in SQLite so the Tokens screen can draw
  * something honest while offline — it is labelled with when it was true, and
  * it is never used to decide whether a request may run. That decision happens
  * in the Edge Function, against the row, inside the transaction that charges.
  */
-export interface CreditsState {
+export interface TokensState {
   /** False while this PC has no usable cloud identity yet. */
   connected: boolean
   plan: string
@@ -897,10 +898,13 @@ export interface CreditsState {
   planExpiresAt: string | null
   isAdmin: boolean
   /** The pricing rules the server currently enforces. */
-  settings: CreditSettings | null
-  /** When the server last confirmed these numbers. */
+  settings: TokenSettings | null
+  /** When the server confirmed these numbers. There is no other source. */
   syncedAt: string | null
-  /** True when drawn from the local copy because the cloud could not be read. */
+  /**
+   * Always false, and kept only so older call sites compile. Nothing on this PC
+   * caches a balance any more — see `tokensState()`.
+   */
   cached: boolean
   /** Why the live read failed, in plain words, when it did. */
   message: string | null
@@ -911,17 +915,14 @@ export interface CreditsState {
  *
  * Money is in minor units of `currency` — cents for USD, paisa for NPR — and
  * never a float, so nothing is rounded somewhere the administrator cannot see.
- * `tokensPerCredit` is what one credit buys, which is also what the Edge
- * Function divides a provider's token count by before it charges.
  */
-export interface CreditSettings {
+export interface TokenSettings {
   currency: string
   symbol: string
   /** Digits after the decimal point for this currency. */
   decimals: number
-  tokensPerCredit: number
-  /** A top-up pack: this many credits for `topupPriceMinor`. */
-  topupCredits: number
+  /** A top-up pack: this many tokens for `topupPriceMinor`. */
+  topupTokens: number
   topupPriceMinor: number
   minTopup: number
   maxTopup: number
@@ -931,11 +932,11 @@ export interface CreditSettings {
 }
 
 /** One tier, as configured on the server. Money is in minor units. */
-export interface CreditPlan {
+export interface TokenPlan {
   id: string
   name: string
   blurb: string
-  dailyCredits: number
+  dailyTokens: number
   priceMinor: number
   sort: number
   /** False when the administrator has retired the tier. */
@@ -945,11 +946,11 @@ export interface CreditPlan {
   expiresAt: string | null
 }
 
-export type CreditEntryKind = 'usage' | 'purchase' | 'grant' | 'reset' | 'adjust'
+export type TokenEntryKind = 'usage' | 'purchase' | 'grant' | 'reset' | 'adjust'
 
-export interface CreditLedgerEntry {
+export interface TokenLedgerEntry {
   id: string
-  kind: CreditEntryKind
+  kind: TokenEntryKind
   /** Negative for usage, positive for everything that adds. */
   amount: number
   balanceAfter: number
@@ -957,7 +958,7 @@ export interface CreditLedgerEntry {
   createdAt: string
 }
 
-export type PurchaseKind = 'plan' | 'credits'
+export type PurchaseKind = 'plan' | 'topup'
 export type PurchaseStatus = 'pending' | 'approved' | 'rejected'
 
 export interface PurchaseRequest {
@@ -965,7 +966,7 @@ export interface PurchaseRequest {
   kind: PurchaseKind
   planId: string | null
   planName: string | null
-  credits: number | null
+  tokens: number | null
   /** What it was quoted at, in the minor unit of `currency`. */
   amountMinor: number | null
   /** The currency of the quote; a receipt never changes currency later. */
@@ -980,8 +981,8 @@ export interface PurchaseRequestInput {
   kind: PurchaseKind
   /** Required for kind 'plan'. */
   planId?: string
-  /** Required for kind 'credits'; priced by the server. */
-  credits?: number
+  /** Required for kind 'topup'; priced by the server. */
+  tokens?: number
   note?: string
 }
 
@@ -1005,7 +1006,6 @@ export interface AiTraceStep {
   stage: string
   ms: number
   tokens: number
-  credits: number
 }
 
 export interface AiAnswer {
@@ -1019,7 +1019,7 @@ export interface AiAnswer {
   angle: string | null
   citations: AiCitation[]
   usage: AiUsage
-  balance: CreditsState | null
+  balance: TokensState | null
   /** True when the run stopped because the balance ran out mid-way. */
   exhausted: boolean
   trace: AiTraceStep[]
@@ -1038,7 +1038,7 @@ export interface AiAskInput {
   history?: { role: 'user' | 'model'; text: string }[]
 }
 
-/** One credit price, formatted by the rules the server holds. */
+/** One token price, formatted by the rules the server holds. */
 export interface MoneyFormat {
   symbol: string
   decimals: number
@@ -1053,15 +1053,14 @@ export interface AiActivity {
   mode: AiMode
   model: string
   prompt: string
-  credits: number
   tokens: number
   citationCount: number
   createdAt: string
 }
 
-/* ---------------- credit administration ---------------- */
+/* ---------------- token administration ---------------- */
 
-export interface AdminCreditAccount {
+export interface AdminTokenAccount {
   id: string
   displayName: string
   username: string
@@ -1077,9 +1076,9 @@ export interface AdminCreditAccount {
   suspended: boolean
 }
 
-export interface AdminCreditLedgerRow {
+export interface AdminTokenLedgerRow {
   id: string
-  kind: CreditEntryKind
+  kind: TokenEntryKind
   amount: number
   balanceAfter: number
   meta: Record<string, unknown>
@@ -1092,7 +1091,7 @@ export interface AdminCreditLedgerRow {
  * `totalAccounts` is a count, not the length of a list: the account list is
  * capped, so reporting its length would be wrong once a fleet outgrows it.
  */
-export interface AdminCreditResetInfo {
+export interface AdminTokenResetInfo {
   nextResetAt: string
   lastRefillAt: string | null
   schedule: string | null
@@ -1101,36 +1100,36 @@ export interface AdminCreditResetInfo {
 }
 
 /** One line of the whole fleet's movement log, not just one account's. */
-export interface AdminSpendRow extends AdminCreditLedgerRow {
+export interface AdminSpendRow extends AdminTokenLedgerRow {
   userId: string
   accountName: string
 }
 
 /** One account, everything about it, and its whole history. */
-export interface AdminCreditAccountDetail {
+export interface AdminTokenAccountDetail {
   /**
-   * `creditsResetAt` is this account's own refill clock — the authority for when
+   * `tokensResetAt` is this account's own refill clock — the authority for when
    * its daily allowance next comes back, which is not the same instant for every
    * account once a new tier has been introduced mid-day.
    */
-  account: AdminCreditAccount & {
+  account: AdminTokenAccount & {
     createdAt: string
     memberNo: string | null
-    creditsResetAt: string | null
+    tokensResetAt: string | null
   }
-  ledger: AdminCreditLedgerRow[]
+  ledger: AdminTokenLedgerRow[]
 }
 
-export interface AdminCreditSnapshot {
+export interface AdminTokenSnapshot {
   /** Every pending request, oldest first — these are what someone has to act on. */
   pending: Array<PurchaseRequest & { accountId: string; accountName: string; accountEmail: string | null }>
   decided: Array<PurchaseRequest & { accountId: string; accountName: string; accountEmail: string | null }>
-  plans: CreditPlan[]
-  accounts: AdminCreditAccount[]
+  plans: TokenPlan[]
+  accounts: AdminTokenAccount[]
   /** The pricing rules, as the server holds them. */
-  settings: CreditSettings | null
+  settings: TokenSettings | null
   /** The server's refill clock and its real account totals. */
-  reset: AdminCreditResetInfo | null
+  reset: AdminTokenResetInfo | null
   /**
    * Which cloud account this PC is speaking as. Two machines can both hold the
    * role, and after a reinstall this is the only thing that says which one is
@@ -1138,7 +1137,7 @@ export interface AdminCreditSnapshot {
    * identity and the old PC still has it".
    */
   identity: { email: string | null; uid: string | null } | null
-  /** The server answered, and this installation's cloud account holds the credit role. */
+  /** The server answered, and this installation's cloud account holds the admin role. */
   live: boolean
   /** The server answered at all. False means "unknown", never "empty". */
   reachable: boolean
@@ -1151,7 +1150,7 @@ export interface AdminPlanInput {
   id: string
   name?: string
   blurb?: string
-  dailyCredits?: number
+  dailyTokens?: number
   /** In the minor unit of the workspace currency. */
   priceMinor?: number
   sort?: number
@@ -1160,12 +1159,11 @@ export interface AdminPlanInput {
   create?: boolean
 }
 
-export interface AdminCreditSettingsInput {
+export interface AdminTokenSettingsInput {
   currency?: string
   symbol?: string
   decimals?: number
-  tokensPerCredit?: number
-  topupCredits?: number
+  topupTokens?: number
   topupPriceMinor?: number
   minTopup?: number
   maxTopup?: number

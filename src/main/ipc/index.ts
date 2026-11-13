@@ -61,8 +61,8 @@ import { searchUsers } from '../services/users'
 import {
   activity as aiActivity,
   adminAccountDetail,
-  adminClaimCreditRole,
-  adminCreditSnapshot,
+  adminClaimTokenRole,
+  adminTokenSnapshot,
   adminDecidePurchase,
   adminGrant,
   adminLedger,
@@ -70,13 +70,13 @@ import {
   adminSetSuspended,
   adminSpendLog,
   adminSetPlan,
-  adminUpdateCreditSettings,
+  adminUpdateTokenSettings,
   adminUpdatePlan,
   ask as askAI,
   cancelPurchase,
-  creditLedger,
-  creditPlans,
-  creditsState,
+  tokenLedger,
+  tokenPlans,
+  tokensState,
   purchaseRequests,
   requestPurchase
 } from '../services/ai'
@@ -180,15 +180,15 @@ function actor(): SessionUser {
 }
 
 /**
- * The credit console's identity: the administrator session on this machine.
+ * The token console's identity: the administrator session on this machine.
  *
  * It used to resolve a *workspace* user, which meant an administrator who had
  * signed in to the admin panel and nobody else met "Sign in to continue." on
- * every credits screen. The console belongs to the installation, so it resolves
+ * every tokens screen. The console belongs to the installation, so it resolves
  * the administrator — and the cloud identity it uses is derived from that, kept
  * apart from any workspace account.
  */
-function creditAdmin(): string {
+function tokenAdmin(): string {
   return requireAdmin().id
 }
 
@@ -1063,39 +1063,39 @@ export function registerIpcHandlers(): void {
       })
   )
 
-  /* ---------------- credits and AI ---------------- */
+  /* ---------------- tokens and AI ---------------- */
 
   /*
    * The balance is read here, in the main process, with the account's own cloud
    * token. The renderer receives numbers and timestamps — never a credential,
    * and never the authority to spend.
    */
-  ipcMain.handle('credits:state', (_event, payload: { cached?: unknown }) =>
-    toResult(() => creditsState(actor(), payload?.cached === true))
+  ipcMain.handle('tokens:state', (_event, payload: { cached?: unknown }) =>
+    toResult(() => tokensState(actor()))
   )
 
-  ipcMain.handle('credits:plans', () => toResult(() => creditPlans(actor())))
+  ipcMain.handle('tokens:plans', () => toResult(() => tokenPlans(actor())))
 
-  ipcMain.handle('credits:ledger', (_event, payload: { limit?: unknown }) =>
-    toResult(() => creditLedger(actor(), Number(payload?.limit ?? 40)))
+  ipcMain.handle('tokens:ledger', (_event, payload: { limit?: unknown }) =>
+    toResult(() => tokenLedger(actor(), Number(payload?.limit ?? 40)))
   )
 
-  ipcMain.handle('credits:purchases', () => toResult(() => purchaseRequests(actor())))
+  ipcMain.handle('tokens:purchases', () => toResult(() => purchaseRequests(actor())))
 
   ipcMain.handle(
-    'credits:request',
-    (_event, payload: { kind?: unknown; planId?: unknown; credits?: unknown; note?: unknown }) =>
+    'tokens:request',
+    (_event, payload: { kind?: unknown; planId?: unknown; tokens?: unknown; note?: unknown }) =>
       toResult(() =>
         requestPurchase(actor(), {
-          kind: payload?.kind === 'credits' ? 'credits' : 'plan',
+          kind: payload?.kind === 'topup' ? 'topup' : 'plan',
           planId: typeof payload?.planId === 'string' ? payload.planId : undefined,
-          credits: payload?.credits === undefined ? undefined : Number(payload.credits),
+          tokens: payload?.tokens === undefined ? undefined : Number(payload.tokens),
           note: typeof payload?.note === 'string' ? payload.note : ''
         })
       )
   )
 
-  ipcMain.handle('credits:cancel', (_event, id: unknown) =>
+  ipcMain.handle('tokens:cancel', (_event, id: unknown) =>
     toResult(() => cancelPurchase(actor(), requireRecordId(id)))
   )
 
@@ -1168,36 +1168,36 @@ export function registerIpcHandlers(): void {
   )
 
   /*
-   * Credit administration. Two gates: the local administrator session, and —
+   * Token administration. Two gates: the local administrator session, and —
    * inside every one of these calls — the server's own check that the signed-in
    * cloud account holds the administrator role. Either one alone is not enough.
    */
-  ipcMain.handle('admin:credits:snapshot', () =>
+  ipcMain.handle('admin:tokens:snapshot', () =>
     toResult(() => {
       requireAdmin()
-      return adminCreditSnapshot(creditAdmin())
+      return adminTokenSnapshot(tokenAdmin())
     })
   )
 
   /*
    * Taking the role is a deliberate click, not something a page load does: the
-   * server offers it only while it has no credit administrator, and the answer
+   * server offers it only while it has no token administrator, and the answer
    * is the next snapshot, so the panel shows what actually happened.
    */
-  ipcMain.handle('admin:credits:claim', () =>
+  ipcMain.handle('admin:tokens:claim', () =>
     toResult(async () => {
       requireAdmin()
-      return adminClaimCreditRole(creditAdmin())
+      return adminClaimTokenRole(tokenAdmin())
     })
   )
 
   ipcMain.handle(
-    'admin:credits:decide',
+    'admin:tokens:decide',
     (_event, payload: { id?: unknown; approve?: unknown; note?: unknown }) =>
       toResult(() => {
         requireAdmin()
         return adminDecidePurchase(
-          creditAdmin(),
+          tokenAdmin(),
           requireRecordId(payload?.id),
           payload?.approve === true,
           typeof payload?.note === 'string' ? payload.note : ''
@@ -1206,12 +1206,12 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
-    'admin:credits:setPlan',
+    'admin:tokens:setPlan',
     (_event, payload: { userId?: unknown; planId?: unknown; days?: unknown }) =>
       toResult(() => {
         requireAdmin()
         return adminSetPlan(
-          creditAdmin(),
+          tokenAdmin(),
           requireRecordId(payload?.userId),
           requireRecordId(payload?.planId),
           Number(payload?.days ?? 30)
@@ -1220,12 +1220,12 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
-    'admin:credits:grant',
+    'admin:tokens:grant',
     (_event, payload: { userId?: unknown; amount?: unknown; reason?: unknown }) =>
       toResult(() => {
         requireAdmin()
         return adminGrant(
-          creditAdmin(),
+          tokenAdmin(),
           requireRecordId(payload?.userId),
           Number(payload?.amount ?? 0),
           typeof payload?.reason === 'string' ? payload.reason : ''
@@ -1234,14 +1234,14 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
-    'admin:credits:updatePlan',
+    'admin:tokens:updatePlan',
     (
       _event,
       payload: {
         id?: unknown
         name?: unknown
         blurb?: unknown
-        dailyCredits?: unknown
+        dailyTokens?: unknown
         priceMinor?: unknown
         sort?: unknown
         enabled?: unknown
@@ -1250,11 +1250,11 @@ export function registerIpcHandlers(): void {
     ) =>
       toResult(() => {
         requireAdmin()
-        return adminUpdatePlan(creditAdmin(), {
+        return adminUpdatePlan(tokenAdmin(), {
           id: requireRecordId(payload?.id),
           name: typeof payload?.name === 'string' ? payload.name : undefined,
           blurb: typeof payload?.blurb === 'string' ? payload.blurb : undefined,
-          dailyCredits: payload?.dailyCredits === undefined ? undefined : Number(payload.dailyCredits),
+          dailyTokens: payload?.dailyTokens === undefined ? undefined : Number(payload.dailyTokens),
           priceMinor: payload?.priceMinor === undefined ? undefined : Number(payload.priceMinor),
           sort: payload?.sort === undefined ? undefined : Number(payload.sort),
           enabled: typeof payload?.enabled === 'boolean' ? payload.enabled : undefined,
@@ -1264,20 +1264,19 @@ export function registerIpcHandlers(): void {
   )
 
   /*
-   * The pricing rules an administrator sets: currency, what a credit buys, the
-   * top-up pack and its price, the limits and the low-balance mark. The server
-   * validates every field again and returns the row it actually wrote.
+   * The pricing rules an administrator sets: currency, the top-up pack and what
+   * it costs, the limits and the low-balance mark. The server validates every
+   * field again and returns the row it actually wrote.
    */
   ipcMain.handle(
-    'admin:credits:settings',
+    'admin:tokens:settings',
     (
       _event,
       payload: {
         currency?: unknown
         symbol?: unknown
         decimals?: unknown
-        tokensPerCredit?: unknown
-        topupCredits?: unknown
+        topupTokens?: unknown
         topupPriceMinor?: unknown
         minTopup?: unknown
         maxTopup?: unknown
@@ -1288,12 +1287,11 @@ export function registerIpcHandlers(): void {
         requireAdmin()
         const numeric = (value: unknown): number | undefined =>
           value === undefined || value === null || value === '' ? undefined : Number(value)
-        return adminUpdateCreditSettings(creditAdmin(), {
+        return adminUpdateTokenSettings(tokenAdmin(), {
           currency: typeof payload?.currency === 'string' ? payload.currency : undefined,
           symbol: typeof payload?.symbol === 'string' ? payload.symbol : undefined,
           decimals: numeric(payload?.decimals),
-          tokensPerCredit: numeric(payload?.tokensPerCredit),
-          topupCredits: numeric(payload?.topupCredits),
+          topupTokens: numeric(payload?.topupTokens),
           topupPriceMinor: numeric(payload?.topupPriceMinor),
           minTopup: numeric(payload?.minTopup),
           maxTopup: numeric(payload?.maxTopup),
@@ -1302,38 +1300,38 @@ export function registerIpcHandlers(): void {
       })
   )
 
-  ipcMain.handle('admin:credits:ledger', (_event, payload: { userId?: unknown; limit?: unknown }) =>
+  ipcMain.handle('admin:tokens:ledger', (_event, payload: { userId?: unknown; limit?: unknown }) =>
     toResult(() => {
       requireAdmin()
-      return adminLedger(creditAdmin(), requireRecordId(payload?.userId), Number(payload?.limit ?? 40))
+      return adminLedger(tokenAdmin(), requireRecordId(payload?.userId), Number(payload?.limit ?? 40))
     })
   )
 
-  ipcMain.handle('admin:credits:account', (_event, payload: { userId?: unknown }) =>
+  ipcMain.handle('admin:tokens:account', (_event, payload: { userId?: unknown }) =>
     toResult(() => {
       requireAdmin()
-      return adminAccountDetail(creditAdmin(), requireRecordId(payload?.userId))
+      return adminAccountDetail(tokenAdmin(), requireRecordId(payload?.userId))
     })
   )
 
-  ipcMain.handle('admin:credits:spend', (_event, payload: { limit?: unknown }) =>
+  ipcMain.handle('admin:tokens:spend', (_event, payload: { limit?: unknown }) =>
     toResult(() => {
       requireAdmin()
-      return adminSpendLog(creditAdmin(), Number(payload?.limit ?? 60))
+      return adminSpendLog(tokenAdmin(), Number(payload?.limit ?? 60))
     })
   )
 
-  ipcMain.handle('admin:credits:suspend', (_event, payload: { userId?: unknown; suspended?: unknown }) =>
+  ipcMain.handle('admin:tokens:suspend', (_event, payload: { userId?: unknown; suspended?: unknown }) =>
     toResult(() => {
       requireAdmin()
-      return adminSetSuspended(creditAdmin(), requireRecordId(payload?.userId), payload?.suspended === true)
+      return adminSetSuspended(tokenAdmin(), requireRecordId(payload?.userId), payload?.suspended === true)
     })
   )
 
-  ipcMain.handle('admin:credits:resetDaily', () =>
+  ipcMain.handle('admin:tokens:resetDaily', () =>
     toResult(() => {
       requireAdmin()
-      return adminResetDaily(creditAdmin())
+      return adminResetDaily(tokenAdmin())
     })
   )
 
