@@ -281,3 +281,47 @@ stops the run mid-way and the response says which stage stopped it.
 **Proved.** `npm run sim:credits` exercises the wire contract, the tier maths and
 the ledger with a fake server; the app refuses to run while offline, and refuses
 before building a request when the balance is empty.
+
+## Portraits on the server
+
+A profile picture is still a file on the PC that chose it — `users.avatar` holds
+`photo:<media id>` and the bytes live in `<userData>/media`. That has not
+changed, and nothing about drawing a picture depends on the network.
+
+What is new is the second copy. When a picture is chosen (at registration or on
+the Account screen) the app also uploads it, in the background, to the workspace
+bucket:
+
+```
+indra-media/portraits/<auth uid>/<media id>.<png|jpg|webp>
+```
+
+and records where it went on the account's cloud profile:
+
+| column              | meaning                                   |
+| ------------------- | ----------------------------------------- |
+| `portrait_path`     | storage path, or null when there is none  |
+| `portrait_mime`     | `image/png`, `image/jpeg`, `image/webp`   |
+| `portrait_bytes`    | size, for the app to sanity-check         |
+| `portrait_updated_at` | when it was last recorded                |
+
+Two rules, both enforced in Postgres rather than in the app:
+
+- **Storage** — `indra_portrait_insert`, `_update` and `_delete` allow a signed-in
+  person to write only where `(storage.foldername(name))[2] = auth.uid()::text`,
+  so a portrait cannot be written over somebody else's.
+- **Rows** — `indra_set_my_portrait(path, mime, bytes)` is `security definer`,
+  updates only the row whose `auth_user_id = auth.uid()`, and refuses a path that
+  is not under `portraits/<that uid>/`. It also refuses a type outside the three
+  the app can decode and anything over 8 MB.
+
+`indra_portrait_of(profile id)` returns the recorded path, mime, size and time to
+any signed-in caller.
+
+The app asks for its own copy on the Account screen (`portrait:cloud`). Asking is
+also what backfills an account that chose its picture before the server kept one,
+so nobody has to pick the same photo twice. Every failure is silent: a slow or
+absent connection leaves the local picture exactly as it was, and the caption
+under the picture says which of the two copies exist.
+
+Apply with `supabase/portraits.sql` (tracked as migration `portraits_on_the_server`).

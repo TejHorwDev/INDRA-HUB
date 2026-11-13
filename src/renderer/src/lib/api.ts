@@ -27,6 +27,7 @@ import type {
   AppPublicStatus,
   AppearanceTreatment,
   ConnectivityState,
+  CloudPortrait,
   CloudProjectState,
   CloudProjectSummary,
   CloudPushResult,
@@ -190,6 +191,10 @@ export const api = {
     key: (): Promise<{ code: string }> => unwrap(bridge().cloud.key()),
     adopt: (code: string): Promise<CloudState> => unwrap(bridge().cloud.adopt(code)),
     forget: (): Promise<null> => unwrap(bridge().cloud.forget())
+  },
+
+  portrait: {
+    cloud: (): Promise<CloudPortrait> => unwrap(bridge().portrait.cloud())
   },
 
   share: {

@@ -20,6 +20,8 @@ import {
   cloudState,
   exportCloudKey,
   forgetCloudIdentity,
+  portraitOnServer,
+  publishPortrait,
   listCloudProjects,
   pullProject,
   pushProject
@@ -278,6 +280,30 @@ export function registerIpcHandlers(): void {
    * out.
    */
   ipcMain.handle('cloud:state', () => toResult(() => cloudState(accountActor())))
+
+  /*
+   * The profile picture's second copy, on the server. Asking also finishes an
+   * upload that never happened — an account that chose its picture before the
+   * workspace kept one — so nobody has to pick the same photo twice.
+   *
+   * Reading is refused for the offline workspace (accountActor), and an upload
+   * that fails still reports what the server has: the local file is unaffected
+   * either way.
+   */
+  ipcMain.handle('portrait:cloud', () =>
+    toResult(async () => {
+      const user = accountActor()
+      const current = await portraitOnServer(user)
+      if (current.path) return current
+      const value = String(user.avatar ?? '')
+      if (!value.startsWith('photo:')) return current
+      const id = value.slice('photo:'.length)
+      const file = readPortraitFile(id)
+      if (!file) return current
+      await publishPortrait(user, id, file.bytes, file.mime)
+      return portraitOnServer(user)
+    })
+  )
 
   ipcMain.handle('cloud:project', (_event, projectId: unknown) =>
     toResult(() => cloudProjectState(actor(), requireProjectId(projectId)))

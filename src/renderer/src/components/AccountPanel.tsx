@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FormEvent } from 'react'
+import type { CloudPortrait } from '@shared/types'
 import { ApiError, api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
 import ConfirmDialog from './ConfirmDialog'
@@ -25,6 +26,7 @@ export default function AccountPanel() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [profileField, setProfileField] = useState<string | null>(null)
+  const [cloudPortrait, setCloudPortrait] = useState<CloudPortrait | null>(null)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -36,6 +38,28 @@ export default function AccountPanel() {
   const [deletePassword, setDeletePassword] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  /*
+   * The server's copy of the picture, when there is one. Asking is also what
+   * backfills an upload for an account that chose its photo before the
+   * workspace kept any, so this runs once per picture rather than on a timer.
+   */
+  useEffect(() => {
+    const value = String(user?.avatar ?? '')
+    setCloudPortrait(null)
+    if (!value.startsWith('photo:')) return
+
+    let live = true
+    void api.portrait
+      .cloud()
+      .then((state) => {
+        if (live) setCloudPortrait(state)
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [user?.id, user?.avatar])
 
   useEffect(() => {
     setDisplayName(user?.displayName ?? '')
@@ -205,6 +229,21 @@ export default function AccountPanel() {
             onRemove={() => void removePortrait()}
             hint="PNG, JPEG or WebP · up to 6 MB"
           />
+          {cloudPortrait ? (
+            <p className="account-cloud-note">
+              {cloudPortrait.path
+                ? `On this PC and your workspace${
+                    cloudPortrait.updatedAt
+                      ? ` · ${new Date(cloudPortrait.updatedAt).toLocaleDateString(undefined, {
+                          dateStyle: 'medium'
+                        })}`
+                      : ''
+                  }`
+                : cloudPortrait.reachable
+                  ? 'On this PC. The workspace has no copy yet.'
+                  : 'On this PC. The workspace could not be reached.'}
+            </p>
+          ) : null}
         </div>
 
         <div className="account-form">

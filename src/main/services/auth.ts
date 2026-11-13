@@ -8,6 +8,7 @@ import type {
   SessionUser
 } from '@shared/types'
 import { getDatabase } from '../db/database'
+import { publishPortrait } from './cloud'
 import { errors } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { EMAIL_PATTERN, normalizeEmail, validateRegistration } from '../lib/validation'
@@ -16,7 +17,7 @@ import { findUserById } from './users'
 import { readSettings } from './settings'
 import { recheckConnectivity } from './connectivity'
 import { ensureOfflineProfile, isOfflineUserId } from './offline'
-import { PORTRAIT_PATTERN, installPortrait, removePortrait } from './portrait'
+import { PORTRAIT_PATTERN, installPortrait, readPortraitFile, removePortrait } from './portrait'
 import { OFFLINE_USERNAME } from '@shared/offline'
 
 const SESSION_KEY = 'session'
@@ -104,6 +105,22 @@ export function dropStaleOfflineSession(): void {
   const session = readSession()
   if (!session || session.mode !== 'offline') return
   if (recheckConnectivity().online) signOut()
+}
+
+/**
+ * Copies a freshly chosen picture up to the workspace server, in the background.
+ *
+ * Deliberately fire-and-forget: the local file is the picture the account shows,
+ * and a slow or absent connection must never make choosing one feel broken. The
+ * call is skipped entirely for anything that is not an installed photo, so
+ * `initials` costs nothing.
+ */
+function publishPortraitInBackground(viewer: SessionUser, value: string): void {
+  if (!value.startsWith('photo:')) return
+  const id = value.slice('photo:'.length)
+  const file = readPortraitFile(id)
+  if (!file) return
+  void publishPortrait(viewer, id, file.bytes, file.mime).catch(() => undefined)
 }
 
 /**
@@ -195,6 +212,7 @@ export function register(input: RegisterInput): SessionUser {
   writeSession(id)
   const user = findUserById(id)
   if (!user) throw new Error('account vanished after insert')
+  if (portrait.installed) publishPortraitInBackground(user, portrait.value)
   return user
 }
 
@@ -368,6 +386,8 @@ export function updateProfile(viewer: SessionUser, input: ProfileInput): Session
 
   // The old photo is forgotten only once the new value is the one on the row.
   if (portrait.value !== previous.avatar) removePortrait(previous.avatar)
+
+  if (portrait.installed) publishPortraitInBackground(viewer, portrait.value)
 
   const user = findUserById(viewer.id)
   if (!user) throw errors.authRequired()

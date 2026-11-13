@@ -236,6 +236,20 @@ export interface LibrarySnapshot {
  * generated one owned by this machine — the app never asks for, or shows, a
  * password — and it is only ever masked here.
  */
+/**
+ * Where an account's profile picture lives on the workspace server.
+ *
+ * `reachable` is false when the server could not be asked at all — a different
+ * thing from "asked, and there is no picture there".
+ */
+export interface CloudPortrait {
+  reachable: boolean
+  path: string | null
+  mime: string | null
+  bytes: number
+  updatedAt: string | null
+}
+
 export interface CloudState {
   /** False when no cloud endpoint is configured in the build. */
   available: boolean

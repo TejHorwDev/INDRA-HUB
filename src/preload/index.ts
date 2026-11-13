@@ -19,6 +19,7 @@ import type {
   AppPublicStatus,
   AppearanceTreatment,
   ConnectivityState,
+  CloudPortrait,
   CloudProjectState,
   CloudProjectSummary,
   CloudPushResult,
@@ -195,6 +196,11 @@ const api = {
     adopt: (code: string): Promise<ApiResult<CloudState>> =>
       ipcRenderer.invoke('cloud:adopt', code),
     forget: (): Promise<ApiResult<null>> => ipcRenderer.invoke('cloud:forget')
+  },
+
+  portrait: {
+    /** Where the workspace keeps this account's picture, and whether it does. */
+    cloud: (): Promise<ApiResult<CloudPortrait>> => ipcRenderer.invoke('portrait:cloud')
   },
 
   /*

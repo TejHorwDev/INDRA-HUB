@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { net } from 'electron'
 import type {
+  CloudPortrait,
   CloudProjectState,
   CloudProjectSummary,
   CloudPushResult,
@@ -9,7 +10,7 @@ import type {
   ProjectDetail,
   SessionUser
 } from '@shared/types'
-import { WORKSPACE_KEY, WORKSPACE_URL, normaliseUrl } from '@shared/workspace'
+import { WORKSPACE_BUCKET, WORKSPACE_KEY, WORKSPACE_URL, normaliseUrl } from '@shared/workspace'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
 import { sealSecret, unsealSecret } from '../lib/seal'
@@ -400,6 +401,104 @@ export async function cloudSession(viewer: SessionUser): Promise<CloudSession> {
 
 /** Exposed to the sharing service so there is one transport, not two. */
 export const cloudRequest = request
+
+/* ------------------------------------------------------------------ */
+/* The profile picture, on the server                                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A portrait has always been a file on one PC. This is the second copy, in the
+ * workspace bucket, addressed by the Supabase identity that owns it:
+ *
+ *   indra-media/portraits/<uid>/<media id>.<ext>
+ *
+ * The bucket's write policy allows a signed-in person to write only under their
+ * own uid, and `indra_set_my_portrait` refuses a path that is not theirs, so a
+ * portrait cannot be written over somebody else's. Both checks exist on the
+ * server; neither is trusted from here.
+ *
+ * Every function below is additive and best-effort. A picture is saved locally
+ * whether or not the server answers, and nothing in the app reads the server
+ * copy to draw a picture — the local file is still what the account shows.
+ */
+
+const PORTRAIT_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+
+function portraitExtension(mime: string): string {
+  if (mime === 'image/png') return 'png'
+  if (mime === 'image/webp') return 'webp'
+  return 'jpg'
+}
+
+/**
+ * Uploads one portrait and records where it lives. Resolves to the storage path
+ * when both steps succeeded, and to null when they did not — never throws, so a
+ * caller can fire it and forget it.
+ */
+export async function publishPortrait(
+  viewer: SessionUser,
+  mediaId: string,
+  bytes: Buffer,
+  mime: string
+): Promise<string | null> {
+  if (!PORTRAIT_MIMES.has(mime) || bytes.length === 0) return null
+  try {
+    const session = await cloudSession(viewer)
+    const path = `portraits/${session.uid}/${mediaId}.${portraitExtension(mime)}`
+    const { url, key } = endpoint()
+    const response = await net.fetch(
+      `${url}/storage/v1/object/${WORKSPACE_BUCKET}/${encodeURI(path)}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': mime,
+          // A new picture replaces the old one at the same address.
+          'x-upsert': 'true'
+        },
+        body: bytes
+      }
+    )
+    if (!response.ok) return null
+
+    await request('/rest/v1/rpc/indra_set_my_portrait', {
+      method: 'POST',
+      token: session.token,
+      body: { p_path: path, p_mime: mime, p_bytes: bytes.length }
+    })
+    return path
+  } catch {
+    return null
+  }
+}
+
+/** What the account's cloud profile says about its picture, if anything. */
+export async function portraitOnServer(viewer: SessionUser): Promise<CloudPortrait> {
+  const empty: CloudPortrait = { reachable: false, path: null, mime: null, bytes: 0, updatedAt: null }
+  try {
+    const session = await cloudSession(viewer)
+    const row = await request<{
+      path: string | null
+      mime: string | null
+      bytes: number | null
+      updatedAt: string | null
+    } | null>('/rest/v1/rpc/indra_portrait_of', {
+      method: 'POST',
+      token: session.token,
+      body: { p_user: session.profile }
+    })
+    return {
+      reachable: true,
+      path: row?.path ?? null,
+      mime: row?.mime ?? null,
+      bytes: Number(row?.bytes ?? 0),
+      updatedAt: row?.updatedAt ?? null
+    }
+  } catch {
+    return empty
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* The administrator's own cloud identity                              */

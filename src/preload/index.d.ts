@@ -35,6 +35,7 @@ import type {
   AppPublicStatus,
   ChangePasswordInput,
   ConnectivityState,
+  CloudPortrait,
   CloudProjectState,
   CloudProjectSummary,
   CloudPushResult,
@@ -145,6 +146,9 @@ export interface IndraBridge {
     key: () => Promise<ApiResult<{ code: string }>>
     adopt: (code: string) => Promise<ApiResult<CloudState>>
     forget: () => Promise<ApiResult<null>>
+  }
+  portrait: {
+    cloud: () => Promise<ApiResult<CloudPortrait>>
   }
   share: {
     invite: (projectId: string, email: string) => Promise<ApiResult<{ id: string; pushed: boolean }>>

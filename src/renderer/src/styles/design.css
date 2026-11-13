@@ -3266,3 +3266,16 @@ tbody td {
   font-size: 11.5px;
   line-height: 1.55;
 }
+
+/*
+ * Where the profile picture lives: this PC, or this PC and the workspace.
+ * A caption under the picture, not a badge on it — it is information, and the
+ * picture is the thing being looked at.
+ */
+.account-cloud-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  text-align: center;
+}
