@@ -3162,10 +3162,23 @@ tbody td {
   }
 }
 
+/*
+ * Waiting is the one thing that has to keep moving.
+ *
+ * The app answers `prefers-reduced-motion` by shortening every animation to a
+ * fraction of a millisecond and cancelling it after one iteration. That is right
+ * for decoration and fatal for a loading ring: it is painted at its first frame
+ * and never turns, which looks exactly like an app that has frozen. These keep
+ * turning — just slowly enough to be calm — and they say so with `!important`
+ * because the reset they have to survive is `!important` too.
+ */
 @media (prefers-reduced-motion: reduce) {
-  /* Still a spinner — essential feedback — just a calmer one. */
-  .opening-spinner svg {
-    animation-duration: 2.6s;
+  .opening-spinner svg,
+  .splash-ring svg,
+  .spinner {
+    animation-duration: 2.6s !important;
+    animation-iteration-count: infinite !important;
+    animation-timing-function: linear !important;
   }
 }
 

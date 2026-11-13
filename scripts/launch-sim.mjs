@@ -13,7 +13,7 @@
  *
  *   npm run sim:launch
  */
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -109,6 +109,28 @@ async function main() {
   /* A failed check after a download started still has to release the app. */
   const failing = ['checking', 'downloading', 'error']
   check(stageForPhase(failing[2]) === 'done', 'a failure mid-download releases the launch card')
+
+  /* ---------------- the ring keeps turning ---------------- */
+
+  /*
+   * The app answers a reduced-motion system by shortening every animation to a
+   * fraction of a millisecond and cancelling it after one iteration. A loading
+   * ring that obeys that is painted once and never turns, which looks exactly
+   * like a frozen app — this happened, and it read as "the spinner is broken".
+   * These three must out-specify that reset, which is `!important`.
+   */
+  const design = readFileSync(join(root, 'src/renderer/src/styles/design.css'), 'utf8')
+  const splashCss = readFileSync(join(root, 'src/renderer/src/styles/splash.css'), 'utf8')
+  const reducedBlocks = [...design.matchAll(/@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/g)].map((m) => m[1])
+  const spinnerGuard = reducedBlocks.find((block) => block.includes('.opening-spinner svg')) ?? ''
+  check(spinnerGuard.includes('.opening-spinner svg'), 'the opening ring has a reduced-motion rule of its own')
+  check(spinnerGuard.includes('.spinner'), 'the inline busy spinners are covered too')
+  check(/animation-duration:\s*2\.6s\s*!important/.test(spinnerGuard), 'its duration beats the global reset with !important')
+  check(/animation-iteration-count:\s*infinite\s*!important/.test(spinnerGuard), 'and it is allowed to keep turning')
+  check(
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?animation-duration:\s*2\.8s\s*!important[\s\S]*?animation-iteration-count:\s*infinite\s*!important/.test(splashCss),
+    'the launch card\'s ring survives it as well'
+  )
 
   console.log(
     failures === 0

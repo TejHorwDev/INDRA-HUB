@@ -140,7 +140,8 @@ body.is-closing .splash {
   }
 
   .splash-ring svg {
-    animation-duration: 2.8s;
+    animation-duration: 2.8s !important;
+    animation-iteration-count: infinite !important;
   }
 
   .splash-stage {
