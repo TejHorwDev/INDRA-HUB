@@ -1154,7 +1154,10 @@ body {
 
 .home {
   display: grid;
-  grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
+  /* Equal halves: the account and the team are two answers to the same
+     question — who is this, and who is with them — so neither should look
+     like the other's sidebar. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
   margin-top: 0;
@@ -1189,7 +1192,7 @@ body {
 .account-hero {
   position: relative;
   display: flex;
-  min-height: 368px;
+  min-height: 336px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
