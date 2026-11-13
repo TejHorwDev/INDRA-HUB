@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.6.5
-  Latest release:     v1.6.5 (GitHub, public)
+  Version:            1.7.0
+  Latest release:     v1.7.0 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -52,7 +52,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5.
+v1.6.4, v1.6.5, v1.7.0.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -90,7 +90,11 @@ the main process: one team per owner, a roster of up to fifty, additions by
 searching existing accounts, removal, rename and delete, all gated by
 ownership. It also rebuilt the three caption buttons in the title bar, which
 had been full-height blocks with a flat colour swap, and now carry a real
-hover, a press state and a red close. 1.6.5 is the matte black release: the
+hover, a press state and a red close. 1.7.0 is the offline release: the app now knows
+whether the machine has a route out, narrows itself to the work that never
+needed one, and can write a project to a single file on the PC and open it
+again on a machine that has never been online. 1.6.5 was the matte black
+release: the
 dark theme is rebuilt around a true matte canvas, depth comes from hairlines
 instead of glows, dark becomes the theme a fresh install opens in, and the
 whole app gains a motion layer — pages arrive, lists cascade, controls respond
@@ -182,6 +186,43 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     last check), a quiet note, "Check now" / "Sign out", and an indeterminate
     activity line along the bottom edge. Same hairline grid as the sign-in
     canvas, light and dark, and it collapses to one column at narrow widths.
+
+5.1b Offline (1.7.0)
+  - The main process answers `net.isOnline()` every four seconds, re-reads it
+    when the window is focused, and tells every window when it changes. No
+    ping, no DNS lookup, no traffic: the operating system's own view.
+  - The renderer mirrors it through ConnectivityProvider, with the browser's
+    online/offline events as a second pair of eyes.
+  - Offline, the app is the writing tool: the rail keeps Documents,
+    Presentations, Projects and Settings; everything else redirects to
+    Documents instead of rendering half-alive. The caption carries a quiet
+    OFFLINE pill and the rail's only heading is OFFLINE.
+  - Documents and Presentations are cross-project libraries (every document
+    and deck the account can reach, most recent first, project named on each
+    row). They exist online too — they are the quickest way back into work —
+    but offline they are the whole workspace.
+  - Nothing in the offline path touches the network: sign-in, registration,
+    projects, documents, presentations, settings and the maintenance screen
+    are all SQLite reads and writes.
+
+5.1c Where work is kept (1.7.0)
+  - The working copy is SQLite on the machine. It has never needed a
+    connection and it is what every screen reads.
+  - "Save a copy" on a project writes one .indrahub file through the system
+    save dialog: project name and description, every document's blocks, every
+    presentation's slides and its theme. Self-contained — no ids to resolve.
+  - "Open a saved project" on the Projects screen reads one back as a NEW
+    project owned by whoever opened it, so the same file can be opened twice,
+    or on another machine, without touching the original.
+  - Imported files are parsed, shape-checked, and pushed through the same
+    block sanitiser as a typed document; a file that breaks halfway leaves no
+    half-made project behind.
+  - A cloud copy of project content is deliberately NOT shipped yet. The
+    tables and RLS exist (supabase/schema.sql, auth.sql), but they key on
+    `auth.uid()` and the app's accounts are local, so writing content to them
+    today would either fail or pool every customer's work under one identity.
+    That gate is cloud sign-in (section 15), and until it exists the app says
+    "This PC" honestly rather than offering a button that pretends.
 
 5.2 Home, teams and projects
   - Home is the first screen after signing in and the first item in the
@@ -678,6 +719,9 @@ them is a regression, not a design choice.
   src/main/services/auth.ts    registration, sign in, sessions, throttling
   src/main/services/documents.ts / presentations.ts / projects.ts / graph.ts
   src/main/services/teams.ts   home-screen teams: ownership, roster, search
+  src/main/services/connectivity.ts  online/offline, polled without traffic
+  src/main/services/library.ts every document and deck across projects
+  src/main/services/archive.ts writing a project to a file, and opening it
   src/main/lib/convert.ts      deterministic document → deck conversion
   src/main/lib/sanitize.ts     the tag/attribute allowlist
   src/main/db/schema.ts        tables and migrations
@@ -688,6 +732,7 @@ them is a regression, not a design choice.
   scripts/admin-sim.mjs        administrator seeding/sign-in test (npm run sim:admin)
   scripts/appearance-sim.mjs   background-video pipeline test (npm run sim:appearance)
   scripts/team-sim.mjs         team ownership and roster test (npm run sim:team)
+  scripts/offline-sim.mjs      connectivity + save/open a project file (npm run sim:offline)
   supabase/schema.sql          cloud tables (applied)
   supabase/auth.sql            identity + RLS layer (applied)
   docs/SUPABASE.md             the staged Supabase plan and what is proven

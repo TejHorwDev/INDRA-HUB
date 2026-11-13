@@ -10,6 +10,11 @@ import {
   stopWorkspaceSync
 } from './services/workspace'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
+import {
+  recheckConnectivity,
+  startConnectivity,
+  stopConnectivity
+} from './services/connectivity'
 
 const isDev = !app.isPackaged
 
@@ -67,8 +72,12 @@ function createWindow(): void {
     mainWindow.show()
   })
 
-  // Coming back to the app is a natural moment to ask whether it is current.
-  mainWindow.on('focus', () => checkForUpdatesOnFocus())
+  // Coming back to the app is a natural moment to ask whether it is still
+  // connected and whether it is current.
+  mainWindow.on('focus', () => {
+    recheckConnectivity()
+    checkForUpdatesOnFocus()
+  })
 
   // External links never open inside the app shell.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -125,6 +134,10 @@ app.whenReady().then(() => {
    */
   ensureBuiltInWorkspace()
   startWorkspaceSync()
+
+  // Know whether this machine has a route out, and tell the windows when that
+  // changes. Nothing else in the app waits for the answer.
+  startConnectivity()
 
   // A fresh installation has exactly one administrator, created here — before
   // any window exists, so nothing has to offer to create one.
@@ -209,6 +222,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  stopConnectivity()
   if (process.platform !== 'darwin') app.quit()
 })
 

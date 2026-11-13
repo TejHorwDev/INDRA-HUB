@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
-import { MaximizeIcon, MinusIcon, RestoreIcon, SearchIcon, XIcon } from './icons'
+import { CloudOffIcon, MaximizeIcon, MinusIcon, RestoreIcon, SearchIcon, XIcon } from './icons'
+import { useConnectivity } from '../lib/connectivity'
 
 interface TitleBarProps {
   /** Current view, shown next to the wordmark. */
@@ -12,6 +13,7 @@ interface TitleBarProps {
 
 export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarProps) {
   const bridge = window.indra
+  const { offline } = useConnectivity()
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
@@ -53,6 +55,12 @@ export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarP
         <span key={label} className="titlebar-label">
           {label}
         </span>
+        {offline && (
+          <span className="offline-pill" title="No internet connection on this PC">
+            <CloudOffIcon size={12} />
+            Offline
+          </span>
+        )}
       </div>
 
       <div className="flex min-w-0 flex-1 justify-center px-4">

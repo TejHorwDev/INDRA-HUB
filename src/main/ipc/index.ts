@@ -12,6 +12,9 @@ import type {
   WorkspaceCredentialsInput
 } from '@shared/types'
 import { toResult } from '../lib/errors'
+import { archiveProject, exportProjectToFile, importProjectFromFile, restoreArchive } from '../services/archive'
+import { recheckConnectivity } from '../services/connectivity'
+import { librarySnapshot } from '../services/library'
 import { validateSearchQuery } from '../lib/validation'
 import {
   changeOwnPassword,
@@ -159,6 +162,17 @@ export function registerIpcHandlers(): void {
   /* ---------------- public app status ---------------- */
   // Signed-out screens need these two switches to render honestly.
   ipcMain.handle('app:status', () => toResult(() => publicStatus()))
+
+  /*
+   * Connectivity is public too: the shell asks before anyone has signed in,
+   * because a machine with no route out should not be told to check for
+   * updates, and the sign-in screen should say so plainly.
+   */
+  ipcMain.handle('app:connectivity', () => toResult(() => recheckConnectivity()))
+
+  /* ---------------- offline library ---------------- */
+  // Every document and deck the account can reach, in one read.
+  ipcMain.handle('library:snapshot', () => toResult(() => librarySnapshot(actor())))
 
   /*
    * What the signed-out screens look like. Public by design — the sign-in
@@ -312,6 +326,39 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('projects:get', (_event, projectId: unknown) =>
     toResult(() => getProject(actor(), requireProjectId(projectId)))
+  )
+
+  /* ---------------- a copy on this PC ---------------- */
+  ipcMain.handle('projects:export', (event, projectId: unknown) =>
+    toResult(() =>
+      exportProjectToFile(
+        actor(),
+        requireProjectId(projectId),
+        BrowserWindow.fromWebContents(event.sender)
+      )
+    )
+  )
+
+  ipcMain.handle('projects:import', (event) =>
+    toResult(() => importProjectFromFile(actor(), BrowserWindow.fromWebContents(event.sender)))
+  )
+
+  /*
+   * The same restore, for a file handed over some other way (a shared folder,
+   * a USB stick on a machine with no dialog). The renderer only ever passes
+   * the file's text; the main process parses and validates it.
+   */
+  ipcMain.handle('projects:restore', (_event, raw: unknown) =>
+    toResult(() => {
+      if (typeof raw !== 'string' || raw.length === 0) {
+        throw new Error('invalid archive')
+      }
+      return restoreArchive(actor(), raw)
+    })
+  )
+
+  ipcMain.handle('projects:archive', (_event, projectId: unknown) =>
+    toResult(() => archiveProject(actor(), requireProjectId(projectId)))
   )
 
   ipcMain.handle(

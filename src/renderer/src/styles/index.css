@@ -4623,6 +4623,58 @@
     color: var(--ink-tertiary);
   }
 
+  /* ---------------- offline ---------------- */
+  /*
+   * Offline is a state, not a fault. The marker is quiet — a hairline pill in
+   * the caption, a line at the foot of the rail — because a machine without a
+   * cable is still a working machine, and nothing here is broken.
+   */
+  .offline-pill {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    height: 20px;
+    padding: 0 8px;
+    margin-left: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface-subtle);
+    color: var(--ink-tertiary);
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    animation: row-in 320ms var(--ease) both;
+  }
+
+  /* The library: the offline workspace, and the fastest way back in online. */
+  .library-note {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background-color: var(--surface-subtle);
+    color: var(--ink-secondary);
+    font-size: var(--fs-sm);
+  }
+
+  .library-search {
+    margin-bottom: 14px;
+  }
+
+  .library-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-subtle);
+    color: var(--ink-secondary);
+  }
+
   /* ================================================================ *
    * Depth
    * A matte surface is told apart from the one beneath it by a hairline

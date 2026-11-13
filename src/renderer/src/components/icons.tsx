@@ -215,6 +215,26 @@ export function UserPlusIcon({ size = 16, className }: IconProps) {
   )
 }
 
+export function PresentationIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <rect x="3.2" y="4.4" width="17.6" height="11.2" rx="1.8" />
+      <path d="M12 15.6v3.2M8.4 20h7.2" />
+      <path d="M7 12.4V9.6M11 12.4V7.6M15 12.4v-1.6" />
+    </svg>
+  )
+}
+
+export function CloudOffIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M7.4 18.4h9.2a3.6 3.6 0 0 0 .6-7.1 5.4 5.4 0 0 0-9.4-2.4" />
+      <path d="M5.2 8.6A5.6 5.6 0 0 0 6 18.3" />
+      <path d="m3.6 3.6 16.8 16.8" />
+    </svg>
+  )
+}
+
 export function TemplatesIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>

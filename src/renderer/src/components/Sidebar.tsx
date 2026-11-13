@@ -3,11 +3,14 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import type { CSSProperties, ReactNode } from 'react'
 import { initialsOf, toneOf } from '../lib/format'
 import { useSession } from '../lib/session'
+import { useConnectivity } from '../lib/connectivity'
 import {
   ChevronLeftIcon,
   CodeIcon,
   DashboardIcon,
+  FileIcon,
   HomeIcon,
+  PresentationIcon,
   SettingsIcon,
   SignOutIcon,
   SparkIcon
@@ -32,6 +35,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/home', label: 'Home', icon: <HomeIcon size={16} /> },
       { to: '/dashboard', label: 'Projects', icon: <DashboardIcon size={16} /> },
+      { to: '/documents', label: 'Documents', icon: <FileIcon size={16} /> },
+      { to: '/presentations', label: 'Presentations', icon: <PresentationIcon size={16} /> },
       { to: '/developers', label: 'Developers', icon: <CodeIcon size={16} /> }
     ]
   },
@@ -44,9 +49,17 @@ const NAV_GROUPS: NavGroup[] = [
   }
 ]
 
+/**
+ * With no route out, the rail keeps only what the machine can do on its own.
+ * Hiding the rest is kinder than letting someone click into a screen that has
+ * nothing to show them.
+ */
+const OFFLINE_ALLOWED = new Set(['/documents', '/presentations', '/dashboard', '/settings'])
+
 export default function Sidebar() {
   const navigate = useNavigate()
   const { user, signOut } = useSession()
+  const { offline } = useConnectivity()
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -69,10 +82,23 @@ export default function Sidebar() {
     navigate('/login', { replace: true })
   }
 
+  // Offline the rail keeps one group, and it drops the headings rather than
+  // leaving "Workspace" over a list of two.
+  const groups = offline
+    ? [
+        {
+          label: 'Offline',
+          items: NAV_GROUPS.flatMap((group) =>
+            group.items.filter((item) => OFFLINE_ALLOWED.has(item.to))
+          )
+        }
+      ]
+    : NAV_GROUPS
+
   return (
     <aside className={collapsed ? 'sidebar sidebar--collapsed' : 'sidebar'} aria-label="Primary">
       <nav className="flex flex-col" aria-label="Main">
-        {NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <div className="sidebar-group" key={group.label}>
             <div className="sidebar-group-label">{group.label}</div>
             {group.items.map((item) => (

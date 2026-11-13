@@ -9,6 +9,9 @@ import type {
   ApiResult,
   AppPublicStatus,
   AppearanceTreatment,
+  ConnectivityState,
+  LibrarySnapshot,
+  ProjectArchive,
   ChangePasswordInput,
   CreateActivationKeyInput,
   CreateProjectInput,
@@ -109,7 +112,18 @@ export const api = {
     addMember: (input: { projectId: string; userId: string }): Promise<ProjectDetail> =>
       unwrap(bridge().projects.addMember(input)),
     removeMember: (input: { projectId: string; userId: string }): Promise<ProjectDetail> =>
-      unwrap(bridge().projects.removeMember(input))
+      unwrap(bridge().projects.removeMember(input)),
+    exportFile: (projectId: string): Promise<{ filePath: string } | null> =>
+      unwrap(bridge().projects.exportFile(projectId)),
+    importFile: (): Promise<{ project: ProjectDetail; fileName: string } | null> =>
+      unwrap(bridge().projects.importFile()),
+    archive: (projectId: string): Promise<ProjectArchive> =>
+      unwrap(bridge().projects.archive(projectId)),
+    restore: (raw: string): Promise<ProjectDetail> => unwrap(bridge().projects.restore(raw))
+  },
+
+  library: {
+    snapshot: (): Promise<LibrarySnapshot> => unwrap(bridge().library.snapshot())
   },
   users: {
     search: (input: { projectId: string; query: string }): Promise<UserSummary[]> =>
@@ -161,7 +175,10 @@ export const api = {
     get: (projectId: string): Promise<ProjectGraph> => unwrap(bridge().graph.get(projectId))
   },
   app: {
-    status: (): Promise<AppPublicStatus> => unwrap(bridge().app.status())
+    status: (): Promise<AppPublicStatus> => unwrap(bridge().app.status()),
+    connectivity: (): Promise<ConnectivityState> => unwrap(bridge().app.connectivity()),
+    onConnectivity: (listener: (state: ConnectivityState) => void): (() => void) =>
+      bridge().app.onConnectivity(listener)
   },
   updates: {
     state: (): Promise<UpdateState> => unwrap(bridge().updates.state()),
