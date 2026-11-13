@@ -1,6 +1,6 @@
 {
   "name": "indra-hub",
-  "version": "2.9.7",
+  "version": "2.9.8",
   "private": true,
   "description": "INDRA HUB — desktop workspace",
   "author": "TejHorwDev",
@@ -18,7 +18,8 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "sim:account": "node scripts/account-sim.mjs",
     "sim:sync": "node scripts/sync-sim.mjs",
-    "sim:installer": "node scripts/installer-ui-sim.mjs",
+    "sim:installer": "node scripts/installer-ui-sim.mjs && node scripts/installer-page-sim.mjs",
+    "sim:page": "node scripts/installer-page-sim.mjs",
     "sim:update": "node scripts/updater-sim.mjs",
     "sim:admin": "node scripts/admin-sim.mjs",
     "sim:maintenance": "node scripts/maintenance-sim.mjs",
@@ -55,6 +56,7 @@
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "esbuild": "^0.28.2",
+    "jsdom": "^31.0.1",
     "tailwindcss": "^4.3.5",
     "typescript": "^5.5.0",
     "vite": "^8.3.8"

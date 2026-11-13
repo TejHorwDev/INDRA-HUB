@@ -55,11 +55,15 @@ let defaults = {
 }
 
 const INVALID_CHARS = /[<>:"|?*\u0000-\u001f]/
-/** The shared rule from ../app-folder.js — one implementation, two users. */
+/*
+ * Both rules come from the module the main process uses too, so what this page
+ * shows and what the installer enforces cannot drift apart. If the script is
+ * missing, the page still works and the main process still refuses a bad path.
+ */
+const rules = window.IndraFolder ?? {}
 const ensureAppFolder = (value) =>
-  typeof window.IndraFolder?.ensureAppFolder === 'function'
-    ? window.IndraFolder.ensureAppFolder(value)
-    : String(value ?? '').trim()
+  typeof rules.ensureAppFolder === 'function' ? rules.ensureAppFolder(value) : String(value ?? '').trim()
+const pathProblem = (value) => (typeof rules.pathProblem === 'function' ? rules.pathProblem(value) : null)
 
 /* ---------------- painting ---------------- */
 
@@ -325,7 +329,10 @@ async function startBackdrop() {
     if (!source) return giveUp()
     video.src = source
     video.load()
-    void video.play?.().catch(() => undefined)
+    /* play() returns a promise in Chromium and undefined elsewhere — a missing
+       promise must not take the whole window down with it. */
+    const playing = video.play?.()
+    if (playing && typeof playing.catch === 'function') playing.catch(() => undefined)
   }
 
   const landed = () => {
