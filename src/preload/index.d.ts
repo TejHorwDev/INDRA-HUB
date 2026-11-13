@@ -1,5 +1,9 @@
 import type {
   AboutInfo,
+  AccountCreateInput,
+  AccountCredentialsInput,
+  AccountSignInResult,
+  AccountState,
   AdminTokenLedgerRow,
   AdminTokenAccountDetail,
   AdminTokenSnapshot,
@@ -81,6 +85,17 @@ export interface IndraBridge {
   appearance: {
     read: () => Promise<ApiResult<PublicAppearance>>
     video: () => Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>>
+  }
+  /*
+   * The human identity in the cloud. `signIn` also opens the local session, so
+   * the renderer does not have to sequence the two.
+   */
+  account: {
+    state: () => Promise<ApiResult<AccountState>>
+    signIn: (input: AccountCredentialsInput) => Promise<ApiResult<AccountSignInResult>>
+    create: (input: AccountCreateInput) => Promise<ApiResult<AccountSignInResult>>
+    createFromLocal: (password: string) => Promise<ApiResult<AccountSignInResult>>
+    signOut: () => Promise<ApiResult<null>>
   }
   auth: {
     register: (input: RegisterInput) => Promise<ApiResult<SessionUser>>

@@ -16,6 +16,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "sim:account": "node scripts/account-sim.mjs",
     "sim:update": "node scripts/updater-sim.mjs",
     "sim:admin": "node scripts/admin-sim.mjs",
     "sim:maintenance": "node scripts/maintenance-sim.mjs",

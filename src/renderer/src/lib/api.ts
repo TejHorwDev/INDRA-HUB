@@ -1,5 +1,9 @@
 import type {
   AboutInfo,
+  AccountCreateInput,
+  AccountCredentialsInput,
+  AccountSignInResult,
+  AccountState,
   AdminAccount,
   AdminTokenAccountDetail,
   AdminTokenLedgerRow,
@@ -121,6 +125,22 @@ export const api = {
     decline: (invitationId: string): Promise<InvitationAnswer> =>
       unwrap(bridge().invitations.decline(invitationId)),
     cancel: (invitationId: string): Promise<null> => unwrap(bridge().invitations.cancel(invitationId))
+  },
+
+  /**
+   * The INDRA account: the identity the server knows, and the one every cloud
+   * call will carry once it is connected. `signIn` and `create` resolve to the
+   * app session they opened, so the caller does not sequence the two.
+   */
+  account: {
+    state: (): Promise<AccountState> => unwrap(bridge().account.state()),
+    signIn: (input: AccountCredentialsInput): Promise<AccountSignInResult> =>
+      unwrap(bridge().account.signIn(input)),
+    create: (input: AccountCreateInput): Promise<AccountSignInResult> =>
+      unwrap(bridge().account.create(input)),
+    createFromLocal: (password: string): Promise<AccountSignInResult> =>
+      unwrap(bridge().account.createFromLocal(password)),
+    signOut: (): Promise<null> => unwrap(bridge().account.signOut())
   },
 
   auth: {
