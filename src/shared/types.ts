@@ -649,6 +649,26 @@ export interface PublicAppearance extends AppearanceTreatment {
   bytes: number
 }
 
+/* ---------------- about ---------------- */
+
+/**
+ * The administrator's portrait, as the About card draws it. The bytes are not
+ * here: they arrive over IPC and become a Blob URL, so no path and no data URI
+ * ever enters the renderer's state.
+ */
+export interface DeveloperPhoto {
+  hasPhoto: boolean
+  mime: string | null
+  bytes: number
+  updatedAt: string | null
+}
+
+export interface AboutInfo {
+  appName: string
+  version: string
+  developer: DeveloperPhoto
+}
+
 /* ---------------- self-update ---------------- */
 
 export type UpdatePhase =

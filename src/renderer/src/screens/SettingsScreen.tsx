@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AboutCard from '../components/AboutCard'
 import AccountPanel from '../components/AccountPanel'
 import UpdatesPanel from '../components/UpdatesPanel'
 import Page from '../components/Page'
@@ -359,32 +360,33 @@ function CloudSection() {
   )
 }
 
+/**
+ * About is a card, not a table.
+ *
+ * The administrator's portrait is editable from here when an administrator is
+ * signed in on this machine — the panel is where they manage the app, and the
+ * About card is the one place the result is seen. Everyone else sees the same
+ * card read-only.
+ */
 function AboutSection() {
-  const [version, setVersion] = useState('0.1.0')
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    const request = window.indra?.getAppVersion()
-    if (!request) return
-    request.then(setVersion).catch(() => {
-      // Keep the fallback version if the bridge is unavailable.
-    })
+    let active = true
+    api.admin
+      .status()
+      .then((status) => {
+        if (active) setIsAdmin(Boolean(status.configured && status.signedIn))
+      })
+      .catch(() => {
+        // No administrator session: the card stays read-only.
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
-  const versions = window.indra?.versions
-
-  return (
-    <>
-      <SectionHeading title="About" />
-
-      <dl className="mt-5 max-w-[440px] text-sm">
-        <InfoRow label="App" value="INDRA HUB" />
-        <InfoRow label="Version" value={version} />
-        <InfoRow label="Electron" value={versions?.electron ?? '—'} />
-        <InfoRow label="Chromium" value={versions?.chrome ?? '—'} />
-        <InfoRow label="Node" value={versions?.node ?? '—'} />
-      </dl>
-    </>
-  )
+  return <AboutCard canEditDeveloper={isAdmin} />
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AboutInfo,
   ApiResult,
   CreateProjectInput,
   DocumentDetail,
@@ -320,6 +321,13 @@ const api = {
    * Credits and AI. Every one of these is answered by the main process; the
    * renderer holds no token and cannot charge anything.
    */
+  about: {
+    read: (): Promise<ApiResult<AboutInfo>> => ipcRenderer.invoke('about:read'),
+    /** The portrait as bytes, turned into a Blob URL by the renderer. */
+    photo: (): Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>> =>
+      ipcRenderer.invoke('about:photo')
+  },
+
   credits: {
     state: (payload?: { cached?: boolean }): Promise<ApiResult<CreditsState>> =>
       ipcRenderer.invoke('credits:state', payload ?? {}),
@@ -427,6 +435,10 @@ const api = {
       ipcRenderer.invoke('admin:appearance:remove-video'),
     updateAppearanceTreatment: (input: AppearanceTreatment): Promise<ApiResult<LoginAppearance>> =>
       ipcRenderer.invoke('admin:appearance:treatment', input),
+    chooseDeveloperPhoto: (): Promise<ApiResult<AboutInfo | null>> =>
+      ipcRenderer.invoke('admin:about:photo:choose'),
+    removeDeveloperPhoto: (): Promise<ApiResult<AboutInfo>> =>
+      ipcRenderer.invoke('admin:about:photo:remove'),
     appearanceHealth: (): Promise<
       ApiResult<{ present: boolean; readable: boolean; bytes: number; mime: string | null }>
     > => ipcRenderer.invoke('admin:appearance:health')

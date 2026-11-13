@@ -42,7 +42,7 @@ explicitly rejected "downloads the new installer and runs it".
 2. CURRENT STATE
 ----------------
   Version:            2.0.0
-  Latest release:     v1.9.7 (this branch adds 2.0.0)
+  Latest release:     v2.0.0
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -520,7 +520,13 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Account: profile, password, sign out
   - Updates: installed build, running build, update state, "Check for updates",
     "Test connection" (see section 8), copyable technical detail on failure
-  - About: app version, Electron, Chromium, Node
+  - About: a card, not a table — the app's name, the version running, the
+    administrator's portrait and one button that updates the installation in
+    place. Runtime numbers moved to Admin → System, where they are diagnostics
+    rather than a greeting. An administrator signed in on this machine can set
+    or replace the portrait from either About or Admin → System; the bytes are
+    signature-checked (PNG/JPEG/WebP), copied into the app's media folder and
+    served over IPC, never as a path.
 
 5.8 Administration panel (behind Ctrl+Alt+A or #/admin)
   Separate identity, separate table (admin_users), separate session key, 12-hour
@@ -554,7 +560,8 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
       publishable key, "Save and test", "Disconnect"). Every IPC call behind
       this section refuses without an administrator session.
     - Activity: the audit log
-    - System: database path and size, versions, platform, uptime
+    - System: the same About card (with the portrait controls), then database
+      path and size, runtime versions, platform and uptime
 
 5.9 Developer and credits screens
   - /developers: notes for this build

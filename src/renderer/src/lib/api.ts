@@ -1,4 +1,5 @@
 import type {
+  AboutInfo,
   AdminAccount,
   AdminCreditLedgerRow,
   AdminCreditSnapshot,
@@ -315,6 +316,10 @@ export const api = {
       unwrap(bridge().admin.changePassword({ currentPassword, newPassword })),
     updateIdentity: (input: AdminIdentityInput): Promise<AdminAccount> =>
       unwrap(bridge().admin.updateIdentity(input)),
+    chooseDeveloperPhoto: (): Promise<AboutInfo | null> =>
+      unwrap(bridge().admin.chooseDeveloperPhoto()),
+    removeDeveloperPhoto: (): Promise<AboutInfo> =>
+      unwrap(bridge().admin.removeDeveloperPhoto()),
     chooseLoginVideo: (): Promise<LoginAppearance | null> =>
       unwrap(bridge().admin.chooseLoginVideo()),
     removeLoginVideo: (): Promise<LoginAppearance> => unwrap(bridge().admin.removeLoginVideo()),
@@ -346,6 +351,12 @@ export const api = {
    * Credits and AI. `state` can be asked for the last copy this PC holds, which
    * is what the screen draws while it waits for the live answer.
    */
+  about: {
+    read: (): Promise<AboutInfo> => unwrap(bridge().about.read()),
+    photo: (): Promise<{ bytes: Uint8Array; mime: string } | null> =>
+      unwrap(bridge().about.photo())
+  },
+
   credits: {
     state: (cached = false): Promise<CreditsState> => unwrap(bridge().credits.state({ cached })),
     plans: (): Promise<CreditPlan[]> => unwrap(bridge().credits.plans()),
