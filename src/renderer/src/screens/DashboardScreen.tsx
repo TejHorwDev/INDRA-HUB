@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { CloudProjectSummary, ProjectDetail, ProjectSummary } from '@shared/types'
+import type {
+  CloudProjectSummary,
+  OfflineWorkSummary,
+  ProjectDetail,
+  ProjectSummary
+} from '@shared/types'
 import EmptyState from '../components/EmptyState'
 import NewProjectModal from '../components/NewProjectModal'
 import Page from '../components/Page'
@@ -10,11 +15,13 @@ import { AlertCircleIcon, ChevronRightIcon, CloudIcon, FolderIcon, PlusIcon } fr
 import { api, errorMessage } from '../lib/api'
 import { useConnectivity } from '../lib/connectivity'
 import { formatRelative } from '../lib/format'
+import { useSession } from '../lib/session'
 
 export default function DashboardScreen() {
   const navigate = useNavigate()
   const toast = useToast()
   const { offline } = useConnectivity()
+  const { user } = useSession()
 
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -28,6 +35,10 @@ export default function DashboardScreen() {
    */
   const [cloudItems, setCloudItems] = useState<CloudProjectSummary[] | null>(null)
   const [pulling, setPulling] = useState<string | null>(null)
+
+  /* Work written in the offline workspace, waiting to be adopted. */
+  const [offlineWork, setOfflineWork] = useState<OfflineWorkSummary | null>(null)
+  const [claiming, setClaiming] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -43,6 +54,40 @@ export default function DashboardScreen() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (offline || user?.mode === 'offline') {
+      setOfflineWork(null)
+      return
+    }
+    let cancelled = false
+    void api.offline
+      .summary()
+      .then((summary) => {
+        if (!cancelled) setOfflineWork(summary.projects > 0 ? summary : null)
+      })
+      .catch(() => {
+        if (!cancelled) setOfflineWork(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [offline, user])
+
+  async function claimOffline(): Promise<void> {
+    if (claiming) return
+    setClaiming(true)
+    try {
+      await api.offline.claim()
+      setOfflineWork(null)
+      await load()
+      toast.success('Offline work moved into your account.')
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setClaiming(false)
+    }
+  }
 
   useEffect(() => {
     if (offline) {
@@ -139,6 +184,31 @@ export default function DashboardScreen() {
           </div>
         }
       >
+        {offlineWork && (
+          <div className="offline-work-card">
+            <div className="min-w-0">
+              <p className="offline-work-title">
+                {offlineWork.projects} {offlineWork.projects === 1 ? 'project' : 'projects'} written
+                offline
+              </p>
+              <p className="offline-work-note">
+                Saved on this PC while nobody was signed in. Bring{' '}
+                {offlineWork.projects === 1 ? 'it' : 'them'} into your account and they appear
+                everywhere you sign in.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost w-auto flex-none"
+              onClick={() => void claimOffline()}
+              disabled={claiming}
+            >
+              {claiming ? <span className="spinner" aria-hidden="true" /> : null}
+              Move into my account
+            </button>
+          </div>
+        )}
+
         {error ? (
           <EmptyState
             icon={<AlertCircleIcon size={18} />}

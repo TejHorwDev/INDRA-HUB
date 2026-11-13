@@ -1,4 +1,5 @@
 import type { SessionUser, UserSummary } from '@shared/types'
+import { OFFLINE_USERNAME } from '@shared/offline'
 import { getDatabase } from '../db/database'
 
 interface UserRow {
@@ -32,7 +33,8 @@ export function findUserById(id: string): SessionUser | null {
     displayName: row.display_name,
     email: row.email,
     createdAt: row.created_at,
-    lastSignInAt: row.last_sign_in_at
+    lastSignInAt: row.last_sign_in_at,
+    mode: row.username === OFFLINE_USERNAME ? 'offline' : 'account'
   }
 }
 

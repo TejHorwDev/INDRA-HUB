@@ -15,6 +15,7 @@ import type {
   CloudPushResult,
   CloudState,
   LibrarySnapshot,
+  OfflineWorkSummary,
   ProjectArchive,
   ChangePasswordInput,
   CreateActivationKeyInput,
@@ -128,6 +129,12 @@ export const api = {
 
   library: {
     snapshot: (): Promise<LibrarySnapshot> => unwrap(bridge().library.snapshot())
+  },
+
+  offline: {
+    start: (): Promise<SessionUser> => unwrap(bridge().offline.start()),
+    summary: (): Promise<OfflineWorkSummary> => unwrap(bridge().offline.summary()),
+    claim: (): Promise<OfflineWorkSummary> => unwrap(bridge().offline.claim())
   },
 
   /*

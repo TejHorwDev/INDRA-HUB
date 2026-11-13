@@ -112,7 +112,32 @@ function ThemeOption({
 
 function AccountSection() {
   const navigate = useNavigate()
-  const { signOut } = useSession()
+  const { signOut, user } = useSession()
+
+  if (user?.mode === 'offline') {
+    return (
+      <>
+        <SectionHeading title="Account" />
+        <div className="account-section">
+          <p className="account-note">
+            This is the offline workspace, not an account. Everything you write is saved on this PC.
+            Signing in is what puts work in an account and reaches the cloud.
+          </p>
+          <div className="account-actions mt-4">
+            <button
+              type="button"
+              className="btn btn-ghost w-auto"
+              onClick={() => {
+                void signOut().then(() => navigate('/login', { replace: true }))
+              }}
+            >
+              Sign in instead
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
@@ -151,6 +176,7 @@ function AccountSection() {
  */
 function CloudSection() {
   const { offline } = useConnectivity()
+  const { user } = useSession()
   const [state, setState] = useState<CloudState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -214,6 +240,20 @@ function CloudSection() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (user?.mode === 'offline') {
+    return (
+      <>
+        <SectionHeading title="Cloud" />
+        <div className="account-section">
+          <p className="account-note">
+            The cloud belongs to an account. This PC is in the offline workspace, so there is
+            nothing here to save to it or bring back from it. Sign in to use the cloud copy.
+          </p>
+        </div>
+      </>
+    )
   }
 
   return (

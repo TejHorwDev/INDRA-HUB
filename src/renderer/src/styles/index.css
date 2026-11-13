@@ -387,6 +387,34 @@
     background-color: var(--accent);
   }
 
+  /* The offline screen: a status line, a title, one action. No form. */
+  .auth-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: var(--fs-2xs);
+    font-weight: 650;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  .auth-eyebrow::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: var(--radius-pill);
+    background-color: var(--ink-tertiary);
+  }
+
+  .auth-lede {
+    max-width: 40ch;
+    color: var(--ink-secondary);
+    font-size: var(--fs-sm);
+    line-height: 1.65;
+  }
+
   .auth-alt {
     margin-top: 22px;
     text-align: left;
@@ -403,6 +431,29 @@
   .auth-alt .link:hover {
     color: var(--ink);
     text-decoration: underline;
+  }
+
+  .auth-alt--offline {
+    margin-top: 12px;
+  }
+
+  /* A sentence with one action in it, not a button competing with Sign in. */
+  .link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--ink-secondary);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease);
+  }
+
+  .link-button:hover {
+    color: var(--ink);
   }
 
   .auth-alt--admin {
@@ -4699,6 +4750,32 @@
 
   .library-search {
     margin-bottom: 14px;
+  }
+
+  /* Offline work waiting to be adopted, above the project list. */
+  .offline-work-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--ink-tertiary);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-subtle);
+  }
+
+  .offline-work-title {
+    color: var(--ink);
+    font-size: var(--fs-sm);
+    font-weight: 550;
+  }
+
+  .offline-work-note {
+    margin-top: 4px;
+    color: var(--ink-tertiary);
+    font-size: var(--fs-xs);
+    line-height: 1.6;
   }
 
   /* The cloud copies sit below the local list, visually a second shelf. */

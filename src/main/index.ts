@@ -4,6 +4,7 @@ import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
 import { markHealthy, runningVersion } from './lib/payload'
 import { ensureBuiltInAdmin, resetAdminIdentity } from './services/admin'
+import { dropStaleOfflineSession } from './services/auth'
 import {
   ensureBuiltInWorkspace,
   startWorkspaceSync,
@@ -138,6 +139,13 @@ app.whenReady().then(() => {
   // Know whether this machine has a route out, and tell the windows when that
   // changes. Nothing else in the app waits for the answer.
   startConnectivity()
+
+  /*
+   * An offline session belongs to the moment it was opened, not to the next
+   * launch. Starting up with a connection therefore returns to the account
+   * screen rather than quietly running the app in a mode nobody chose today.
+   */
+  dropStaleOfflineSession()
 
   // A fresh installation has exactly one administrator, created here — before
   // any window exists, so nothing has to offer to create one.

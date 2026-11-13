@@ -23,6 +23,7 @@ import type {
   CloudPushResult,
   CloudState,
   LibrarySnapshot,
+  OfflineWorkSummary,
   ProjectArchive,
   CreateActivationKeyInput,
   CreatedActivationKey,
@@ -98,6 +99,11 @@ export interface IndraBridge {
   }
   library: {
     snapshot: () => Promise<ApiResult<LibrarySnapshot>>
+  }
+  offline: {
+    start: () => Promise<ApiResult<SessionUser>>
+    summary: () => Promise<ApiResult<OfflineWorkSummary>>
+    claim: () => Promise<ApiResult<OfflineWorkSummary>>
   }
   cloud: {
     state: () => Promise<ApiResult<CloudState>>
