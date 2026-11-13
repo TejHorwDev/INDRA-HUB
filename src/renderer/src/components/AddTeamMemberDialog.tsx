@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import type { InvitationSummary, TeamDetail, UserSummary } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
-import { initialsOf, toneOf } from '../lib/format'
+import { initialsOf } from '../lib/format'
 import { CheckIcon, SearchIcon, UserPlusIcon, XIcon } from './icons'
 
 interface AddTeamMemberDialogProps {
@@ -201,7 +200,7 @@ export default function AddTeamMemberDialog({
                     onClick={() => void invite(person)}
                     disabled={Boolean(invitingId)}
                   >
-                    <span className="avatar" style={{ '--tone': toneOf(person.id) } as CSSProperties}>
+                    <span className="avatar">
                       {initialsOf(person.displayName)}
                     </span>
                     <span className="member-choice-text">
@@ -228,7 +227,7 @@ export default function AddTeamMemberDialog({
                 <li key={invitation.id} className="member">
                   <span
                     className="avatar"
-                    style={{ '--tone': toneOf(invitation.personId) } as CSSProperties}
+                   
                     aria-hidden="true"
                   >
                     {initialsOf(invitation.displayName)}

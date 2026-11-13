@@ -1,8 +1,10 @@
 import type {
   AboutInfo,
   AdminAccount,
+  AdminCreditAccountDetail,
   AdminCreditLedgerRow,
   AdminCreditSettingsInput,
+  AdminSpendRow,
   AdminCreditSnapshot,
   AdminPlanInput,
   AiActivity,
@@ -279,6 +281,14 @@ export const api = {
     signOut: (): Promise<null> => unwrap(bridge().admin.logout()),
     overview: (): Promise<AdminOverview> => unwrap(bridge().admin.overview()),
     credits: (): Promise<AdminCreditSnapshot> => unwrap(bridge().admin.credits()),
+    claimCreditRole: (): Promise<AdminCreditSnapshot> => unwrap(bridge().admin.claimCreditRole()),
+    creditAccount: (userId: string): Promise<AdminCreditAccountDetail> =>
+      unwrap(bridge().admin.creditAccount(userId)),
+    creditSpend: (limit = 60): Promise<AdminSpendRow[]> => unwrap(bridge().admin.creditSpend(limit)),
+    setSuspended: (userId: string, suspended: boolean): Promise<AdminCreditSnapshot> =>
+      unwrap(bridge().admin.setSuspended(userId, suspended)),
+    resetDaily: (): Promise<{ refilled: number; snapshot: AdminCreditSnapshot }> =>
+      unwrap(bridge().admin.resetDaily()),
     decidePurchase: (id: string, approve: boolean, note = ''): Promise<AdminCreditSnapshot> =>
       unwrap(bridge().admin.decidePurchase({ id, approve, note })),
     setPlan: (userId: string, planId: string, days = 30): Promise<AdminCreditSnapshot> =>

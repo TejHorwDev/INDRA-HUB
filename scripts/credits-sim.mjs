@@ -10,7 +10,7 @@
  *
  *   npm run sim:credits
  */
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -164,6 +164,65 @@ async function main() {
 
   const perCredit = fromServer.topupPriceMinor / fromServer.topupCredits
   check(perCredit === 199.6, 'the per-credit price comes from the pack, not a constant', String(perCredit))
+
+  /* ---------------- the palette has no fourth colour ---------------- */
+
+  /*
+   * The product is black, dark grey and white, and that is a rule the owner has
+   * had to repeat. It is cheap to break by accident — one warm accent value in
+   * a theme file puts colour on every primary button and every focus ring — so
+   * the rule is a check rather than a habit. Any hex in the stylesheets whose
+   * channel spread exceeds a hair of anti-alias allowance is a colour, and a
+   * colour here is a bug.
+   */
+  const cssFiles = ['index.css', 'workspace.css', 'document.css']
+  const colourful = []
+  for (const name of cssFiles) {
+    const css = readFileSync(join(root, 'src/renderer/src/styles', name), 'utf8')
+    for (const match of css.matchAll(/#([0-9a-fA-F]{6})\b/g)) {
+      const hex = match[1]
+      const [r, g, b] = [0, 2, 4].map((at) => parseInt(hex.slice(at, at + 2), 16))
+      if (Math.max(r, g, b) - Math.min(r, g, b) > 14) {
+        colourful.push(`${name}#${hex}`)
+      }
+    }
+    if (/hsl\(|rgb\(/.test(css)) colourful.push(`${name}: a computed colour`)
+  }
+  check(
+    colourful.length === 0,
+    'the stylesheets carry no colour, only greys',
+    colourful.slice(0, 6).join(', ')
+  )
+
+  /*
+   * And the one theme whose accent is light (the dark one) must not put white
+   * text on it: that is a button that disappears, not a colour rule. Every
+   * theme's accent is checked against the ink it puts on top of it.
+   */
+  const css = readFileSync(join(root, 'src/renderer/src/styles/index.css'), 'utf8')
+  // Any `{ ... }` block, comments and all: the strict selector class this
+  // used before silently matched nothing, so the check passed over an
+  // empty list — a guard that verified nothing at all.
+  const blocks = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\{([^{}]*)\}/g)].map((m) => m[1])
+  const unreadable = []
+  for (const body of blocks) {
+    // `\\s` in the source is one backslash in the pattern; four would look for a
+    // literal "s". No "g" flag either: with it `match` returns whole strings,
+    // every capture is undefined, and this guard passes over anything.
+    const read = (name) => body.match(new RegExp(`--${name}:\\s*#([0-9a-fA-F]{6})`))?.[1]
+    const accent = read('accent')
+    const ink = read('accent-ink')
+    if (!accent || !ink) continue
+    const luminance = (hex) => {
+      const channels = [0, 2, 4].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255)
+      const linear = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    }
+    const [light, dark] = [luminance(accent), luminance(ink)].sort((a, b) => b - a)
+    const ratio = (light + 0.05) / (dark + 0.05)
+    if (ratio < 4.5) unreadable.push(`#${accent} on #${ink} = ${ratio.toFixed(2)}:1`)
+  }
+  check(unreadable.length === 0, 'every accent is readable under its own label', unreadable.join(', '))
 
   console.log(
     failures === 0

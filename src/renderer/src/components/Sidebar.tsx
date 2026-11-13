@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import type { CSSProperties, ReactNode } from 'react'
-import { initialsOf, toneOf } from '../lib/format'
+import type { ReactNode } from 'react'
+import { initialsOf } from '../lib/format'
 import { navGroups } from '../lib/nav'
 import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
@@ -107,7 +107,7 @@ export default function Sidebar() {
             className="sidebar-user"
             title={collapsed ? `${user.displayName} (@${user.username})` : undefined}
           >
-            <span className="avatar" style={{ '--tone': toneOf(user.id) } as CSSProperties}>
+            <span className="avatar">
               {initialsOf(user.displayName)}
             </span>
             <span className="sidebar-label sidebar-user-text">

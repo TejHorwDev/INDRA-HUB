@@ -313,16 +313,25 @@ async function refresh(identity: Identity): Promise<Identity> {
  * token was rotated away. No network at all while the token is fresh.
  */
 async function identity(viewer: SessionUser): Promise<Identity> {
-  let current = readIdentity(viewer.id)
+  return identityForKey(viewer.id)
+}
+
+/**
+ * The stored cloud identity for a key, created on first use and refreshed a
+ * minute before it expires. A workspace account keys on its user id; the credit
+ * console keys on `admin:<adminId>`, so one can never be mistaken for the other.
+ */
+async function identityForKey(key: string): Promise<Identity> {
+  let current = readIdentity(key)
   if (!current) {
     current = await signUp()
-    saveIdentity(viewer.id, current)
+    saveIdentity(key, current)
     return current
   }
   if (current.expiresAt - REFRESH_MARGIN_MS > Date.now()) return current
 
   const renewed = await refresh(current).catch(() => signInWithPassword(current))
-  saveIdentity(viewer.id, renewed)
+  saveIdentity(key, renewed)
   return renewed
 }
 
@@ -391,6 +400,110 @@ export async function cloudSession(viewer: SessionUser): Promise<CloudSession> {
 
 /** Exposed to the sharing service so there is one transport, not two. */
 export const cloudRequest = request
+
+/* ------------------------------------------------------------------ */
+/* The administrator's own cloud identity                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The credit console is a property of the *installation's* administrator, not
+ * of whoever happens to be signed in to the workspace.
+ *
+ * Those are two different things, and confusing them is what made the console
+ * unusable: every call resolved the caller with `requireUser()`, so an
+ * administrator who had signed in to the admin panel — and nobody else — was
+ * told "Sign in to continue." and could change nothing. The console now has its
+ * own identity, created on first use, kept apart from any workspace account, and
+ * readable only from an administrator session (the IPC layer is what enforces
+ * that; this function is not reachable from the renderer).
+ *
+ * Whether that identity may actually change anything is still decided by the
+ * server: `indra_is_admin()` reads `indra_users.role` for this identity, and a
+ * new identity is a plain member until the first ever administrator claims the
+ * role. Nothing here can forge it.
+ */
+export async function adminCloudSession(adminId: string): Promise<CloudSession> {
+  assertReachable()
+  const actor = await identityForKey(`admin:${adminId}`)
+  return { token: actor.accessToken, profile: '', uid: actor.uid }
+}
+
+/*
+ * One request on behalf of *this installation's administrator*, not a workspace
+ * member. Used by the console to read things the server guards with
+ * indra_is_admin(), and by nothing else.
+ */
+export async function adminCloudRequest<T = unknown>(
+  adminId: string,
+  path: string,
+  options: { method?: string; body?: unknown } = {}
+): Promise<T> {
+  const session = await adminCloudSession(adminId)
+  return request<T>(path, {
+    method: options.method,
+    body: options.body,
+    token: session.token,
+    prefer: 'return=representation'
+  })
+}
+
+/**
+ * The role this installation's administrator holds on the server, if any.
+ *
+ * `take` is a deliberate act, never a side effect of opening a panel: it calls
+ * the server's repair function, which refuses to displace an active
+ * administrator and only ever fills an unowned role. Without it, a project whose
+ * administrator profile was created and then abandoned has no way back.
+ */
+export async function adminCloudRole(
+  adminId: string,
+  take = false
+): Promise<{ isAdmin: boolean; refused: string | null; email: string | null }> {
+  const state = await adminCloudRequest<{ isAdmin?: boolean }>(adminId, '/rest/v1/rpc/indra_credit_state', {
+    method: 'POST',
+    body: {}
+  })
+  let refused: string | null = null
+
+  if (state?.isAdmin !== true && take) {
+    const result = await adminCloudRequest<{ claimed?: boolean; reason?: string | null }>(
+      adminId,
+      '/rest/v1/rpc/indra_claim_credit_admin',
+      { method: 'POST', body: {} }
+    ).catch((error: unknown) =>
+      // The server's refusal is the useful part of a failure here.
+      ({ claimed: false, reason: error instanceof Error ? error.message : 'The server refused.' })
+    )
+    if (result?.claimed !== true) refused = result?.reason ?? 'The server did not grant the role.'
+  }
+
+  const after = state?.isAdmin === true
+    ? state
+    : await adminCloudRequest<{ isAdmin?: boolean }>(adminId, '/rest/v1/rpc/indra_credit_state', {
+        method: 'POST',
+        body: {}
+      }).catch(() => state)
+
+  return {
+    isAdmin: after?.isAdmin === true,
+    refused,
+    email: (await identityEmail(adminId)) ?? null
+  }
+}
+
+/** The account address the cloud issued to this administrator's identity. */
+async function identityEmail(adminId: string): Promise<string | null> {
+  const stored = readSetting(`${IDENTITY_PREFIX}:admin:${adminId}`)
+  if (!stored) return null
+  try {
+    const raw = unsealSecret(stored).value
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { email?: unknown }
+    return typeof parsed.email === 'string' ? parsed.email : null
+  } catch {
+    return null
+  }
+}
 
 /**
  * The two things the AI service needs from this file: the endpoint (so a call

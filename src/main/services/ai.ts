@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { net } from 'electron'
 import type {
   AdminCreditAccount,
+  AdminCreditAccountDetail,
+  AdminCreditResetInfo,
   AdminCreditLedgerRow,
   AdminCreditSettingsInput,
   AdminCreditSnapshot,
@@ -11,6 +13,7 @@ import type {
   AiAskInput,
   AiCitation,
   AiMode,
+  AdminSpendRow,
   AiTraceStep,
   AiUsage,
   CreditLedgerEntry,
@@ -24,7 +27,7 @@ import type {
 import { normaliseUrl } from '@shared/workspace'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
-import { assertCloudReachable, cloudEndpoint, cloudSession } from './cloud'
+import { adminCloudRole, adminCloudSession, assertCloudReachable, cloudEndpoint, cloudSession } from './cloud'
 import { getDocument } from './documents'
 
 /*
@@ -674,30 +677,35 @@ async function adminPurchases(token: string): Promise<AdminPurchase[]> {
   }))
 }
 
-export async function adminCreditSnapshot(viewer: SessionUser): Promise<AdminCreditSnapshot> {
-  if (viewer.mode === 'offline') {
-    return {
-      pending: [],
-      decided: [],
-      plans: cachedPlans(),
-      accounts: [],
-      settings: null,
-      live: false,
-      message: 'The offline workspace is not an administrator in the cloud.'
-    }
-  }
+/**
+ * What the console shows an administrator.
+ *
+ * The identity is the installation's administrator (`admin:<id>`), not a
+ * workspace account — see adminCloudSession(). That is what makes this console
+ * work before anybody has signed in to the workspace at all, and keeps it
+ * working when a member's session starts or ends.
+ *
+ * Two independent facts are reported, because they fail differently and the
+ * panel must not confuse them: whether the server granted this administrator the
+ * credit role, and whether it answered at all.
+ */
+export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditSnapshot> {
   try {
-    const session = await cloudSession(viewer)
+    const session = await adminCloudSession(adminId)
     const state = await rpcCall<WireState>(session.token, 'indra_credit_state', {})
     if (state?.isAdmin !== true) {
       return {
         pending: [],
         decided: [],
-        plans: await creditPlans(viewer),
+        plans: cachedPlans(),
         accounts: [],
         settings: asCreditSettings(state?.settings),
+        reset: null,
         live: false,
-        message: 'This cloud account is not an administrator. Credits can only be managed by an account with that role on the server.'
+        claimed: false,
+        reachable: true,
+        message:
+          'The signed-in cloud account is not an administrator on the server, so this PC does not hold credit administration yet. Take the role once — the server only grants it while no active administrator holds it, and the button below is how.'
       }
     }
 
@@ -723,13 +731,31 @@ export async function adminCreditSnapshot(viewer: SessionUser): Promise<AdminCre
       suspended: Boolean(row.suspended_at)
     }))
     const plans = await fetchPlans(session.token, typeof state.plan === 'string' ? state.plan : 'free')
+    const reset = await rpcCall<Record<string, unknown>>(session.token, 'indra_credit_reset_info', {})
+      .then((row): AdminCreditResetInfo | null =>
+        row && typeof row.nextResetAt === 'string'
+          ? {
+              nextResetAt: row.nextResetAt,
+              lastRefillAt: (row.lastRefillAt as string | null) ?? null,
+              schedule: (row.schedule as string | null) ?? null,
+              totalAccounts: Number(row.totalAccounts ?? accounts.length),
+              suspendedAccounts: Number(row.suspendedAccounts ?? 0)
+            }
+          : null
+      )
+      // The refill clock is a nicety: the console must still open if this one
+      // call fails, and it says it does not know rather than guessing.
+      .catch(() => null)
     return {
       pending,
       decided,
       plans,
       accounts,
       settings: asCreditSettings(state.settings),
+      reset,
       live: true,
+      claimed: true,
+      reachable: true,
       message: null
     }
   } catch (error) {
@@ -739,44 +765,47 @@ export async function adminCreditSnapshot(viewer: SessionUser): Promise<AdminCre
       plans: cachedPlans(),
       accounts: [],
       settings: null,
+      reset: null,
       live: false,
+      claimed: false,
+      reachable: false,
       message: messageFor(error)
     }
   }
 }
 
 export async function adminDecidePurchase(
-  viewer: SessionUser,
+  adminId: string,
   id: string,
   approve: boolean,
   note: string
 ): Promise<AdminCreditSnapshot> {
-  const session = await cloudSession(viewer)
+  const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_decide_purchase', {
     p_id: id,
     p_approve: approve,
     p_note: note.slice(0, 400)
   })
-  return adminCreditSnapshot(viewer)
+  return adminCreditSnapshot(adminId)
 }
 
 export async function adminSetPlan(
-  viewer: SessionUser,
+  adminId: string,
   userId: string,
   planId: string,
   days = 30
 ): Promise<AdminCreditSnapshot> {
-  const session = await cloudSession(viewer)
+  const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_set_plan', {
     p_user: userId,
     p_plan: planId,
     p_days: Math.min(Math.max(Math.round(days) || 30, 1), 3650)
   })
-  return adminCreditSnapshot(viewer)
+  return adminCreditSnapshot(adminId)
 }
 
 export async function adminGrant(
-  viewer: SessionUser,
+  adminId: string,
   userId: string,
   amount: number,
   reason: string
@@ -788,21 +817,21 @@ export async function adminGrant(
   if (Math.abs(credits) > 1_000_000) {
     throw errors.validation('The largest single adjustment is 1,000,000 credits.', 'amount')
   }
-  const session = await cloudSession(viewer)
+  const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_grant_credits', {
     p_user: userId,
     p_amount: credits,
     p_reason: reason.slice(0, 200)
   })
-  return adminCreditSnapshot(viewer)
+  return adminCreditSnapshot(adminId)
 }
 
 export async function adminUpdatePlan(
-  viewer: SessionUser,
+  adminId: string,
   input: AdminPlanInput
 ): Promise<CreditPlan[]> {
   if (!input.id) throw errors.validation('Choose a plan.', 'id')
-  const session = await cloudSession(viewer)
+  const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_save_plan', {
     p_id: input.id,
     p_name: input.name ?? null,
@@ -823,10 +852,10 @@ export async function adminUpdatePlan(
  * server's own row — the console shows what was saved, not what was typed.
  */
 export async function adminUpdateCreditSettings(
-  viewer: SessionUser,
+  adminId: string,
   input: AdminCreditSettingsInput
 ): Promise<CreditSettings> {
-  const session = await cloudSession(viewer)
+  const session = await adminCloudSession(adminId)
   const row = await rpcCall<unknown>(session.token, 'indra_admin_update_credit_settings', {
     p_currency: input.currency ?? null,
     p_symbol: input.symbol ?? null,
@@ -846,11 +875,11 @@ export async function adminUpdateCreditSettings(
 }
 
 export async function adminLedger(
-  viewer: SessionUser,
+  adminId: string,
   userId: string,
   limit = 40
 ): Promise<AdminCreditLedgerRow[]> {
-  const session = await cloudSession(viewer)
+  const session = await adminCloudSession(adminId)
   const rows = await rpcCall<Array<Record<string, unknown>>>(session.token, 'indra_admin_ledger', {
     p_user: userId,
     p_limit: Math.min(Math.max(limit, 1), 200)
@@ -863,6 +892,134 @@ export async function adminLedger(
     meta: (row.meta as Record<string, unknown>) ?? {},
     createdAt: String(row.created_at ?? nowIso())
   }))
+}
+
+export async function adminSetSuspended(
+  adminId: string,
+  userId: string,
+  suspended: boolean
+): Promise<AdminCreditSnapshot> {
+  const session = await adminCloudSession(adminId)
+  await rpcCall(session.token, 'indra_admin_set_suspended', {
+    p_user: userId,
+    p_suspended: suspended
+  })
+  return adminCreditSnapshot(adminId)
+}
+
+/**
+ * Refills every account's daily allowance now, on the server's clock.
+ *
+ * The schedule does this at 00:05 UTC on its own; this is for the administrator
+ * who has just changed what a tier is worth and does not want to wait a day, or
+ * who is fixing a plan after the fact. It is idempotent — an account already
+ * refilled today is left alone.
+ */
+export async function adminResetDaily(adminId: string): Promise<{ refilled: number; snapshot: AdminCreditSnapshot }> {
+  const session = await adminCloudSession(adminId)
+  const refilled = await rpcCall<number>(session.token, 'indra_admin_reset_daily', {})
+  return { refilled: Number(refilled ?? 0), snapshot: await adminCreditSnapshot(adminId) }
+}
+
+/** Every account's movement, newest first — the console's log of the whole fleet. */
+export async function adminSpendLog(adminId: string, limit = 60): Promise<AdminSpendRow[]> {
+  const session = await adminCloudSession(adminId)
+  const rows = await rpcCall<Array<Record<string, unknown>>>(session.token, 'indra_admin_spend_log', {
+    p_limit: Math.min(Math.max(limit, 1), 200)
+  })
+  return (rows ?? []).map((row) => ({
+    id: String(row.id ?? randomUUID()),
+    userId: String(row.user_id ?? ''),
+    accountName: String(row.display_name ?? 'Member'),
+    kind: (row.kind as AdminSpendRow['kind']) ?? 'adjust',
+    amount: Number(row.amount ?? 0),
+    balanceAfter: Number(row.balance_after ?? 0),
+    meta: (row.meta as Record<string, unknown>) ?? {},
+    createdAt: String(row.created_at ?? nowIso())
+  }))
+}
+
+/** One account with everything the panel needs to answer a support question. */
+export async function adminAccountDetail(
+  adminId: string,
+  userId: string
+): Promise<AdminCreditAccountDetail> {
+  const session = await adminCloudSession(adminId)
+  const payload = await rpcCall<{
+    account?: Record<string, unknown>
+    ledger?: Array<Record<string, unknown>>
+  }>(session.token, 'indra_admin_account', { p_user: userId })
+  const row = payload?.account ?? {}
+  return {
+    account: {
+      id: String(row.id ?? userId),
+      displayName: String(row.display_name ?? ''),
+      username: String(row.username ?? ''),
+      email: row.email === null || row.email === undefined ? null : String(row.email),
+      plan: String(row.plan ?? 'free'),
+      planName: String(row.plan_name ?? row.plan ?? 'Free'),
+      daily: Number(row.daily ?? 0),
+      purchased: Number(row.purchased ?? 0),
+      total: Number(row.total ?? 0),
+      requests: Number(row.requests ?? 0),
+      planExpiresAt: (row.plan_expires_at as string | null) ?? null,
+      lastSignInAt: (row.last_sign_in_at as string | null) ?? null,
+      suspended: Boolean(row.suspended_at),
+      createdAt: String(row.created_at ?? ''),
+      memberNo: (row.member_no as string | null) ?? null,
+      creditsResetAt: (row.credits_reset_at as string | null) ?? null
+    },
+    ledger: (payload?.ledger ?? []).map((entry) => ({
+      id: String(entry.id ?? randomUUID()),
+      kind: (entry.kind as AdminCreditLedgerRow['kind']) ?? 'adjust',
+      amount: Number(entry.amount ?? 0),
+      balanceAfter: Number(entry.balance_after ?? 0),
+      meta: (entry.meta as Record<string, unknown>) ?? {},
+      createdAt: String(entry.created_at ?? nowIso())
+    }))
+  }
+}
+
+/**
+ * Takes the credit-administrator role for this installation, once.
+ *
+ * The server allows it only while no credit administrator exists, so on a fresh
+ * project the first panel that asks becomes the one that owns it — and no
+ * client, this one included, can hand itself the role afterwards. Returns the
+ * snapshot so the panel shows the result rather than claiming success.
+ */
+export async function adminClaimCreditRole(adminId: string): Promise<AdminCreditSnapshot> {
+  try {
+    const role = await adminCloudRole(adminId, true)
+    if (!role.isAdmin && role.refused) {
+      return {
+        pending: [],
+        decided: [],
+        plans: cachedPlans(),
+        accounts: [],
+        settings: null,
+        reset: null,
+        live: false,
+        claimed: false,
+        reachable: true,
+        message: role.refused
+      }
+    }
+  } catch (error) {
+    return {
+      pending: [],
+      decided: [],
+      plans: cachedPlans(),
+      accounts: [],
+      settings: null,
+      reset: null,
+      live: false,
+      claimed: false,
+      reachable: false,
+      message: messageFor(error)
+    }
+  }
+  return adminCreditSnapshot(adminId)
 }
 
 /* ---------------- REST, with the person's own token ---------------- */

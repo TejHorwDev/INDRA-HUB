@@ -64,19 +64,32 @@
   --ink-tertiary: #86888f;
 
   /* one accent: a muted wine red, used for action and selection only */
-  --accent: #a33b43;
-  --accent-hover: #b0444d;
-  --accent-active: #8d323a;
+  /*
+   * The accent is ink, not a hue. This product has three colours — black, dark
+   * grey, white — and a warm red accent quietly reintroduced a fourth on every
+   * primary button, every selected tab and every focus ring.
+   */
+  --accent: #1a1a1c;
+  --accent-hover: #2e2e31;
+  --accent-active: #000000;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(163, 59, 67, 0.09);
-  --accent-ring: rgba(163, 59, 67, 0.22);
+  --accent-soft: rgba(26, 26, 28, 0.07);
+  --accent-ring: rgba(26, 26, 28, 0.28);
 
-  /* feedback */
-  --danger: #c0403f;
-  --danger-soft: rgba(192, 64, 63, 0.08);
-  --success: #4c8a63;
-  --success-soft: rgba(76, 138, 99, 0.1);
-  --warning: #9a7220;
+  /*
+   * Feedback is monochrome on purpose.
+   *
+   * The product has exactly three colours — black, dark grey, white — and no
+   * state is allowed to introduce a fourth. An error reads as an error because
+   * it is the darkest ink on an outline, not because it is red; success is a
+   * filled dot, not green. Keeping the token names means every existing rule
+   * keeps working while the palette stays honest.
+   */
+  --danger: #1a1a1c;
+  --danger-soft: rgba(20, 20, 22, 0.07);
+  --success: #3f3f44;
+  --success-soft: rgba(40, 40, 44, 0.08);
+  --warning: #4a4a50;
 
   /* geometry */
   --radius: 10px;
@@ -153,19 +166,20 @@
   --ink-secondary: #a3a4ab;
   --ink-tertiary: #74767d;
 
-  /* On black the wine needs a shade more light to stay legible. */
-  --accent: #b4444d;
-  --accent-hover: #c2505a;
-  --accent-active: #9d3941;
-  --accent-ink: #ffffff;
-  --accent-soft: rgba(180, 68, 77, 0.16);
-  --accent-ring: rgba(198, 84, 94, 0.4);
+  /* The accent is ink. On black, ink is light. */
+  --accent: #f0f0f1;
+  --accent-hover: #ffffff;
+  --accent-active: #d6d6d8;
+  /* On a near-white accent, the label is the canvas. */
+  --accent-ink: #101113;
+  --accent-soft: rgba(240, 240, 241, 0.09);
+  --accent-ring: rgba(240, 240, 241, 0.34);
 
-  --danger: #e5817e;
-  --danger-soft: rgba(229, 129, 126, 0.12);
-  --success: #74a98a;
-  --success-soft: rgba(116, 169, 138, 0.12);
-  --warning: #c9a86c;
+  --danger: #e9e9ea;
+  --danger-soft: rgba(255, 255, 255, 0.1);
+  --success: #c9c9cc;
+  --success-soft: rgba(255, 255, 255, 0.08);
+  --warning: #b9b9bd;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 6px 18px -6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -296,9 +310,9 @@
     --surface: rgba(255, 255, 255, 0.07);
     --surface-subtle: rgba(255, 255, 255, 0.06);
     --surface-raised: rgba(255, 255, 255, 0.1);
-    --accent-ring: rgba(226, 142, 148, 0.42);
-    --danger: #f2a5a1;
-    --danger-soft: rgba(240, 96, 92, 0.18);
+    --accent-ring: rgba(255, 255, 255, 0.4);
+    --danger: #f2f2f3;
+    --danger-soft: rgba(255, 255, 255, 0.13);
     --hairline: rgba(255, 255, 255, 0.04);
 
     background-color: #08080a;
@@ -964,24 +978,24 @@
   }
 
   /*
-   * Close is the one control that turns red, but it turns red the way this app
-   * uses colour: a quiet tint on approach, and a full, unmistakable fill only
-   * once the button is actually pressed. A saturated rectangle under the
-   * pointer on a white bar would be the loudest thing on the screen.
+   * Close is a destructive-looking control, and it says so with weight rather
+   * than with red: a tint on approach and a filled, unmistakable press. The
+   * product is black, dark grey and white; a red square in the corner of every
+   * window would be the only colour on the screen, and the loudest thing in it.
    */
   .window-control--close:hover {
-    background-color: color-mix(in srgb, #c42b1c 11%, transparent);
-    color: #b0261a;
+    background-color: color-mix(in srgb, var(--ink) 11%, transparent);
+    color: var(--ink);
   }
 
   .dark .window-control--close:hover {
-    background-color: color-mix(in srgb, #ff6a5c 16%, transparent);
-    color: #ff8f84;
+    background-color: color-mix(in srgb, var(--ink) 16%, transparent);
+    color: var(--ink);
   }
 
   .window-control--close:active {
-    background-color: #c42b1c;
-    color: #ffffff;
+    background-color: var(--ink);
+    color: var(--bg);
   }
 
 
@@ -3614,13 +3628,22 @@
   }
 
   .admin-badge--good {
-    background-color: var(--success-soft);
-    color: var(--success);
+    border-color: var(--line-strong);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-weight: 650;
   }
 
+  /*
+   * Monochrome by rule: no state in this product may be signalled with red,
+   * amber or green. "Warn" is an outlined badge rather than a coloured one —
+   * it reads as a different state by its border and weight, not its hue.
+   */
   .admin-badge--warn {
-    background-color: var(--danger-soft);
-    color: var(--danger);
+    border-color: var(--ink-secondary);
+    background-color: transparent;
+    color: var(--ink);
+    font-weight: 650;
   }
 
   .admin-badge--accent {
@@ -4153,8 +4176,8 @@
   }
 
   .update-diagnostics-list li.is-bad .update-diagnostics-mark {
-    background: color-mix(in srgb, #f08a8a 22%, transparent);
-    color: #f08a8a;
+    background: color-mix(in srgb, var(--ink) 22%, transparent);
+    color: var(--ink);
   }
 
   .update-diagnostics-label {
@@ -4534,9 +4557,9 @@
     width: 26px;
     height: 26px;
     border-radius: var(--radius-pill);
-    border: 1px solid hsl(var(--tone, 220) 30% 84%);
-    background-color: hsl(var(--tone, 220) 44% 93%);
-    color: hsl(var(--tone, 220) 38% 32%);
+    border: 1px solid var(--line-strong);
+    background-color: var(--surface-subtle);
+    color: var(--ink-secondary);
     font-size: var(--fs-xs);
     font-weight: 650;
     letter-spacing: 0.02em;
@@ -4544,9 +4567,9 @@
   }
 
   .dark .avatar {
-    border-color: hsl(var(--tone, 220) 22% 27%);
-    background-color: hsl(var(--tone, 220) 26% 19%);
-    color: hsl(var(--tone, 220) 52% 80%);
+    border-color: var(--line-strong);
+    background-color: var(--surface-raised);
+    color: var(--ink);
   }
 
   .avatar--lg {
@@ -5615,9 +5638,9 @@ body,
   gap: 12px;
   margin-bottom: 18px;
   padding: 13px 16px;
-  border: 1px solid color-mix(in srgb, var(--warning, #b4761f) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
   border-radius: var(--radius);
-  background-color: color-mix(in srgb, var(--warning, #b4761f) 9%, transparent);
+  background-color: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
 .conflict-mark {
@@ -5627,8 +5650,8 @@ body,
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background-color: color-mix(in srgb, var(--warning, #b4761f) 16%, transparent);
-  color: var(--warning-ink, #8a5a12);
+  background-color: color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
 }
 
 /* ================================================================== *
@@ -5660,11 +5683,11 @@ body,
   --ink-secondary: #585b63;
   --ink-tertiary: #8b8d95;
 
-  --accent: #a83b45;
-  --accent-hover: #b64550;
-  --accent-active: #93333c;
-  --accent-soft: rgba(168, 59, 69, 0.085);
-  --accent-ring: rgba(168, 59, 69, 0.24);
+  --accent: #1a1a1c;
+  --accent-hover: #2e2e31;
+  --accent-active: #000000;
+  --accent-soft: rgba(26, 26, 28, 0.065);
+  --accent-ring: rgba(26, 26, 28, 0.28);
 
   --radius: 8px;
   --radius-sm: 6px;
@@ -5691,15 +5714,16 @@ body,
   --ink-secondary: #a2a4ac;
   --ink-tertiary: #71747c;
 
-  --accent: #b94250;
-  --accent-hover: #c75360;
-  --accent-active: #a33845;
-  --accent-soft: rgba(185, 66, 80, 0.14);
-  --accent-ring: rgba(198, 84, 94, 0.36);
+  --accent: #f0f0f1;
+  --accent-hover: #ffffff;
+  --accent-active: #d6d6d8;
+  --accent-ink: #101113;
+  --accent-soft: rgba(240, 240, 241, 0.09);
+  --accent-ring: rgba(240, 240, 241, 0.34);
 
-  --danger: #e08b88;
-  --success: #7bab91;
-  --warning: #c8a877;
+  --danger: #e9e9ea;
+  --success: #c9c9cc;
+  --warning: #b9b9bd;
 }
 
 /* ---------------- title bar ---------------- */
@@ -7326,6 +7350,62 @@ body {
   gap: 6px;
   color: var(--ink-tertiary);
   font-size: var(--fs-2xs);
+}
+
+/* The two fleet-wide actions, kept together and away from the per-row tools. */
+.admin-credit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 2px 0 4px;
+}
+
+/* An account opened from the list: facts on one line, then its history. */
+.admin-account-detail {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-subtle);
+}
+
+.admin-kv--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px var(--space-5);
+  margin: 0;
+}
+
+.admin-kv--inline > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-account-history {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.admin-account-history li {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) 88px 88px;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--ink-secondary);
+  font-size: var(--fs-2xs);
+}
+
+/* The lead line of an empty state that is explaining a state, not a list. */
+.admin-empty--lead {
+  color: var(--ink-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
 }
 
 .admin-credit-plan-row {

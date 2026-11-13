@@ -60,10 +60,15 @@ import {
 import { searchUsers } from '../services/users'
 import {
   activity as aiActivity,
+  adminAccountDetail,
+  adminClaimCreditRole,
   adminCreditSnapshot,
   adminDecidePurchase,
   adminGrant,
   adminLedger,
+  adminResetDaily,
+  adminSetSuspended,
+  adminSpendLog,
   adminSetPlan,
   adminUpdateCreditSettings,
   adminUpdatePlan,
@@ -172,6 +177,19 @@ import type {
 /** Every project call resolves the caller here, never from the renderer. */
 function actor(): SessionUser {
   return requireUser()
+}
+
+/**
+ * The credit console's identity: the administrator session on this machine.
+ *
+ * It used to resolve a *workspace* user, which meant an administrator who had
+ * signed in to the admin panel and nobody else met "Sign in to continue." on
+ * every credits screen. The console belongs to the installation, so it resolves
+ * the administrator — and the cloud identity it uses is derived from that, kept
+ * apart from any workspace account.
+ */
+function creditAdmin(): string {
+  return requireAdmin().id
 }
 
 /**
@@ -1157,7 +1175,19 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('admin:credits:snapshot', () =>
     toResult(() => {
       requireAdmin()
-      return adminCreditSnapshot(actor())
+      return adminCreditSnapshot(creditAdmin())
+    })
+  )
+
+  /*
+   * Taking the role is a deliberate click, not something a page load does: the
+   * server offers it only while it has no credit administrator, and the answer
+   * is the next snapshot, so the panel shows what actually happened.
+   */
+  ipcMain.handle('admin:credits:claim', () =>
+    toResult(async () => {
+      requireAdmin()
+      return adminClaimCreditRole(creditAdmin())
     })
   )
 
@@ -1167,7 +1197,7 @@ export function registerIpcHandlers(): void {
       toResult(() => {
         requireAdmin()
         return adminDecidePurchase(
-          actor(),
+          creditAdmin(),
           requireRecordId(payload?.id),
           payload?.approve === true,
           typeof payload?.note === 'string' ? payload.note : ''
@@ -1181,7 +1211,7 @@ export function registerIpcHandlers(): void {
       toResult(() => {
         requireAdmin()
         return adminSetPlan(
-          actor(),
+          creditAdmin(),
           requireRecordId(payload?.userId),
           requireRecordId(payload?.planId),
           Number(payload?.days ?? 30)
@@ -1195,7 +1225,7 @@ export function registerIpcHandlers(): void {
       toResult(() => {
         requireAdmin()
         return adminGrant(
-          actor(),
+          creditAdmin(),
           requireRecordId(payload?.userId),
           Number(payload?.amount ?? 0),
           typeof payload?.reason === 'string' ? payload.reason : ''
@@ -1220,7 +1250,7 @@ export function registerIpcHandlers(): void {
     ) =>
       toResult(() => {
         requireAdmin()
-        return adminUpdatePlan(actor(), {
+        return adminUpdatePlan(creditAdmin(), {
           id: requireRecordId(payload?.id),
           name: typeof payload?.name === 'string' ? payload.name : undefined,
           blurb: typeof payload?.blurb === 'string' ? payload.blurb : undefined,
@@ -1258,7 +1288,7 @@ export function registerIpcHandlers(): void {
         requireAdmin()
         const numeric = (value: unknown): number | undefined =>
           value === undefined || value === null || value === '' ? undefined : Number(value)
-        return adminUpdateCreditSettings(actor(), {
+        return adminUpdateCreditSettings(creditAdmin(), {
           currency: typeof payload?.currency === 'string' ? payload.currency : undefined,
           symbol: typeof payload?.symbol === 'string' ? payload.symbol : undefined,
           decimals: numeric(payload?.decimals),
@@ -1275,7 +1305,35 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('admin:credits:ledger', (_event, payload: { userId?: unknown; limit?: unknown }) =>
     toResult(() => {
       requireAdmin()
-      return adminLedger(actor(), requireRecordId(payload?.userId), Number(payload?.limit ?? 40))
+      return adminLedger(creditAdmin(), requireRecordId(payload?.userId), Number(payload?.limit ?? 40))
+    })
+  )
+
+  ipcMain.handle('admin:credits:account', (_event, payload: { userId?: unknown }) =>
+    toResult(() => {
+      requireAdmin()
+      return adminAccountDetail(creditAdmin(), requireRecordId(payload?.userId))
+    })
+  )
+
+  ipcMain.handle('admin:credits:spend', (_event, payload: { limit?: unknown }) =>
+    toResult(() => {
+      requireAdmin()
+      return adminSpendLog(creditAdmin(), Number(payload?.limit ?? 60))
+    })
+  )
+
+  ipcMain.handle('admin:credits:suspend', (_event, payload: { userId?: unknown; suspended?: unknown }) =>
+    toResult(() => {
+      requireAdmin()
+      return adminSetSuspended(creditAdmin(), requireRecordId(payload?.userId), payload?.suspended === true)
+    })
+  )
+
+  ipcMain.handle('admin:credits:resetDaily', () =>
+    toResult(() => {
+      requireAdmin()
+      return adminResetDaily(creditAdmin())
     })
   )
 

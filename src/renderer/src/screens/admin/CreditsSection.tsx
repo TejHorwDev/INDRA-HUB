@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
+  AdminCreditAccountDetail,
   AdminCreditLedgerRow,
   AdminCreditSnapshot,
+  AdminSpendRow,
   CreditPlan,
   CreditSettings
 } from '@shared/types'
@@ -64,7 +66,7 @@ function draftOf(plan: CreditPlan, settings: CreditSettings | null): PlanDraft {
   }
 }
 
-export default function CreditsSection({ overview }: SectionProps) {
+export default function CreditsSection(_props: SectionProps) {
   const toast = useToast()
   const [snapshot, setSnapshot] = useState<AdminCreditSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
@@ -92,6 +94,13 @@ export default function CreditsSection({ overview }: SectionProps) {
   )
   const [confirmOff, setConfirmOff] = useState<CreditPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [detail, setDetail] = useState<AdminCreditAccountDetail | null>(null)
+  const [detailFor, setDetailFor] = useState<string | null>(null)
+  const [spend, setSpend] = useState<AdminSpendRow[]>([])
+  const [spendOpen, setSpendOpen] = useState(false)
+  const [confirmSuspend, setConfirmSuspend] = useState<{ id: string; name: string; suspended: boolean } | null>(
+    null
+  )
 
   const settings = snapshot?.settings ?? null
 
@@ -356,6 +365,94 @@ export default function CreditsSection({ overview }: SectionProps) {
     )
   }
 
+  /**
+   * Taking the role is the one action that makes this console usable on a
+   * project that has never had a credit administrator. It asks the server, and
+   * the answer is whatever the server says — a refusal is shown, not swallowed.
+   */
+  async function claimRole() {
+    setBusy('claim')
+    setError(null)
+    try {
+      const next = await api.admin.claimCreditRole()
+      setSnapshot(next)
+      if (next.live) toast.success('This installation now administers credits.')
+      else setError(next.message ?? 'The server did not grant the role.')
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function toggleSuspended(userId: string, suspended: boolean) {
+    setBusy(`suspend:${userId}`)
+    setError(null)
+    try {
+      setSnapshot(await api.admin.setSuspended(userId, suspended))
+      toast.success(suspended ? 'Account suspended.' : 'Account restored.')
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(null)
+      setConfirmSuspend(null)
+    }
+  }
+
+  async function resetDaily() {
+    setBusy('reset')
+    setError(null)
+    try {
+      const result = await api.admin.resetDaily()
+      setSnapshot(result.snapshot)
+      toast.success(
+        result.refilled === 0
+          ? 'Every balance was already refilled today.'
+          : `Refilled ${result.refilled} ${result.refilled === 1 ? 'account' : 'accounts'}.`
+      )
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function openDetail(userId: string) {
+    if (detailFor === userId) {
+      setDetailFor(null)
+      setDetail(null)
+      return
+    }
+    setDetailFor(userId)
+    setDetail(null)
+    setBusy(`detail:${userId}`)
+    try {
+      setDetail(await api.admin.creditAccount(userId))
+    } catch (caught) {
+      setError(errorMessage(caught))
+      setDetailFor(null)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function toggleSpend() {
+    if (spendOpen) {
+      setSpendOpen(false)
+      return
+    }
+    setSpendOpen(true)
+    setBusy('spend')
+    try {
+      setSpend(await api.admin.creditSpend(60))
+    } catch (caught) {
+      setError(errorMessage(caught))
+      setSpend([])
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function openLedger(userId: string) {
     if (ledgerFor === userId) {
       setLedgerFor(null)
@@ -375,9 +472,6 @@ export default function CreditsSection({ overview }: SectionProps) {
 
   const pending = snapshot?.pending ?? []
   const decided = snapshot?.decided ?? []
-  const signedIn = overview.sessionUserId
-    ? overview.accounts.find((account) => account.id === overview.sessionUserId)?.displayName ?? 'an account'
-    : null
   const symbol = settings?.symbol || '$'
   const decimals = settings?.decimals ?? 2
 
@@ -392,7 +486,11 @@ export default function CreditsSection({ overview }: SectionProps) {
             className={`admin-chip-dot${snapshot?.live ? '' : ' admin-chip--muted'}`}
             aria-hidden="true"
           />
-          {snapshot?.live ? 'Connected as a cloud administrator' : 'Read-only'}
+          {snapshot?.live
+            ? 'Managing credits'
+            : snapshot?.reachable
+              ? 'Role not held'
+              : 'Server unreachable'}
         </span>
         <button type="button" className="btn btn-ghost btn-sm w-auto" onClick={() => void load()} disabled={loading}>
           {loading ? 'Reading…' : 'Refresh'}
@@ -405,21 +503,79 @@ export default function CreditsSection({ overview }: SectionProps) {
         </div>
       )}
 
+      {/*
+       * Three different questions, and the panel used to answer all of them
+       * with "sign in to continue": is the server reachable, has it granted this
+       * installation the role, and if not, what is the one thing that fixes it.
+       * Each is answered on its own now, with the action that resolves it.
+       */}
       {snapshot && !snapshot.live && (
-        <div className="notice mb-4 items-start">
-          <span>
-            {snapshot.message ??
-              'This credit console needs an app account signed in whose cloud profile holds the administrator role.'}
-            {signedIn ? ` Signed in on this PC as ${signedIn}.` : ' No account is signed in on this PC.'}
-          </span>
-        </div>
+        <section className="admin-card">
+          <div className="admin-card-head">
+            <h2>{snapshot.reachable ? 'Credit administration is not granted yet' : 'The server did not answer'}</h2>
+          </div>
+          <div className="admin-card-body">
+            <p className="admin-empty admin-empty--lead">
+              {snapshot.message ??
+                'The server has not granted credit administration to this installation.'}
+            </p>
+            {/*
+             * With no server there is no cached copy to show: an unreachable
+             * cloud returns no snapshot at all, so promising one "below" was a
+             * promise this page could not keep. Say what is true instead.
+             */}
+            {!snapshot.reachable && (
+              <p className="admin-empty">
+                Nothing can be read or changed until it does. Every figure this section shows comes from the server,
+                never from a local copy, so there is no stale balance here to mistake for a real one.
+              </p>
+            )}
+            <div className="admin-form-actions">
+              {snapshot.reachable ? (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm w-auto"
+                  onClick={() => void claimRole()}
+                  disabled={busy !== null}
+                >
+                  {busy === 'claim' ? <span className="spinner" aria-hidden="true" /> : null}
+                  Take credit administration
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm w-auto"
+                  onClick={() => void load()}
+                  disabled={loading}
+                >
+                  Try again
+                </button>
+              )}
+            </div>
+            <p className="admin-empty">
+              The role belongs to the server, not to this PC. It can be taken once, and only while no active
+              administrator holds it — after that it has to be handed over at the database, so this button can never
+              take it from somebody who is using it.
+            </p>
+          </div>
+        </section>
       )}
 
       {snapshot?.live && (
         <>
           <div className="admin-summary">
             <span>{pending.length} waiting</span>
-            <span>{snapshot.accounts.length} accounts</span>
+            {/*
+             * The account count comes from the server, not from the length of
+             * the list: the list is capped, so counting rows here would quietly
+             * under-report a large fleet.
+             */}
+            <span>
+              {snapshot.reset?.totalAccounts ?? snapshot.accounts.length} accounts
+              {snapshot.reset?.suspendedAccounts
+                ? ` · ${snapshot.reset.suspendedAccounts} suspended`
+                : ''}
+            </span>
             <span>
               {snapshot.plans.filter((plan) => plan.enabled).length} of {snapshot.plans.length} tiers offered
             </span>
@@ -428,7 +584,85 @@ export default function CreditsSection({ overview }: SectionProps) {
                 priced in {settings.currency} · 1 credit = {credits(settings.tokensPerCredit)} tokens
               </span>
             )}
+            {snapshot.reset?.nextResetAt && (
+              <span>
+                daily allowance refills {formatDateTime(snapshot.reset.nextResetAt)}
+                {snapshot.reset.lastRefillAt ? ` · last refill ${formatDateTime(snapshot.reset.lastRefillAt)}` : ''}
+              </span>
+            )}
           </div>
+
+          {/*
+           * The two fleet-wide actions. Both are idempotent and both say what
+           * they did, so neither can be pressed twice by accident and leave the
+           * administrator wondering whether it worked.
+           */}
+          <div className="admin-credit-tools">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm w-auto"
+              onClick={() => void resetDaily()}
+              disabled={busy !== null}
+              title="Refills every account's daily allowance now. Accounts already refilled today are untouched."
+            >
+              {busy === 'reset' ? <span className="spinner" aria-hidden="true" /> : null}
+              Refill everyone's daily credits
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm w-auto"
+              onClick={() => void toggleSpend()}
+              disabled={busy !== null}
+            >
+              {spendOpen ? 'Hide every movement' : 'Every movement, all accounts'}
+            </button>
+          </div>
+
+          {spendOpen && (
+            <section className="admin-card">
+              <div className="admin-card-head">
+                <h2>All movements</h2>
+                <span className="admin-card-count">{spend.length}</span>
+              </div>
+              {spend.length === 0 ? (
+                <p className="admin-empty">
+                  {busy === 'spend' ? 'Reading…' : 'No credit movement has been recorded yet.'}
+                </p>
+              ) : (
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Account</th>
+                        <th scope="col">Kind</th>
+                        <th scope="col" className="admin-num">
+                          Amount
+                        </th>
+                        <th scope="col" className="admin-num">
+                          Balance after
+                        </th>
+                        <th scope="col">When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spend.map((row) => (
+                        <tr key={row.id}>
+                          <td>{row.accountName}</td>
+                          <td className="admin-dim">{row.kind}</td>
+                          <td className="admin-num">
+                            {row.amount > 0 ? '+' : ''}
+                            {credits(row.amount)}
+                          </td>
+                          <td className="admin-num">{credits(row.balanceAfter)}</td>
+                          <td className="admin-dim">{formatDateTime(row.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ---------------- pricing rules ---------------- */}
           <section className="admin-card">
@@ -908,10 +1142,24 @@ export default function CreditsSection({ overview }: SectionProps) {
           <section className="admin-card">
             <div className="admin-card-head">
               <h2>Accounts</h2>
+              {/*
+               * A filtered list says it is filtered. The count beside the search
+               * is the *shown* count, so it can never disagree with the rows
+               * underneath it — the fleet total lives in the summary above.
+               */}
+              {query.trim() !== '' && (
+                <span className="admin-dim">
+                  {accounts.length} of {snapshot.accounts.length} shown
+                </span>
+              )}
               <SearchField value={query} onChange={setQuery} placeholder="Search accounts" />
             </div>
             {accounts.length === 0 ? (
-              <p className="admin-empty">No account matches that search.</p>
+              <p className="admin-empty">
+                {query.trim() === ''
+                  ? 'No accounts exist yet. The first person to sign up appears here.'
+                  : `No account matches “${query.trim()}”.`}
+              </p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -976,7 +1224,89 @@ export default function CreditsSection({ overview }: SectionProps) {
                             >
                               {ledgerFor === account.id ? 'Hide log' : 'Log'}
                             </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm w-auto"
+                              disabled={busy !== null}
+                              onClick={() => void openDetail(account.id)}
+                            >
+                              {detailFor === account.id ? 'Close' : 'Open'}
+                            </button>
+                            {/*
+                             * Suspension is a switch with a consequence, so it
+                             * asks first and says which account it is about.
+                             */}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm w-auto"
+                              disabled={busy !== null}
+                              onClick={() =>
+                                setConfirmSuspend({
+                                  id: account.id,
+                                  name: account.displayName || `@${account.username}`,
+                                  suspended: !account.suspended
+                                })
+                              }
+                            >
+                              {account.suspended ? 'Restore' : 'Suspend'}
+                            </button>
                           </div>
+
+                          {detailFor === account.id && (
+                            <div className="admin-account-detail">
+                              {detail ? (
+                                <>
+                                  <dl className="admin-kv admin-kv--inline">
+                                    <div>
+                                      <dt>Member</dt>
+                                      <dd>{detail.account.memberNo ?? '—'}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Created</dt>
+                                      <dd>{formatDate(detail.account.createdAt)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Plan ends</dt>
+                                      <dd>{formatDate(detail.account.planExpiresAt)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>AI runs</dt>
+                                      <dd>{credits(detail.account.requests)}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Next daily refill</dt>
+                                      <dd>
+                                        {detail.account.creditsResetAt
+                                          ? formatDateTime(detail.account.creditsResetAt)
+                                          : 'On the next refill'}
+                                      </dd>
+                                    </div>
+                                  </dl>
+                                  {detail.ledger.length === 0 ? (
+                                    <p className="admin-empty">This account has no movements yet.</p>
+                                  ) : (
+                                    <ul className="admin-account-history">
+                                      {detail.ledger.slice(0, 12).map((entry) => (
+                                        <li key={entry.id}>
+                                          <span className="admin-dim">{formatDateTime(entry.createdAt)}</span>
+                                          <span>{entry.kind}</span>
+                                          <span className="admin-num">
+                                            {entry.amount > 0 ? '+' : ''}
+                                            {credits(entry.amount)}
+                                          </span>
+                                          <span className="admin-num admin-dim">
+                                            → {credits(entry.balanceAfter)}
+                                          </span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="admin-empty">Reading…</p>
+                              )}
+                            </div>
+                          )}
 
                           {openAccount === account.id && (
                             <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -1118,6 +1448,21 @@ export default function CreditsSection({ overview }: SectionProps) {
         >
           The tier disappears from the Credits page. Accounts already on it keep it until they are
           moved, and the server refuses the change while any account is on it.
+        </ConfirmDialog>
+      )}
+
+      {confirmSuspend && (
+        <ConfirmDialog
+          open
+          title={confirmSuspend.suspended ? `Suspend ${confirmSuspend.name}?` : `Restore ${confirmSuspend.name}?`}
+          confirmLabel={confirmSuspend.suspended ? 'Suspend' : 'Restore'}
+          pending={busy === `suspend:${confirmSuspend.id}`}
+          onCancel={() => setConfirmSuspend(null)}
+          onConfirm={() => void toggleSuspended(confirmSuspend.id, confirmSuspend.suspended)}
+        >
+          {confirmSuspend.suspended
+            ? 'The server refuses their credit requests and AI runs while suspended. Their balance is kept exactly as it is, and restoring the account returns it untouched.'
+            : 'The account can request credits and use AI again. Nothing about its balance changes.'}
         </ConfirmDialog>
       )}
     </>

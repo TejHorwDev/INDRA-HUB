@@ -1086,6 +1086,41 @@ export interface AdminCreditLedgerRow {
   createdAt: string
 }
 
+/**
+ * What the server says about the refill clock and how many accounts exist.
+ *
+ * `totalAccounts` is a count, not the length of a list: the account list is
+ * capped, so reporting its length would be wrong once a fleet outgrows it.
+ */
+export interface AdminCreditResetInfo {
+  nextResetAt: string
+  lastRefillAt: string | null
+  schedule: string | null
+  totalAccounts: number
+  suspendedAccounts: number
+}
+
+/** One line of the whole fleet's movement log, not just one account's. */
+export interface AdminSpendRow extends AdminCreditLedgerRow {
+  userId: string
+  accountName: string
+}
+
+/** One account, everything about it, and its whole history. */
+export interface AdminCreditAccountDetail {
+  /**
+   * `creditsResetAt` is this account's own refill clock — the authority for when
+   * its daily allowance next comes back, which is not the same instant for every
+   * account once a new tier has been introduced mid-day.
+   */
+  account: AdminCreditAccount & {
+    createdAt: string
+    memberNo: string | null
+    creditsResetAt: string | null
+  }
+  ledger: AdminCreditLedgerRow[]
+}
+
 export interface AdminCreditSnapshot {
   /** Every pending request, oldest first — these are what someone has to act on. */
   pending: Array<PurchaseRequest & { accountId: string; accountName: string; accountEmail: string | null }>
@@ -1094,8 +1129,14 @@ export interface AdminCreditSnapshot {
   accounts: AdminCreditAccount[]
   /** The pricing rules, as the server holds them. */
   settings: CreditSettings | null
-  /** The signed-in app account is an administrator in the cloud, not just here. */
+  /** The server's refill clock and its real account totals. */
+  reset: AdminCreditResetInfo | null
+  /** The server answered, and this installation's cloud account holds the credit role. */
   live: boolean
+  /** The server answered at all. False means "unknown", never "empty". */
+  reachable: boolean
+  /** This installation holds the role — true only when `live` is. */
+  claimed: boolean
   message: string | null
 }
 
