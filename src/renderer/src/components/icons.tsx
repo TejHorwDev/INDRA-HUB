@@ -428,7 +428,7 @@ export function TrashIcon({ size = 15, className }: IconProps) {
   )
 }
 
-/** Credits: a stack of cards, the same shape whatever the tier. */
+/** Tokens: a stack of cards, the same shape whatever the tier. */
 export function WalletIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>

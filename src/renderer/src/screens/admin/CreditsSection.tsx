@@ -16,7 +16,7 @@ import { Badge, SectionHead, SearchField, formatDate, formatDateTime } from './s
 import type { SectionProps } from './shared'
 
 /*
- * Credits, from the administrator's side.
+ * Tokens, from the administrator's side.
  *
  * Two gates stand in front of every button here: the administrator session on
  * this machine, and the server's own check that the signed-in cloud account
@@ -26,7 +26,7 @@ import type { SectionProps } from './shared'
  * Prices are money, so they are edited as money: the currency, its symbol and
  * its decimals are settings; a tier's price and the top-up pack are entered in
  * that currency and sent to the server as whole minor units. Nothing here is
- * hardcoded, so what a credit costs can change without a new build.
+ * hardcoded, so what a top-up costs can change without a new build.
  */
 
 const CURRENCIES: Array<{ code: string; name: string; symbol: string; decimals: number }> = [

@@ -84,7 +84,7 @@ export function useConnectivity(): ConnectivityValue {
  * projects that hold them stay reachable too — that is where a copy is saved
  * and where a saved file is opened — and so does Settings, which is where the
  * account signs out and where updates are explained. Everything else (the
- * home screen, developers, credits, administration) waits for a connection.
+ * home screen, developers, tokens, administration) waits for a connection.
  */
 const OFFLINE_ROUTES = [
   '/documents',
