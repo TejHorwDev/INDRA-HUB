@@ -25,7 +25,7 @@ export default function SettingsScreen() {
   const [section, setSection] = useState<SectionId>('appearance')
 
   return (
-    <Page title="Settings">
+    <Page title="Settings" description="Appearance, account, cloud and updates on this PC.">
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Settings sections">
           {SECTIONS.map((item) => (

@@ -160,7 +160,8 @@ export default function DashboardScreen() {
   return (
     <>
       <Page
-        title="Your projects"
+        title="Projects"
+        description="Every project on this PC, plus the copies saved to your account."
         actions={
           <div className="flex flex-none items-center gap-2">
             <button
@@ -256,7 +257,7 @@ export default function DashboardScreen() {
 
         {!offline && cloudItems && cloudItems.length > 0 && (
           <section className="cloud-shelf" aria-label="In the cloud">
-            <div className="home-section-head">
+            <div className="home-section-head home-section-head--rule">
               <span className="home-section-title">In the cloud</span>
               <span className="home-count">{cloudItems.length}</span>
             </div>

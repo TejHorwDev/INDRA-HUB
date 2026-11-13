@@ -83,6 +83,7 @@ export default function DocumentsScreen() {
     <>
       <Page
         title="Documents"
+        description="Every document in this project."
         tabs={<ProjectTabs projectId={projectId} />}
         actions={
           <button
@@ -163,21 +164,26 @@ export default function DocumentsScreen() {
             }
           />
         ) : (
-          <ul className="project-list">
-            {visible.map((document) => (
-              <li key={document.id}>
-                <div className="project-row project-row--split">
+          <div className="data-list">
+            <div className="data-head" aria-hidden="true">
+              <span>Document</span>
+              <span>Updated</span>
+              <span />
+            </div>
+            <ul className="data-body">
+              {visible.map((document) => (
+                <li key={document.id} className="data-row">
                   <button
                     type="button"
-                    className="project-row-main"
+                    className="data-open"
                     onClick={() => navigate(`/project/${projectId}/documents/${document.id}`)}
                   >
-                    <span className="doc-glyph">
+                    <span className="data-mark" aria-hidden="true">
                       <FileIcon size={15} />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="project-row-name">{document.title}</span>
-                      <span className="project-row-meta">
+                    <span className="data-main">
+                      <span className="data-name">{document.title}</span>
+                      <span className="data-sub">
                         {/* Who touched it last is the useful fact on a shared
                             project; who wrote the first draft is a tooltip. */}
                         <span title={`Created by ${document.createdBy.displayName}`}>
@@ -187,23 +193,26 @@ export default function DocumentsScreen() {
                             : document.createdBy.displayName}
                         </span>
                         <span aria-hidden="true">·</span>
-                        <span>{formatRelative(document.updatedAt)}</span>
-                        <span aria-hidden="true">·</span>
                         <span>v{document.version}</span>
                       </span>
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm w-auto"
-                    onClick={() => setDeleting(document)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+
+                  <span className="data-cell">{formatRelative(document.updatedAt)}</span>
+
+                  <div className="data-actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm w-auto"
+                      onClick={() => setDeleting(document)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </Page>
 

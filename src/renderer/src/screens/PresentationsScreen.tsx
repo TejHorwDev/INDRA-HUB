@@ -125,6 +125,7 @@ export default function PresentationsScreen() {
     <>
       <Page
         title="Presentations"
+        description="Decks in this project, built blank or from a document."
         tabs={<ProjectTabs projectId={projectId} />}
         actions={
           <div className="flex flex-none items-center gap-2">
@@ -200,26 +201,31 @@ export default function PresentationsScreen() {
             }
           />
         ) : (
-          <ul className="project-list">
-            {visible.map((presentation) => (
-              <li key={presentation.id}>
-                <div className="project-row project-row--split">
+          <div className="data-list data-list--decks">
+            <div className="data-head" aria-hidden="true">
+              <span>Presentation</span>
+              <span>Updated</span>
+              <span />
+            </div>
+            <ul className="data-body">
+              {visible.map((presentation) => (
+                <li key={presentation.id} className="data-row">
                   <button
                     type="button"
-                    className="project-row-main"
+                    className="data-open"
                     onClick={() =>
                       navigate(`/project/${projectId}/presentations/${presentation.id}`)
                     }
                   >
-                    <span className="doc-glyph">
+                    <span className="data-mark" aria-hidden="true">
                       <SquareIcon size={15} />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="project-row-name">
+                    <span className="data-main">
+                      <span className="data-name">
                         {presentation.title}
                         {presentation.stale && <span className="badge badge--warn">Source changed</span>}
                       </span>
-                      <span className="project-row-meta">
+                      <span className="data-sub">
                         <span>{presentation.slideCount} slides</span>
                         <span aria-hidden="true">·</span>
                         <span>
@@ -235,12 +241,13 @@ export default function PresentationsScreen() {
                             <span>from {presentation.sourceDocumentTitle}</span>
                           </>
                         )}
-                        <span aria-hidden="true">·</span>
-                        <span>{formatRelative(presentation.updatedAt)}</span>
                       </span>
                     </span>
                   </button>
-                  <div className="row-actions">
+
+                  <span className="data-cell">{formatRelative(presentation.updatedAt)}</span>
+
+                  <div className="data-actions">
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm w-auto"
@@ -256,10 +263,10 @@ export default function PresentationsScreen() {
                       Delete
                     </button>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </Page>
 

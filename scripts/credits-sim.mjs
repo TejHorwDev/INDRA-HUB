@@ -172,7 +172,7 @@ async function main() {
    * channel spread exceeds a hair of anti-alias allowance is a colour, and a
    * colour here is a bug.
    */
-  const cssFiles = ['index.css', 'workspace.css', 'document.css']
+  const cssFiles = ['index.css', 'workspace.css', 'document.css', 'design.css']
   const colourful = []
   for (const name of cssFiles) {
     const css = readFileSync(join(root, 'src/renderer/src/styles', name), 'utf8')

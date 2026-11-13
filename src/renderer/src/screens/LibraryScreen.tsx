@@ -171,34 +171,40 @@ export default function LibraryScreen({ kind }: LibraryScreenProps) {
           }
         />
       ) : (
-        <ul className="project-list">
-          {visible.map((item) => (
-            <li key={item.id}>
-              <button type="button" className="project-row" onClick={() => open(item)}>
-                <span className="library-icon" aria-hidden="true">
-                  {isDocument ? <FileIcon size={16} /> : <PresentationIcon size={16} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="project-row-name">{item.title}</span>
-                  <span className="project-row-meta">
-                    <span>{item.projectName}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{formatRelative(item.updatedAt)}</span>
+        <div className="data-list data-list--library">
+          <div className="data-head" aria-hidden="true">
+            <span>{isDocument ? 'Document' : 'Presentation'}</span>
+            <span>Project</span>
+            <span>Updated</span>
+            <span />
+          </div>
+          <ul className="data-body">
+            {visible.map((item) => (
+              <li key={item.id} className="data-row">
+                <button type="button" className="data-open" onClick={() => open(item)}>
+                  <span className="data-mark" aria-hidden="true">
+                    {isDocument ? <FileIcon size={15} /> : <PresentationIcon size={15} />}
+                  </span>
+                  <span className="data-main">
+                    <span className="data-name">{item.title}</span>
                     {typeof item.slideCount === 'number' && (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <span>
-                          {item.slideCount} {item.slideCount === 1 ? 'slide' : 'slides'}
-                        </span>
-                      </>
+                      <span className="data-sub">
+                        {item.slideCount} {item.slideCount === 1 ? 'slide' : 'slides'}
+                      </span>
                     )}
                   </span>
+                </button>
+
+                <span className="data-cell data-cell--truncate" title={item.projectName}>
+                  {item.projectName}
                 </span>
+                <span className="data-cell">{formatRelative(item.updatedAt)}</span>
+
                 <ChevronRightIcon size={15} className="project-row-chevron" />
-              </button>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </Page>
   )

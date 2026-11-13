@@ -215,7 +215,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <Page title="Home">
+    <Page title="Home" description="Your account, your team, and the work you touched last.">
       {invitations.length > 0 && (
         <section className="home-invites" aria-labelledby="home-invites-title">
           <div className="home-section-head">

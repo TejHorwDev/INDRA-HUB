@@ -12,6 +12,7 @@ import './styles/index.css'
 import './styles/workspace.css'
 import './styles/document.css'
 import './styles/presentation.css'
+import './styles/design.css'
 
 initTheme()
 
