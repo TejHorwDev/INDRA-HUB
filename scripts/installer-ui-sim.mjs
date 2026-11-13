@@ -13,6 +13,7 @@
  */
 import { readFileSync, existsSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -98,6 +99,29 @@ check(
   /\^\[a-zA-Z\]:\\/.test(main),
   'and the main process rejects anything that is not an absolute drive path'
 )
+
+/* ---- 2c. the app gets its own folder inside whatever was chosen ---- */
+
+const { ensureAppFolder } = createRequire(import.meta.url)(join(installer, 'app-folder.js'))
+check(
+  ensureAppFolder('C:\\Users\\A\\Desktop') === 'C:\\Users\\A\\Desktop\\INDRA HUB',
+  'choosing the Desktop installs into Desktop\\INDRA HUB, not loose on it',
+  ensureAppFolder('C:\\Users\\A\\Desktop')
+)
+check(
+  ensureAppFolder('C:\\Apps\\INDRA HUB') === 'C:\\Apps\\INDRA HUB',
+  'a folder already named for the app is left alone'
+)
+check(
+  ensureAppFolder('D:\\Apps\\INDRA HUB\\') === 'D:\\Apps\\INDRA HUB',
+  'and a trailing slash does not create a second one'
+)
+check(ensureAppFolder('') === '', 'an empty choice stays empty')
+
+check(/require\('\.\/app-folder'\)/.test(main), 'the main process uses that rule')
+check(/app-folder\.js/.test(html), 'and so does the page')
+check(/path\.dirname\(suggested\)/.test(main), 'the picker opens where the app would be created')
+check(/dir: target\.dir/.test(main), 'the window is told the folder that was really used')
 
 /* ---- 3. the film: shipped outside the archive, wired end to end ------ */
 
