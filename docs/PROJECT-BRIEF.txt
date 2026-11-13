@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 2.1.2 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.1.3 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            2.1.2
-  Latest release:     v2.1.1
+  Version:            2.1.3
+  Latest release:     v2.1.2
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -521,15 +521,18 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Updates: installed build, running build, update state, "Check for updates",
     "Test connection" (see section 8), copyable technical detail on failure
   - About: a card, not a table — the app's name, the version running and the
-    administrator's portrait (116px, hairline circle, neutral silhouette until
+    administrator's portrait (184px, hairline circle, neutral silhouette until
     one is set). Nothing else: no runtime numbers, and no "you are up to date"
     line, because Settings → Updates already says that. When an update is
     actually downloading or downloaded, a single rail appears with its progress
     and "Restart to update"; otherwise the card stays quiet.
     Inside Settings the card draws no second border — it fills that panel, which
-    is what gives the portrait room. Admin → System keeps the bordered version,
-    and an administrator signed in on this machine can set or replace the
-    portrait from either place; the bytes are signature-checked (PNG/JPEG/WebP),
+    is what gives the portrait room. It is read-only there, always: Settings is
+    a screen any signed-in workspace member can open, so the controls that
+    replace the portrait live only in Admin → System, behind that panel's own
+    sign-in. (The card used to ask whether an administrator was signed in on
+    this machine, which turned one person's session into a Change button for
+    everybody at the PC.) The bytes are signature-checked (PNG/JPEG/WebP),
     copied into the app's media folder and served over IPC, never as a path.
 
     Every portrait change is broadcast (`about:changed`), so a card already open
@@ -571,8 +574,8 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
       publishable key, "Save and test", "Disconnect"). Every IPC call behind
       this section refuses without an administrator session.
     - Activity: the audit log
-    - System: the same About card (with the portrait controls), then database
-      path and size, runtime versions, platform and uptime
+    - System: the same About card — the only place with the portrait controls —
+      then database path and size, runtime versions, platform and uptime
 
 5.9 Developer and credits screens
   - /developers: notes for this build

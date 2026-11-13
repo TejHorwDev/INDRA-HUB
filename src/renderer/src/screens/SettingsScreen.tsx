@@ -363,41 +363,18 @@ function CloudSection() {
 /**
  * About is a card, not a table.
  *
- * The administrator's portrait is editable from here when an administrator is
- * signed in on this machine — the panel is where they manage the app, and the
- * About card is the one place the result is seen. Everyone else sees the same
- * card read-only.
+ * Read-only, always. The portrait belongs to the installation's administrator,
+ * and this screen is one any signed-in *workspace* member can open — so the
+ * controls that replace it live in the administration panel (System), behind
+ * the panel's own sign-in, and here it is only ever seen.
+ *
+ * It used to ask whether an administrator was signed in *on this machine*,
+ * which is a different question: one person's admin session turned "Change"
+ * and "Remove" on for everybody using the PC, and the region around a portrait
+ * that nobody there could actually change looked like a broken control.
  */
 function AboutSection() {
-  const [isAdmin, setIsAdmin] = useState(false)
-
-  /*
-   * The session is checked again whenever the portrait changes, because that
-   * message is sent when an administrator signs out as well. Without it this
-   * panel kept offering "Change photo" to somebody who no longer had the right
-   * to use it, and the refusal only showed up after they tried.
-   */
-  useEffect(() => {
-    let active = true
-    const read = (): void => {
-      api.admin
-        .status()
-        .then((status) => {
-          if (active) setIsAdmin(Boolean(status.configured && status.signedIn))
-        })
-        .catch(() => {
-          if (active) setIsAdmin(false)
-        })
-    }
-    read()
-    const off = api.about.onChange(read)
-    return () => {
-      active = false
-      off()
-    }
-  }, [])
-
-  return <AboutCard canEditDeveloper={isAdmin} variant="plain" />
+  return <AboutCard variant="plain" />
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

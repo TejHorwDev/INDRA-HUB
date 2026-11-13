@@ -15,7 +15,7 @@
  *
  *   npm run sim:about
  */
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -195,6 +195,38 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   check(readdirSync(media).length === 0, 'and deletes the file')
   check(about.readDeveloperPhotoFile() === null, 'with nothing left to serve')
   check(about.readAbout().version === cleared.version, 'the version is unaffected by any of this')
+
+  /* ---------------- the portrait can only be changed from the panel ---------------- */
+
+  /*
+   * The About card is on a screen every signed-in workspace member can open.
+   * Its controls must therefore never be rendered there — and they were, once,
+   * because the card asked whether an administrator was signed in *on this
+   * machine*, which turns one person's session into a button for everyone at
+   * the PC. This is a source check rather than a render, because the rule is
+   * about which screen asks for the editable variant.
+   */
+  const settings = readFileSync(
+    join(root, 'src/renderer/src/screens/SettingsScreen.tsx'),
+    'utf8'
+  )
+  const settingsCard = settings.match(/<AboutCard[^/>]*\/?>/)?.[0] ?? ''
+  check(
+    settingsCard !== '' && !/canEditDeveloper/.test(settingsCard),
+    'Settings shows the About card read-only',
+    settingsCard
+  )
+  check(
+    !/api\.admin/.test(settings.split('function AboutSection')[1]?.slice(0, 400) ?? ''),
+    'and the About section reads no administrator session at all'
+  )
+
+  const system = readFileSync(join(root, 'src/renderer/src/screens/admin/SystemSection.tsx'), 'utf8')
+  check(
+    /<AboutCard canEditDeveloper/.test(system),
+    'the administration panel is the one place that offers the controls',
+    system.match(/<AboutCard[^>]*>/)?.[0]
+  )
 
   console.log(
     failures === 0 ? '\n✓ the portrait is validated, replaced cleanly, and served as bytes' : `\n${failures} check(s) failed`

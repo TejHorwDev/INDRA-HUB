@@ -7518,17 +7518,22 @@ body {
   flex: none;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  /* Never narrower than the portrait, whatever the caption or tools say. */
-  min-width: 116px;
+  gap: 10px;
+  /* Never narrower than the portrait, whatever the caption says. */
+  min-width: 184px;
   margin: 0;
 }
 
+/*
+ * The portrait is the point of this card, so it is sized like it. At 116px it
+ * read as an avatar in a corner; at 184 it is a portrait, the face is
+ * recognisable, and the circle balances the name and version on the other side.
+ */
 .about-portrait {
   display: grid;
   place-items: center;
-  width: 116px;
-  height: 116px;
+  width: 184px;
+  height: 184px;
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 50%;
@@ -7544,6 +7549,12 @@ body {
 
 .about-portrait-mark {
   color: var(--ink-tertiary);
+}
+
+/* A slightly thicker edge so a large circle of dark ink reads as a frame, not a
+   smudge against the card behind it. */
+.about-portrait img {
+  border: 0;
 }
 
 .about-dev figcaption {
@@ -7673,8 +7684,8 @@ body {
   }
 
   .about-portrait {
-    width: 92px;
-    height: 92px;
+    width: 132px;
+    height: 132px;
   }
 
   .about-name {
