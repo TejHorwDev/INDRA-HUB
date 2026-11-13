@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { InvitationSummary, SharedInvitation, TeamDetail, TeamOverview } from '@shared/types'
+import type {
+  InvitationSummary,
+  ProjectSummary,
+  SharedInvitation,
+  TeamDetail,
+  TeamOverview
+} from '@shared/types'
 import AddTeamMemberDialog from '../components/AddTeamMemberDialog'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
+import ProjectCard from '../components/ProjectCard'
 import TeamNameDialog from '../components/TeamNameDialog'
 import { useToast } from '../components/ToastProvider'
 import { FolderIcon, MailIcon, UsersIcon, XIcon } from '../components/icons'
@@ -61,8 +68,32 @@ export default function HomeScreen() {
    * connection to fetch them with. Offline, the section simply is not there,
    * which is honest: unanswered questions will still be waiting later.
    */
+  /*
+   * The work most recently touched, so Home is a place to continue rather than
+   * a place to look at yourself. It is the same list the Projects page reads;
+   * nothing is computed and nothing is invented — four cards, in the order the
+   * projects already come in.
+   */
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
+
   const [remoteInvites, setRemoteInvites] = useState<SharedInvitation[]>([])
   const [answeringRemote, setAnsweringRemote] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.projects
+      .list()
+      .then((list) => {
+        if (!cancelled) setProjects(list.slice(0, 3))
+      })
+      .catch(() => {
+        // Home is still useful without them; the Projects page owns the error.
+        if (!cancelled) setProjects([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (offline) {
@@ -299,15 +330,23 @@ export default function HomeScreen() {
 
       <div className="home">
         <section className="home-profile">
-          <span className="avatar avatar--lg" style={{ '--tone': toneOf(user?.id ?? '') } as CSSProperties}>
-            {initialsOf(user?.displayName ?? '')}
-          </span>
+          {/*
+            * Identity reads as one block: the monogram and the two lines that
+            * name the account sit together in a header, the address is a row
+            * of its own, and the footer carries the only two facts left.
+            */}
+          <div className="home-profile-head">
+            <span className="avatar avatar--lg" style={{ '--tone': toneOf(user?.id ?? '') } as CSSProperties}>
+              {initialsOf(user?.displayName ?? '')}
+            </span>
 
-          <div className="home-profile-text">
-            <h2 className="home-name">{user?.displayName}</h2>
-            <p className="home-handle">@{user?.username}</p>
-            <p className="home-email">{user?.email}</p>
+            <div className="home-profile-text">
+              <h2 className="home-name">{user?.displayName}</h2>
+              <p className="home-handle">@{user?.username}</p>
+            </div>
           </div>
+
+          <p className="home-email">{user?.email}</p>
 
           <div className="home-profile-actions">
             <span className="home-since">
@@ -455,6 +494,30 @@ export default function HomeScreen() {
           )}
         </section>
       </div>
+
+      {projects.length > 0 && (
+        <section className="home-recents" aria-labelledby="home-recents-title">
+          <div className="home-section-head">
+            <h2 id="home-recents-title" className="home-section-title">
+              Recent projects
+            </h2>
+            <span className="home-count">{projects.length}</span>
+            <Link to="/dashboard" className="link home-section-actions">
+              All projects
+            </Link>
+          </div>
+
+          <ul className="project-list project-list--three">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onOpen={() => navigate(`/project/${project.id}`)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {memberOf.length > 0 && (
         <section className="home-memberof" aria-labelledby="home-memberof-title">

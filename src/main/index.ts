@@ -46,7 +46,9 @@ app.on('second-instance', () => {
  * first frame does not flash a shade that is about to be replaced.
  */
 function windowBackground(): string {
-  return nativeTheme.shouldUseDarkColors ? '#0a0a0b' : '#f4f4f5'
+  // Matches --bg in index.css for each theme, so a resize never flashes a
+  // different black than the app paints.
+  return nativeTheme.shouldUseDarkColors ? '#08090a' : '#f7f7f8'
 }
 
 function createWindow(): void {

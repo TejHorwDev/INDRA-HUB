@@ -206,7 +206,7 @@
   }
 
   .dark ::selection {
-    background: rgba(180, 68, 77, 0.34);
+    background: rgba(255, 255, 255, 0.18);
   }
 
   :focus-visible {
@@ -2499,10 +2499,10 @@
     height: 2px;
     background-image: linear-gradient(
       90deg,
-      var(--accent) 0%,
-      rgba(163, 59, 67, 0.55) 34%,
-      rgba(163, 59, 67, 0.16) 68%,
-      rgba(163, 59, 67, 0) 100%
+      var(--ink) 0%,
+      rgba(255, 255, 255, 0.5) 34%,
+      rgba(255, 255, 255, 0.14) 68%,
+      rgba(255, 255, 255, 0) 100%
     );
   }
 
@@ -6236,4 +6236,383 @@ body {
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.019em;
+}
+
+/* ================================================================== *
+ * 2.0 — monochrome
+ *
+ * No colour at all. The interface is black, greys and white; emphasis comes
+ * from contrast, weight and space, never from a hue. A primary action is a
+ * white pane on a black canvas (and the reverse in light mode), selection is
+ * a hairline of white, and avatars are neutral rather than tinted.
+ *
+ * This block supersedes the palette above; nothing else in the app knows a
+ * colour, so nothing else had to change.
+ * ================================================================== */
+
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-subtle: #f0f0f1;
+  --surface-raised: #ffffff;
+  --chrome: #fbfbfc;
+  --line: #e4e4e6;
+  --line-strong: #cfd0d3;
+  --hairline: rgba(9, 9, 11, 0.05);
+  --edge-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --wash-top: none;
+
+  --ink: #0b0c0d;
+  --ink-secondary: #55575c;
+  --ink-tertiary: #8a8c91;
+
+  /* The "accent" is ink: black on paper, white on charcoal. */
+  --accent: #0b0c0d;
+  --accent-hover: #232427;
+  --accent-active: #000000;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(9, 9, 11, 0.055);
+  --accent-ring: rgba(9, 9, 11, 0.4);
+
+  --danger: #3a3c41;
+  --danger-soft: rgba(9, 9, 11, 0.05);
+  --success: #3a3c41;
+  --success-soft: rgba(9, 9, 11, 0.05);
+  --warning: #4a4c51;
+
+  --shadow-1: 0 1px 2px rgba(9, 9, 11, 0.06);
+  --shadow-2: 0 6px 18px -8px rgba(9, 9, 11, 0.18);
+  --shadow-3: 0 24px 48px -20px rgba(9, 9, 11, 0.28);
+}
+
+.dark {
+  --bg: #08090a;
+  --surface: #0f1012;
+  --surface-subtle: #16171a;
+  --surface-raised: #1b1c20;
+  --chrome: #0b0c0d;
+  --line: #202126;
+  --line-strong: #303238;
+  --hairline: rgba(255, 255, 255, 0.05);
+  --edge-top: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+
+  --ink: #f5f5f6;
+  --ink-secondary: #a4a6ab;
+  --ink-tertiary: #6b6e74;
+
+  --accent: #f5f5f6;
+  --accent-hover: #ffffff;
+  --accent-active: #e2e2e4;
+  --accent-ink: #08090a;
+  --accent-soft: rgba(255, 255, 255, 0.07);
+  --accent-ring: rgba(255, 255, 255, 0.45);
+
+  --danger: #e4e4e6;
+  --danger-soft: rgba(255, 255, 255, 0.06);
+  --success: #d7d8db;
+  --success-soft: rgba(255, 255, 255, 0.06);
+  --warning: #cfcfd2;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --shadow-2: 0 10px 24px -12px rgba(0, 0, 0, 0.85);
+  --shadow-3: 0 30px 60px -24px rgba(0, 0, 0, 0.9), 0 8px 24px -14px rgba(0, 0, 0, 0.8);
+}
+
+/* ---------------- primary action ---------------- */
+/*
+ * A white pane on charcoal. This is the only filled control in the app, which
+ * is what makes it read as the one thing to press.
+ */
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  background-color: var(--accent-active);
+}
+
+.dark .btn-primary {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset;
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+}
+
+/* ---------------- avatars ---------------- */
+/*
+ * Neutral by design: a person is a person, not a hue. The initial carries the
+ * identity; the tone only shifts the grey by a couple of steps so a roster of
+ * ten is still distinguishable at a glance.
+ */
+.avatar {
+  border: 1px solid var(--line-strong);
+  background-color: var(--surface-subtle);
+  color: var(--ink-secondary);
+}
+
+.dark .avatar {
+  border-color: var(--line-strong);
+  background-color: var(--surface-raised);
+  color: var(--ink);
+}
+
+.avatar--lg {
+  width: 44px;
+  height: 44px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* ---------------- selection ---------------- */
+/*
+ * Selected = white text, a raised surface and a 2px white mark on the left.
+ * No wash, no glow.
+ */
+.sidebar-item {
+  border-radius: 6px;
+}
+
+.sidebar-item--active {
+  background-color: var(--surface-subtle);
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.sidebar-item--active .sidebar-icon {
+  color: var(--ink);
+}
+
+.sidebar-item:hover {
+  background-color: var(--surface-subtle);
+}
+
+.sidebar-item:hover .sidebar-icon {
+  color: var(--ink-secondary);
+}
+
+/* ---------------- badges ---------------- */
+/*
+ * A chip is an outline, not a colour: one hairline, one capital letter-height
+ * label. The "Head developer" chip is white-on-charcoal, which is the whole
+ * emphasis budget for a row.
+ */
+.badge {
+  border-color: var(--line);
+  background-color: transparent;
+  color: var(--ink-tertiary);
+  font-weight: 550;
+  letter-spacing: 0.03em;
+}
+
+.badge--accent {
+  border-color: color-mix(in srgb, var(--ink) 24%, transparent);
+  background-color: var(--surface-raised);
+  color: var(--ink);
+}
+
+.member-you {
+  border: 1px solid var(--line);
+  background-color: transparent;
+  color: var(--ink-tertiary);
+}
+
+/* ---------------- destructive ---------------- */
+/*
+ * Monochrome, so a destructive action is marked by an underline and a weight
+ * rather than by a colour. The confirmation dialog is where the warning lives.
+ */
+.link-btn--danger {
+  color: var(--ink-secondary);
+  text-decoration-color: var(--line-strong);
+}
+
+.link-btn--danger:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------------- home + recents ---------------- */
+
+.home {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 14px;
+  margin-top: 2px;
+}
+
+.home-profile,
+.home-team {
+  border-radius: 10px;
+  background-color: var(--surface);
+}
+
+.home-profile {
+  gap: 14px;
+  padding: 18px;
+}
+
+.home-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.home-profile-text {
+  min-width: 0;
+}
+
+.home-name {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.home-handle {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--ink-tertiary);
+}
+
+.home-email {
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  color: var(--ink-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-profile-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.home-since {
+  font-size: var(--fs-xs);
+  color: var(--ink-tertiary);
+}
+
+.home-team-name {
+  margin-top: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-transform: none;
+}
+
+.home-team-foot {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.home-recents {
+  margin-top: 26px;
+}
+
+.home-recents .project-list {
+  margin-top: 10px;
+}
+
+.project-list--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1040px) {
+  .project-list--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .project-list--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A quieter card in the recents strip: one line of meta, no description. */
+.project-list--three .project-row {
+  min-height: 76px;
+}
+
+/* ---------------- monochrome details ---------------- */
+
+.home-count {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+  background-color: transparent;
+  color: var(--ink-tertiary);
+  font-size: 0.6875rem;
+}
+
+.home-section-title {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  letter-spacing: 0.13em;
+}
+
+.invite-sent {
+  background-color: var(--surface-subtle);
+  color: var(--ink-secondary);
+}
+
+.conflict-bar {
+  border-color: var(--line-strong);
+  background-color: var(--surface-subtle);
+}
+
+.conflict-mark {
+  background-color: var(--surface-raised);
+  color: var(--ink);
+}
+
+/* Both cards fill the row: the identity block and the team are one band across
+   the page, not two articles of different heights. */
+.home {
+  align-items: stretch;
+}
+
+.home-team {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-team-foot {
+  margin-top: auto;
+}
+
+/* A roster row is a name and a handle on one line each, 6px apart, with the
+   avatar doing the separation. Nothing on the row needs a box. */
+.member {
+  padding: 7px 0;
+}
+
+.member-name {
+  font-size: var(--fs-sm);
+  font-weight: 550;
+}
+
+.member-handle {
+  font-size: var(--fs-xs);
+  color: var(--ink-tertiary);
+}
+
+.member-list--flat {
+  margin-top: 10px;
 }
