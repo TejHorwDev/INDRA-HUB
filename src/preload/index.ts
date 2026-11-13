@@ -27,6 +27,8 @@ import type {
   ProjectDetail,
   ProjectGraph,
   ProjectSummary,
+  TeamDetail,
+  TeamOverview,
   RegisterInput,
   WorkspaceClaimInput,
   WorkspaceCredentialsInput,
@@ -78,6 +80,21 @@ const api = {
   users: {
     search: (input: { projectId: string; query: string }): Promise<ApiResult<UserSummary[]>> =>
       ipcRenderer.invoke('users:search', input)
+  },
+
+  team: {
+    read: (): Promise<ApiResult<TeamOverview>> => ipcRenderer.invoke('team:read'),
+    create: (input: { name?: string }): Promise<ApiResult<TeamDetail>> =>
+      ipcRenderer.invoke('team:create', input),
+    rename: (input: { name?: string }): Promise<ApiResult<TeamDetail>> =>
+      ipcRenderer.invoke('team:rename', input),
+    remove: (): Promise<ApiResult<TeamOverview>> => ipcRenderer.invoke('team:delete'),
+    addMember: (userId: string): Promise<ApiResult<TeamDetail>> =>
+      ipcRenderer.invoke('team:add-member', userId),
+    removeMember: (userId: string): Promise<ApiResult<TeamDetail>> =>
+      ipcRenderer.invoke('team:remove-member', userId),
+    search: (query: string): Promise<ApiResult<UserSummary[]>> =>
+      ipcRenderer.invoke('team:search', query)
   },
 
   projects: {

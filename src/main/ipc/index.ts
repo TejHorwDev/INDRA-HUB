@@ -100,6 +100,15 @@ import {
 } from '../services/appearance'
 import { checkForUpdates, diagnoseConnection, installUpdate, updateState } from '../services/updates'
 import {
+  addTeamMember,
+  createTeam,
+  deleteTeam,
+  removeTeamMember,
+  renameTeam,
+  searchTeamCandidates,
+  teamOverview
+} from '../services/teams'
+import {
   backendStatus,
   clearBackendConfig,
   saveBackendConfig,
@@ -265,6 +274,36 @@ export function registerIpcHandlers(): void {
   )
 
   /* ---------------- projects ---------------- */
+  /* ---------------- teams ---------------- */
+  /*
+   * Every call resolves the caller in the main process. Ownership is checked
+   * inside the service, so a member of somebody else's team can read the
+   * roster and cannot change it.
+   */
+  ipcMain.handle('team:read', () => toResult(() => teamOverview(actor())))
+
+  ipcMain.handle('team:create', (_event, input: { name?: string } | undefined) =>
+    toResult(() => createTeam(actor(), input))
+  )
+
+  ipcMain.handle('team:rename', (_event, input: { name?: string } | undefined) =>
+    toResult(() => renameTeam(actor(), input ?? {}))
+  )
+
+  ipcMain.handle('team:delete', () => toResult(() => deleteTeam(actor())))
+
+  ipcMain.handle('team:add-member', (_event, userId: unknown) =>
+    toResult(() => addTeamMember(actor(), userId))
+  )
+
+  ipcMain.handle('team:remove-member', (_event, userId: unknown) =>
+    toResult(() => removeTeamMember(actor(), userId))
+  )
+
+  ipcMain.handle('team:search', (_event, query: unknown) =>
+    toResult(() => searchTeamCandidates(actor(), query))
+  )
+
   ipcMain.handle('projects:list', () => toResult(() => listProjects(actor())))
 
   ipcMain.handle('projects:create', (_event, input: CreateProjectInput) =>

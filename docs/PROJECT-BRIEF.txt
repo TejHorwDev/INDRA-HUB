@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.6.3
-  Latest release:     v1.6.3 (GitHub, public)
+  Version:            1.6.4
+  Latest release:     v1.6.4 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
+v1.6.4.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -83,7 +84,13 @@ nobody, and claiming publishes what the claiming machine already had. 1.6.3
 took the rail away again: one centred column on an edgeless veil — a
 darkening and a blur that both fade out radially — with the wordmark and foot
 line gone, the heading reading Authentication, a gmail placeholder and a Caps
-Lock warning on the password field.
+Lock warning on the password field. 1.6.4 adds a Home screen above Projects
+where an account sees itself and its team, and gives teams a real service in
+the main process: one team per owner, a roster of up to fifty, additions by
+searching existing accounts, removal, rename and delete, all gated by
+ownership. It also rebuilt the three caption buttons in the title bar, which
+had been full-height blocks with a flat colour swap, and now carry a real
+hover, a press state and a red close.
 
 
 3. STACK
@@ -142,12 +149,14 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 --------------------
 
 5.1 Accounts and sessions
-  - Signed-out shell: a full-height rail on the right edge carries the form
-    over the stage. With the administrator's background video installed the stage is
-    the film and the rail becomes glass across it — no card, no border and no
-    seam, because the glass fades out toward the stage; the brand sits at the
-    top of the rail and one quiet line at the foot. Only the form scrolls, so a
-    short window never hides the brand or the foot line.
+  - Signed-out shell (1.6.3): the form sits in one centred column on an
+    edgeless veil. No card, no border, no wordmark and no foot line — the only
+    things on the screen are the heading, the fields, one button and one link.
+    With the administrator's background video installed the film plays behind
+    that column under a darkening and a blur, both faded out radially so the
+    edges fall back to the desktop instead of framing a box. The column centres
+    with margin-block so it still scrolls on a short window rather than being
+    clipped.
   - Local registration with username, display name, email, password
   - Sign in with username OR email
   - scrypt hashing with per-record salt; constant-time verification
@@ -169,7 +178,20 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     activity line along the bottom edge. Same hairline grid as the sign-in
     canvas, light and dark, and it collapses to one column at narrow widths.
 
-5.2 Projects and teams
+5.2 Home, teams and projects
+  - Home is the first screen after signing in and the first item in the
+    sidebar. Two panels and no more: the account (monogram, name, handle,
+    email, member since, a link to settings) and the team.
+  - One team per owner, created in place, renamed in place, deleted behind a
+    confirmation. The roster lists the owner first, then members; a member is
+    removed from the row itself. "Add member" searches registered accounts and
+    offers only people who could actually join — never the owner, never
+    somebody already on the roster, never a suspended account.
+  - Being a member of somebody else's team is read-only and shows under
+    "Member of"; ownership is checked in the service on every write, not in
+    the renderer.
+  - Teams are not projects: nothing in a project's data or permissions depends
+    on them, and deleting a team touches no account and no document.
   - Create, rename, delete projects; each has a description
   - Owner/member model stored in project_members
   - Add members by searching existing users (username, display name, email —
@@ -260,14 +282,18 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 
 6. DATA MODEL (SQLite)
 ----------------------
-Thirteen tables, created by ordered migrations in src/main/db/schema.ts; the
+Fifteen tables, created by ordered migrations in src/main/db/schema.ts; the
 schema version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the
-number of migrations.
+number of migrations (seven, the last of which added teams).
 
   users              id, username, display_name, email, password_hash,
                      password_salt, created_at, suspended_at
   projects           id, name, description, owner_id, created_at, updated_at
   project_members    project_id, user_id, added_at
+  teams              id, name, owner_id, created_at, updated_at — one per
+                     owner, enforced by a unique index on owner_id
+  team_members       team_id, user_id, role, joined_at; the owner is not a
+                     row here, a trigger refuses any attempt to insert one
   documents          id, project_id, title, content (JSON blocks), version,
                      created_by, created_at, updated_at
   document_versions  id, document_id, version, content, created_at
@@ -625,6 +651,7 @@ them is a regression, not a design choice.
                                bucket and Realtime publication
   src/main/services/auth.ts    registration, sign in, sessions, throttling
   src/main/services/documents.ts / presentations.ts / projects.ts / graph.ts
+  src/main/services/teams.ts   home-screen teams: ownership, roster, search
   src/main/lib/convert.ts      deterministic document → deck conversion
   src/main/lib/sanitize.ts     the tag/attribute allowlist
   src/main/db/schema.ts        tables and migrations
@@ -634,6 +661,7 @@ them is a regression, not a design choice.
   scripts/updater-sim.mjs      end-to-end updater simulation (npm run sim:update)
   scripts/admin-sim.mjs        administrator seeding/sign-in test (npm run sim:admin)
   scripts/appearance-sim.mjs   background-video pipeline test (npm run sim:appearance)
+  scripts/team-sim.mjs         team ownership and roster test (npm run sim:team)
   supabase/schema.sql          cloud tables (applied)
   supabase/auth.sql            identity + RLS layer (applied)
   docs/SUPABASE.md             the staged Supabase plan and what is proven

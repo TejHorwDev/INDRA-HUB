@@ -29,6 +29,8 @@ import type {
   ProjectDetail,
   ProjectGraph,
   ProjectSummary,
+  TeamDetail,
+  TeamOverview,
   RegisterInput,
   BackendConfigInput,
   BackendStatus,
@@ -63,6 +65,16 @@ export interface IndraBridge {
   users: {
     search: (input: { projectId: string; query: string }) => Promise<ApiResult<UserSummary[]>>
   }
+  team: {
+    read: () => Promise<ApiResult<TeamOverview>>
+    create: (input: { name?: string }) => Promise<ApiResult<TeamDetail>>
+    rename: (input: { name?: string }) => Promise<ApiResult<TeamDetail>>
+    remove: () => Promise<ApiResult<TeamOverview>>
+    addMember: (userId: string) => Promise<ApiResult<TeamDetail>>
+    removeMember: (userId: string) => Promise<ApiResult<TeamDetail>>
+    search: (query: string) => Promise<ApiResult<UserSummary[]>>
+  }
+
   projects: {
     list: () => Promise<ApiResult<ProjectSummary[]>>
     create: (input: CreateProjectInput) => Promise<ApiResult<ProjectDetail>>

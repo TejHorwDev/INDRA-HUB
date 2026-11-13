@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import type { ReactNode } from 'react'
-import { initialsOf } from '../lib/format'
+import type { CSSProperties, ReactNode } from 'react'
+import { initialsOf, toneOf } from '../lib/format'
 import { useSession } from '../lib/session'
 import {
   ChevronLeftIcon,
   CodeIcon,
   DashboardIcon,
+  HomeIcon,
   SettingsIcon,
   SignOutIcon,
   SparkIcon
@@ -29,7 +30,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Workspace',
     items: [
-      { to: '/dashboard', label: 'Dashboard', icon: <DashboardIcon size={16} /> },
+      { to: '/home', label: 'Home', icon: <HomeIcon size={16} /> },
+      { to: '/dashboard', label: 'Projects', icon: <DashboardIcon size={16} /> },
       { to: '/developers', label: 'Developers', icon: <CodeIcon size={16} /> }
     ]
   },
@@ -96,7 +98,9 @@ export default function Sidebar() {
             className="sidebar-user"
             title={collapsed ? `${user.displayName} (@${user.username})` : undefined}
           >
-            <span className="avatar">{initialsOf(user.displayName)}</span>
+            <span className="avatar" style={{ '--tone': toneOf(user.id) } as CSSProperties}>
+              {initialsOf(user.displayName)}
+            </span>
             <span className="sidebar-label sidebar-user-text">
               <span className="sidebar-user-name">{user.displayName}</span>
               <span className="sidebar-user-handle">@{user.username}</span>

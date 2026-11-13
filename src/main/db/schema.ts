@@ -194,6 +194,37 @@ const MIGRATIONS: string[] = [
     ('login_background_asset', '', datetime('now')),
     ('login_background_blur', '18', datetime('now')),
     ('login_background_dim', '46', datetime('now'));
+  `,
+
+  /* 7 — teams: one per owner, with a roster of colleagues */ `
+  CREATE TABLE teams (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    owner_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  /* One team per person, enforced by the database rather than the UI. */
+  CREATE UNIQUE INDEX teams_owner_idx ON teams(owner_id);
+
+  CREATE TABLE team_members (
+    team_id   TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role      TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member')),
+    joined_at TEXT NOT NULL,
+    PRIMARY KEY (team_id, user_id)
+  );
+
+  CREATE INDEX team_members_user_idx ON team_members(user_id);
+
+  /* The owner is the team, never an ordinary member row. */
+  CREATE TRIGGER team_members_reject_owner
+  BEFORE INSERT ON team_members
+  WHEN NEW.user_id = (SELECT owner_id FROM teams WHERE id = NEW.team_id)
+  BEGIN
+    SELECT RAISE(ABORT, 'owner_cannot_be_member');
+  END;
   `
 ]
 

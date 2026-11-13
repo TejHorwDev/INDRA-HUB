@@ -1,6 +1,6 @@
 {
   "name": "indra-hub",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "private": true,
   "description": "INDRA HUB — desktop workspace",
   "author": "TejHorwDev",
@@ -20,7 +20,8 @@
     "sim:admin": "node scripts/admin-sim.mjs",
     "sim:maintenance": "node scripts/maintenance-sim.mjs",
     "sim:appearance": "node scripts/appearance-sim.mjs",
-    "sim:workspace": "node scripts/workspace-sim.mjs"
+    "sim:workspace": "node scripts/workspace-sim.mjs",
+    "sim:team": "node scripts/team-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

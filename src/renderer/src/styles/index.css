@@ -745,7 +745,7 @@
     display: flex;
     flex: none;
     align-items: center;
-    height: 44px;
+    height: 46px;
     border-bottom: 1px solid var(--line);
     background-color: var(--surface);
     -webkit-app-region: drag;
@@ -757,28 +757,30 @@
     flex: none;
     align-items: center;
     gap: 10px;
-    padding-left: 16px;
+    padding-left: 18px;
     white-space: nowrap;
   }
 
   .brand-name {
     font-family: var(--font-display-stack);
-    font-size: var(--fs-xs);
-    font-weight: 650;
-    letter-spacing: 0.15em;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.17em;
     text-transform: uppercase;
     color: var(--ink);
   }
 
   .brand-sep {
     width: 1px;
-    height: 12px;
+    height: 11px;
     background-color: var(--line-strong);
+    opacity: 0.8;
   }
 
   .titlebar-label {
     font-size: var(--fs-sm);
     font-weight: 500;
+    letter-spacing: -0.005em;
     color: var(--ink-tertiary);
     white-space: nowrap;
   }
@@ -794,41 +796,70 @@
 
   .window-controls {
     display: flex;
-    align-items: stretch;
+    align-items: center;
+    gap: 2px;
     height: 100%;
+    padding-right: 5px;
     -webkit-app-region: no-drag;
   }
 
   .window-control {
     display: grid;
     place-items: center;
-    width: 46px;
-    height: 100%;
+    width: 44px;
+    height: 30px;
     padding: 0;
+    border-radius: 7px;
     border: 0;
     background-color: transparent;
     color: var(--ink-secondary);
     cursor: default;
     transition:
-      background-color var(--dur-fast) var(--ease),
-      color var(--dur-fast) var(--ease);
+      background-color 110ms var(--ease),
+      color 110ms var(--ease);
   }
 
+  .window-control svg {
+    transition: transform 110ms var(--ease);
+  }
+
+  /* The three caption buttons follow the Windows convention: a flat wash that
+     is strong enough to read as a hit area, an icon that darkens with it, and
+     a press that is a shade deeper still. */
   .window-control:hover {
-    background-color: var(--surface-subtle);
+    background-color: color-mix(in srgb, var(--ink) 8%, transparent);
     color: var(--ink);
   }
 
-  /* Windows 11 convention: close is the one control that turns red. */
+  .window-control:active {
+    background-color: color-mix(in srgb, var(--ink) 14%, transparent);
+  }
+
+  .window-control:active svg {
+    transform: scale(0.9);
+  }
+
+  /*
+   * Close is the one control that turns red, but it turns red the way this app
+   * uses colour: a quiet tint on approach, and a full, unmistakable fill only
+   * once the button is actually pressed. A saturated rectangle under the
+   * pointer on a white bar would be the loudest thing on the screen.
+   */
   .window-control--close:hover {
+    background-color: color-mix(in srgb, #c42b1c 11%, transparent);
+    color: #b0261a;
+  }
+
+  .dark .window-control--close:hover {
+    background-color: color-mix(in srgb, #ff6a5c 16%, transparent);
+    color: #ff8f84;
+  }
+
+  .window-control--close:active {
     background-color: #c42b1c;
     color: #ffffff;
   }
 
-  .window-control--close:active {
-    background-color: #b02718;
-    color: #ffffff;
-  }
 
   .icon-button {
     display: grid;
@@ -854,11 +885,15 @@
 
   /* A red focus ring reads as an error, so icon buttons focus in ink. */
   .icon-button:focus-visible,
-  .window-control:focus-visible,
   .sidebar-item:focus-visible,
   .project-row:focus-visible {
     outline: 2px solid var(--ink-tertiary);
     outline-offset: 1px;
+  }
+
+  .window-control:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   .icon-button:disabled {
@@ -872,11 +907,11 @@
     display: flex;
     align-items: center;
     width: 100%;
-    max-width: 300px;
+    max-width: 340px;
     height: 28px;
-    padding: 0 60px 0 30px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
+    padding: 0 60px 0 31px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
     background-color: var(--surface-subtle);
     color: var(--ink-tertiary);
     font-size: var(--fs-sm);
@@ -893,6 +928,12 @@
     border-color: var(--line-strong);
     background-color: var(--surface-raised);
     color: var(--ink-secondary);
+  }
+
+  .search-trigger:focus-visible {
+    outline: none;
+    border-color: var(--line-strong);
+    box-shadow: 0 0 0 2px var(--accent-ring);
   }
 
   .search-trigger:active {
@@ -4134,6 +4175,356 @@
   }
 
   /* ---------------- entrance animation ---------------- */
+  /* ---------------- home ---------------- */
+  /*
+   * Two panels and nothing else: the account on the left, the team on the
+   * right. The page is a place to stand, not a dashboard of widgets.
+   */
+  .home {
+    display: grid;
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  @media (max-width: 940px) {
+    .home {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .home-profile,
+  .home-team {
+    min-width: 0;
+    padding: var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background-color: var(--surface);
+  }
+
+  .home-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .home-profile-text {
+    min-width: 0;
+  }
+
+  .home-name {
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    color: var(--ink);
+  }
+
+  .home-handle {
+    margin-top: 3px;
+    font-size: var(--fs-sm);
+    color: var(--ink-secondary);
+  }
+
+  .home-email {
+    margin-top: 1px;
+    font-size: var(--fs-sm);
+    color: var(--ink-tertiary);
+    overflow-wrap: anywhere;
+  }
+
+  .home-profile-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: 2px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+
+  .home-since {
+    font-size: var(--fs-xs);
+    color: var(--ink-tertiary);
+  }
+
+  .home-link {
+    font-size: var(--fs-sm);
+    color: var(--ink-secondary);
+    text-underline-offset: 3px;
+  }
+
+  .home-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+
+  .home-section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .home-section-title {
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  .home-count {
+    font-size: var(--fs-xs);
+    color: var(--ink-tertiary);
+  }
+
+  .home-section-actions {
+    display: flex;
+    gap: 14px;
+    margin-left: auto;
+  }
+
+  .link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: var(--fs-sm);
+    color: var(--ink-tertiary);
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease);
+  }
+
+  .link-btn:hover {
+    color: var(--ink);
+  }
+
+  .link-btn--danger:hover {
+    color: var(--danger);
+  }
+
+  .home-team-name {
+    margin-top: 12px;
+    font-size: var(--fs-md);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+  }
+
+  .home-error {
+    margin-top: 12px;
+    font-size: var(--fs-sm);
+    color: var(--danger);
+  }
+
+  .home-team-foot {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+
+  .home-memberof {
+    margin-top: var(--space-4);
+    padding: var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background-color: var(--surface);
+  }
+
+  /* The empty state inside the team panel: same language, no second box. */
+  .home-team .empty-state {
+    margin-top: 10px;
+    padding: 18px 0 6px;
+    border: 0;
+    background-color: transparent;
+  }
+
+  /* ---------------- people ---------------- */
+  /* A monogram, one hue per account, so the same person is recognisable in the
+     roster, in a search result and anywhere else a face would go. */
+  .avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-pill);
+    border: 1px solid hsl(var(--tone, 220) 30% 84%);
+    background-color: hsl(var(--tone, 220) 44% 93%);
+    color: hsl(var(--tone, 220) 38% 32%);
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    user-select: none;
+  }
+
+  .dark .avatar {
+    border-color: hsl(var(--tone, 220) 22% 27%);
+    background-color: hsl(var(--tone, 220) 26% 19%);
+    color: hsl(var(--tone, 220) 52% 80%);
+  }
+
+  .avatar--lg {
+    width: 48px;
+    height: 48px;
+    font-size: var(--fs-md);
+    letter-spacing: 0.03em;
+  }
+
+  .member-list {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+  }
+
+  .member-list--flat {
+    margin-top: 6px;
+  }
+
+  .member {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 7px 6px;
+    margin-inline: -6px;
+    border-radius: var(--radius);
+    transition: background-color var(--dur-fast) var(--ease);
+  }
+
+  .member:hover {
+    background-color: var(--surface-subtle);
+  }
+
+  .member-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .member-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: var(--fs-base);
+    color: var(--ink);
+  }
+
+  .member-you {
+    font-size: var(--fs-2xs);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  .member-handle {
+    font-size: var(--fs-xs);
+    color: var(--ink-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Removal is available, not advertised: it appears when the row is hovered or
+     when it is reached with the keyboard, so the list stays calm. */
+  .member-remove {
+    width: 26px;
+    height: 26px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+
+  .member:hover .member-remove,
+  .member-remove:focus-visible {
+    opacity: 1;
+  }
+
+  .member-remove:hover:not(:disabled) {
+    color: var(--danger);
+  }
+
+  /* ---------------- add-to-team search ---------------- */
+  .member-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .member-search-icon {
+    position: absolute;
+    left: 11px;
+    color: var(--ink-tertiary);
+    pointer-events: none;
+  }
+
+  .member-search-input {
+    height: 38px;
+
+    padding-left: 34px;
+  }
+
+  .member-results {
+    min-height: 172px;
+    max-height: 284px;
+    margin-top: 10px;
+    padding: 0 12px 12px;
+    overflow-y: auto;
+  }
+
+  .member-empty {
+    padding: 26px 10px;
+    font-size: var(--fs-sm);
+    color: var(--ink-tertiary);
+    text-align: center;
+  }
+
+  .member-choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px;
+    border: 0;
+    border-radius: var(--radius);
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease);
+  }
+
+  .member-choice:hover:not(:disabled) {
+    background-color: var(--surface-subtle);
+  }
+
+  .member-choice:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .member-choice-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .member-choice-name {
+    font-size: var(--fs-base);
+    color: var(--ink);
+  }
+
+  .member-choice-handle {
+    font-size: var(--fs-xs);
+    color: var(--ink-tertiary);
+  }
+
+  .member-choice-add {
+    margin-left: auto;
+    color: var(--ink-tertiary);
+  }
+
   .stagger > * {
     animation: rise-in 620ms var(--ease) both;
   }

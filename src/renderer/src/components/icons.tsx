@@ -184,6 +184,37 @@ export function DashboardIcon({ size = 16, className }: IconProps) {
   )
 }
 
+export function HomeIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M4 10.5 12 4l8 6.5" />
+      <path d="M6.5 9.5V19a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  )
+}
+
+export function UsersIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <circle cx="9.5" cy="8.5" r="3.2" />
+      <path d="M3.6 19.4c.6-3 3-4.9 5.9-4.9s5.3 1.9 5.9 4.9" />
+      <path d="M16.4 5.7a3 3 0 0 1 0 5.7" />
+      <path d="M18 14.9c1.6.6 2.7 2.1 3 4.1" />
+    </svg>
+  )
+}
+
+export function UserPlusIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <circle cx="10" cy="8.5" r="3.2" />
+      <path d="M4.1 19.4c.6-3 3-4.9 5.9-4.9 1.2 0 2.3.3 3.2.9" />
+      <path d="M17.5 14v6M14.5 17h6" />
+    </svg>
+  )
+}
+
 export function TemplatesIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>

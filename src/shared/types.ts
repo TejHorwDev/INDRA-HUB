@@ -38,6 +38,39 @@ export interface SessionUser {
   lastSignInAt: string | null
 }
 
+/**
+ * A team is the small group of people who work together in this installation.
+ * One per owner; the roster is the people they have added.
+ */
+export type TeamRole = 'owner' | 'member'
+
+export interface TeamMember {
+  id: string
+  username: string
+  displayName: string
+  role: TeamRole
+  joinedAt: string
+}
+
+export interface TeamDetail {
+  id: string
+  name: string
+  ownerId: string
+  ownerName: string
+  createdAt: string
+  /** The signed-in user's relationship to this team. */
+  role: TeamRole
+  memberCount: number
+  /** The owner first, then everyone else by name. */
+  members: TeamMember[]
+}
+
+/** What the home screen needs: the team you own, and any you merely belong to. */
+export interface TeamOverview {
+  owned: TeamDetail | null
+  memberOf: TeamDetail[]
+}
+
 /** Public projection used by member lists and search. */
 export interface UserSummary {
   id: string
