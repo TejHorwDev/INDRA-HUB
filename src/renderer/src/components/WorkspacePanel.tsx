@@ -249,7 +249,8 @@ export default function WorkspacePanel() {
             <p className="admin-hint">
               One account owns the workspace. Create it here the first time — it is not the local
               administrator password, and it is never stored on this machine: only its session is,
-              sealed with the operating system keystore.
+              sealed with the operating system keystore. Until an account claims it, the workspace row
+              belongs to nobody and this PC stays in charge of its own settings.
             </p>
 
             <div className="admin-form-actions admin-form-actions--start">
@@ -274,8 +275,9 @@ export default function WorkspacePanel() {
           <form className="admin-form" onSubmit={claim}>
             <p className="admin-hint">
               Signed in as <strong>{state.email}</strong>. This workspace has no owner yet: enter the
-              one-time setup code once, on this machine, and this account owns it from then on. Other
-              machines never need to claim anything.
+              one-time setup code once, on this machine, and this account owns it from then on. What
+              this machine is using right now — maintenance, registration and the sign-in video — is
+              published to every other PC at that moment. Other machines never need to claim anything.
             </p>
             <TextField
               label="Setup code"

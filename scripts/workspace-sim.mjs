@@ -344,40 +344,62 @@ async function main() {
 
   const api = await load()
 
-  /* ---- 1. a fresh installation picks up the shared row ------------ */
+  /* ---- 1. before anyone claims it, the row overrules nobody -------- */
   const seeded = api.ensureBuiltInWorkspace()
   check(seeded.seeded === true, 'a fresh install adopts the built-in workspace endpoint')
   api.startWorkspaceSync()
 
-  const status = api.publicStatus()
-  check(status.maintenanceMode === false, 'the untouched row starts with maintenance off')
+  check(api.readSettings().maintenanceMode === false, 'the untouched row starts with maintenance off')
 
-  // The row is configured the way the administrator left it.
-  bump({ maintenance: true, allow_registration: false, maintenance_message: 'Back in an hour.' })
-  pushRealtimeChange()
+  /*
+   * The administrator configures this machine while the row is still
+   * unclaimed. Nobody can write an unclaimed row, so it still holds the values
+   * the project shipped with — and 1.6.0 applied them anyway, which is how the
+   * first sign-in video upload after that release disappeared within a minute.
+   */
+  api.writeSettings({
+    ...api.readSettings(),
+    maintenanceMode: true,
+    allowRegistration: false,
+    maintenanceMessage: 'Local decision.'
+  })
+
+  const localVideoPath = join(userData, 'local-loop.mp4')
+  const localVideo = Buffer.alloc(2048, 3)
+  localVideo.writeUInt32BE(2048, 0)
+  localVideo.write('ftypisom', 4, 'latin1')
+  writeFileSync(localVideoPath, localVideo)
+  api.installLoginBackground(localVideoPath, 'local-loop.mp4')
+  const localAsset = api.publicAppearance().assetId
+  check(Boolean(localAsset), 'the administrator can install a video on a fresh machine')
+
+  api.queuePush()
   await api.reconcile()
 
-  const applied = api.readSettings()
-  check(applied.maintenanceMode === true, 'a published change reaches a machine that never signed in')
-  check(applied.allowRegistration === false, 'registration follows the shared row')
-  check(applied.maintenanceMessage === 'Back in an hour.', 'the maintenance message follows it too')
-
-  const stateAfterPull = api.workspaceState()
-  check(stateAfterPull.appliedRevision === server.row.revision, 'the running revision matches the published one')
-  check(stateAfterPull.signedIn === false, 'no account is signed in yet')
+  const kept = api.readSettings()
+  check(kept.maintenanceMode === true, 'an unclaimed workspace never undoes this machine\'s administrator')
+  check(kept.allowRegistration === false, '…including the registration switch')
+  check(kept.maintenanceMessage === 'Local decision.', '…and the maintenance message')
+  check(api.publicAppearance().hasVideo === true, 'a video installed here survives the unclaimed row')
+  check(
+    server.row.maintenance === false && server.row.background_asset_id === null,
+    'and nothing was published while the row has no owner'
+  )
+  check(api.workspaceState().signedIn === false, 'no account is signed in yet')
   check(broadcasts.length > 0 && broadcasts[0].channel === 'workspace:changed', 'windows are told to re-read')
 
-  // A local change without the owning account publishes nothing.
-  api.writeSettings({ ...applied, allowRegistration: true })
-  api.queuePush()
-  await wait(900)
-  check(server.row.allow_registration === false, 'a machine without the owner account cannot change the workspace')
-  check(api.workspaceState().pending === false, 'nothing is left waiting to publish')
-
-  /* ---- 2. sign in, claim, publish -------------------------------- */
+  /* ---- 2. signed in is not the same as owning ---------------------- */
   const signedIn = await api.signInWorkspace({ email: OWNER_EMAIL, password: OWNER_PASSWORD })
   check(signedIn.signedIn === true, 'the owner can sign in to the workspace')
   check(signedIn.owner === false && signedIn.claimable === true, 'the row is still unclaimed')
+
+  api.writeSettings({ ...api.readSettings(), maintenanceMessage: 'Still local.' })
+  api.queuePush()
+  await wait(400)
+  await api.reconcile()
+  check(server.row.maintenance_message !== 'Still local.', 'nothing is published until the row has an owner')
+  check(api.readSettings().maintenanceMessage === 'Still local.', 'and the local decision is still here')
+  check(api.workspaceState().pending === false, 'nothing is left waiting to publish')
 
   let badClaim = ''
   try {
@@ -387,27 +409,28 @@ async function main() {
   }
   check(/not accepted|already claimed/i.test(badClaim), 'a wrong setup code is refused', badClaim)
 
+  /* ---- 3. claiming publishes what this machine already had -------- */
   const claimed = await api.claimWorkspace(CLAIM_CODE)
   check(claimed.owner === true, 'the right setup code makes this account the owner')
   check(server.row.claim_hash === null, 'the setup code is single-use')
 
-  // Now a local change does publish.
-  api.writeSettings({ ...api.readSettings(), allowRegistration: true, maintenanceMode: false })
-  api.queuePush()
-  await until(() => server.row.allow_registration === true && server.row.maintenance === false, 'the push to land')
-  check(server.row.allow_registration === true, 'an owner change is published to the workspace')
+  await until(() => server.row.maintenance === true, 'the claim to publish')
+  check(
+    server.row.maintenance_message === 'Still local.',
+    'claiming publishes the configuration this machine had',
+    server.row.maintenance_message
+  )
+  check(
+    server.row.maintenance === true && server.row.allow_registration === false,
+    'maintenance and registration go up with it'
+  )
+  check(
+    server.row.background_asset_id === localAsset,
+    'and the video this machine had installed',
+    String(server.row.background_asset_id)
+  )
+  check(server.objects.has(server.row.background_path), 'whose bytes are uploaded to storage')
   check(api.workspaceState().pending === false, 'the pending flag clears once it is published')
-
-  /* ---- 3. a video installed here goes up, and comes down elsewhere */
-  const video = Buffer.alloc(2048, 3)
-  video.writeUInt32BE(2048, 0)
-  video.write('ftypisom', 4, 'latin1')
-  api.adoptBackground({ id: 'asset-from-this-pc', bytes: video, mime: 'video/mp4', originalName: 'loop.mp4' })
-  api.queuePush()
-  await until(() => server.row.background_asset_id === 'asset-from-this-pc', 'the video to be published')
-  check(server.row.background_asset_id === 'asset-from-this-pc', 'the installed video is published')
-  check(server.objects.has(server.row.background_path), 'the bytes are uploaded to storage')
-  check(server.row.background_bytes === 2048, 'the row records the size')
 
   /* ---- 4. another machine installs a different video ------------- */
   const otherVideo = Buffer.alloc(4096, 7)
@@ -476,7 +499,7 @@ async function main() {
   const offlineState = await api.reconcile()
   check(offlineState.transport === 'offline', 'an unreachable workspace is reported as offline')
   check(Boolean(offlineState.lastError), 'the reason is kept for the panel')
-  check(api.readSettings().allowRegistration === true, 'the local mirror still answers with no network')
+  check(api.readSettings().allowRegistration === false, 'the local mirror still answers with no network')
   check(api.publicAppearance().hasVideo === true, 'the sign-in video still plays with no network')
 
   server.offline = false

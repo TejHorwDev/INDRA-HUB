@@ -393,8 +393,19 @@ export function broadcastWorkspaceChange(): void {
  */
 let reconcileChain: Promise<unknown> = Promise.resolve()
 
+async function tick(): Promise<void> {
+  /*
+   * A local change that has not reached the row yet must be published before
+   * an incoming row is applied, or the next poll would silently flatten what
+   * the administrator just did. This is also the retry path for a push that
+   * failed while the network was away.
+   */
+  if (pending && session && !pushing && !applying) await push()
+  await reconcileOnce()
+}
+
 export function reconcile(): Promise<WorkspaceState> {
-  reconcileChain = reconcileChain.then(reconcileOnce, reconcileOnce)
+  reconcileChain = reconcileChain.then(tick, tick)
   return reconcileChain.then(() => workspaceState())
 }
 
@@ -407,6 +418,22 @@ async function reconcileOnce(): Promise<void> {
     if (!next) {
       lastError = 'The workspace row is missing. Run supabase/workspace.sql in the project.'
       transport = 'offline'
+      return
+    }
+
+    /*
+     * An unclaimed row has no owner, and only an owner can ever write it — so
+     * everything in it is still the value the project shipped with. Applying
+     * it would quietly undo whatever this machine's administrator has just
+     * configured (the first sign-in video upload after 1.6.0 disappeared this
+     * way). Until it is claimed, this machine is the authority; the moment it
+     * is claimed, the new owner publishes what it already had.
+     */
+    if (!next.owned) {
+      remote = next
+      lastError = null
+      lastSyncAt = new Date().toISOString()
+      if (transport === 'offline') transport = socket ? 'live' : 'polling'
       return
     }
 
@@ -507,7 +534,9 @@ export async function push(): Promise<WorkspaceState> {
       // the panel keeps the explanation even though the reconcile below is a
       // success.
       pending = false
-      await reconcile()
+      // Direct, not through the reconcile chain: push can itself be called
+      // from that chain, and awaiting it there would deadlock.
+      await reconcileOnce()
       lastError = 'Another machine changed the workspace first, so this change was not applied. The shared version is on screen now.'
       broadcastWorkspaceChange()
       return workspaceState()
@@ -616,7 +645,15 @@ export async function signInWorkspace(input: WorkspaceCredentialsInput): Promise
   const payload = await authRequest('/auth/v1/token?grant_type=password', { email, password })
   saveSession(toSession(payload, email))
   lastError = null
-  await reconcile()
+  /*
+   * The account is the owner now, so the machine that claimed is the machine
+   * that decides: what it has been running on becomes the workspace's
+   * configuration. Clearing `remote` forces the push to read the row as it is
+   * after the claim (a new revision), and leaving `pending` set means a failed
+   * push is retried by the next reconcile instead of being forgotten.
+   */
+  remote = null
+  pending = true
   await push()
   broadcastWorkspaceChange()
   return workspaceState()
@@ -675,7 +712,15 @@ export async function claimWorkspace(code: string): Promise<WorkspaceState> {
     )
   }
 
-  await reconcile()
+  /*
+   * The account is the owner now, so the machine that claimed is the machine
+   * that decides: what it has been running on becomes the workspace's
+   * configuration. Clearing `remote` forces the push to read the row as it is
+   * after the claim (a new revision), and leaving `pending` set means a failed
+   * push is retried by the next reconcile instead of being forgotten.
+   */
+  remote = null
+  pending = true
   await push()
   broadcastWorkspaceChange()
   return workspaceState()
