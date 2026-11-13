@@ -178,7 +178,14 @@ export default function DocumentsScreen() {
                     <span className="min-w-0 flex-1">
                       <span className="project-row-name">{document.title}</span>
                       <span className="project-row-meta">
-                        <span>{document.createdBy.displayName}</span>
+                        {/* Who touched it last is the useful fact on a shared
+                            project; who wrote the first draft is a tooltip. */}
+                        <span title={`Created by ${document.createdBy.displayName}`}>
+                          {document.updatedBy &&
+                          document.updatedBy.displayName !== document.createdBy.displayName
+                            ? `Edited by ${document.updatedBy.displayName}`
+                            : document.createdBy.displayName}
+                        </span>
                         <span aria-hidden="true">·</span>
                         <span>{formatRelative(document.updatedAt)}</span>
                         <span aria-hidden="true">·</span>

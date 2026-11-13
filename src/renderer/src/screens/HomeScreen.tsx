@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { InvitationSummary, TeamDetail, TeamOverview } from '@shared/types'
 import AddTeamMemberDialog from '../components/AddTeamMemberDialog'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -43,6 +43,7 @@ function memberSince(value: string): string {
 export default function HomeScreen() {
   const { user } = useSession()
   const toast = useToast()
+  const navigate = useNavigate()
 
   const [overview, setOverview] = useState<TeamOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -92,13 +93,18 @@ export default function HomeScreen() {
       const result = accept
         ? await acceptInvitation(invitation.id)
         : await declineInvitation(invitation.id)
-      toast.success(
-        result.accepted
-          ? `You joined ${result.targetName}.`
-          : `You declined the invitation to ${result.targetName}.`
-      )
-      // Accepting can add a team to "Member of", or a project to the list.
-      if (result.accepted) await load()
+
+      if (!result.accepted) {
+        toast.success(`You declined the invitation to ${result.targetName}.`)
+      } else if (result.kind === 'project') {
+        toast.success(`You joined ${result.targetName}.`)
+        // Straight to the work. Accepting is a decision to join in, not a
+        // decision to go looking for the project afterwards.
+        navigate(`/project/${result.targetId}`)
+      } else {
+        toast.success(`You joined ${result.targetName}. Their projects are now on your Projects page.`)
+        await load()
+      }
     } catch (failure) {
       toast.error(errorMessage(failure))
     } finally {
@@ -152,8 +158,9 @@ export default function HomeScreen() {
                     <span className="badge">{invitation.kind === 'team' ? 'Team' : 'Project'}</span>
                   </span>
                   <span className="invite-sub">
-                    {invitation.invitedByName} invited you to join
-                    {invitation.kind === 'project' ? ' this project' : ' their team'}.
+                    {invitation.kind === 'project'
+                      ? `${invitation.invitedByName} invited you to work on this project — its documents and presentations.`
+                      : `${invitation.invitedByName} invited you to their team. Their projects open to you as soon as you join.`}
                   </span>
                 </span>
 
@@ -317,6 +324,13 @@ export default function HomeScreen() {
                   </li>
                 ))}
               </ul>
+
+              {team.memberCount > 1 && (
+                <p className="home-team-note">
+                  Everyone here can open the projects you own and work in them with you. There
+                  is nothing to invite twice.
+                </p>
+              )}
 
               {team.invitations.length > 0 && (
                 <p className="home-team-note">

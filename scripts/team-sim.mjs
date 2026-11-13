@@ -307,6 +307,30 @@ export * from ${JSON.stringify(join(root, 'src/main/services/projects.ts'))}
 
   /* ---- 8. the same rules for project membership -------------------- */
   const project = api.createProject(owner, { name: 'The studio project' })
+  // The team is a standing yes: a new project already has the team inside it.
+  check(
+    project.members.length === 1 && project.members[0].via === 'team',
+    'a new project opens to the owner’s team',
+    String(project.members.length)
+  )
+  check(
+    project.memberCount === 1,
+    'and counts them without an invitation',
+    String(project.memberCount)
+  )
+  check(
+    api.searchUsers('bikash@example.test', project.id).length === 0,
+    'a team member is not offered for an invitation they do not need'
+  )
+  check(
+    /already work in this project/i.test(refused(() => api.inviteMember(owner, project.id, mate.id))),
+    'and inviting them is refused with the reason'
+  )
+  check(
+    api.listProjects(mate).some((entry) => entry.id === project.id && entry.via === 'team'),
+    'while the project appears for them, through the team'
+  )
+
   const onProject = api.searchUsers('sita@example.test', project.id)
   check(onProject.length === 1 && onProject[0].id === stranger.id, 'a project finds people by email too')
   check(
@@ -321,8 +345,16 @@ export * from ${JSON.stringify(join(root, 'src/main/services/projects.ts'))}
   )
 
   const projectInvite = api.inviteMember(owner, project.id, stranger.id)
-  check(projectInvite.members.length === 0, 'inviting somebody does not add them to the project')
-  check(projectInvite.memberCount === 0, 'the project count stays honest', String(projectInvite.memberCount))
+  check(
+    projectInvite.members.length === 1,
+    'inviting somebody outside the team does not add them to the project',
+    String(projectInvite.members.length)
+  )
+  check(
+    projectInvite.memberCount === 1,
+    'the project count stays people with access',
+    String(projectInvite.memberCount)
+  )
   check(projectInvite.invitations.length === 1, 'the head developer sees the question waiting')
   check(
     projectInvite.invitations[0].kind === 'project' &&
@@ -348,8 +380,15 @@ export * from ${JSON.stringify(join(root, 'src/main/services/projects.ts'))}
   const joined = api.respond(stranger, projectInbox[0].id, true)
   check(joined.accepted === true, 'accepting the project invitation says yes')
   const projectAfter = api.getProject(owner, project.id)
-  check(projectAfter.members.length === 1, 'and the person is on the project', String(projectAfter.members.length))
-  check(projectAfter.members[0].userId === stranger.id, 'as the person who accepted')
+  check(
+    projectAfter.members.length === 2,
+    'and the person is on the project',
+    String(projectAfter.members.length)
+  )
+  check(
+    projectAfter.members.some((member) => member.userId === stranger.id && member.via === 'invite'),
+    'as the person who accepted'
+  )
   check(api.getProject(owner, project.id).invitations.length === 0, 'with no question left over')
 
   check(

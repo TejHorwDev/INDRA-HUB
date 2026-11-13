@@ -10,9 +10,9 @@ import { getDatabase } from '../db/database'
  * building a deck — and a screen that only ever showed one project at a time
  * would have made that a maze. One query, both kinds, no network.
  *
- * Visibility is the same rule the project screens use: owner or active member.
- * It is expressed in SQL here rather than by asking each project in turn, so a
- * hundred projects still cost one read.
+ * Visibility is the same rule the project screens use — owner, invited member,
+ * or on the head developer's team — expressed in SQL here rather than by asking
+ * each project in turn, so a hundred projects still cost one read.
  */
 
 const VISIBLE_PROJECTS = `
@@ -20,6 +20,11 @@ const VISIBLE_PROJECTS = `
     FROM projects p
    WHERE p.owner_id = ?
       OR EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.user_id = ?)
+      OR EXISTS (
+           SELECT 1 FROM teams t
+             JOIN team_members tm ON tm.team_id = t.id
+            WHERE t.owner_id = p.owner_id AND tm.user_id = ?
+         )
 `
 
 interface DocumentRow {
@@ -44,7 +49,7 @@ export function listLibraryDocuments(viewer: SessionUser): LibraryItem[] {
         WHERE d.project_id IN (${VISIBLE_PROJECTS})
         ORDER BY d.updated_at DESC`
     )
-    .all(viewer.id, viewer.id) as unknown as DocumentRow[]
+    .all(viewer.id, viewer.id, viewer.id) as unknown as DocumentRow[]
 
   return rows.map((row) => ({
     id: row.id,
@@ -66,7 +71,7 @@ export function listLibraryPresentations(viewer: SessionUser): LibraryItem[] {
         WHERE pr.project_id IN (${VISIBLE_PROJECTS})
         ORDER BY pr.updated_at DESC`
     )
-    .all(viewer.id, viewer.id) as unknown as PresentationRow[]
+    .all(viewer.id, viewer.id, viewer.id) as unknown as PresentationRow[]
 
   return rows.map((row) => ({
     id: row.id,

@@ -188,6 +188,8 @@ export default function ProjectDashboardScreen() {
 
   const isOwner = project.role === 'owner'
   const teamSize = project.memberCount + 1
+  const team = project.team
+  const viaTeam = project.members.filter((member) => member.via === 'team')
 
   return (
     <>
@@ -259,14 +261,23 @@ export default function ProjectDashboardScreen() {
                 <dd>{formatRelative(project.updatedAt)}</dd>
               </div>
               <div className="info-row">
-                <dt>Team</dt>
+                <dt>People</dt>
                 <dd>
                   {teamSize} {teamSize === 1 ? 'person' : 'people'}
+                  {viaTeam.length > 0 && team ? (
+                    <span className="text-[var(--ink-tertiary)]"> · {viaTeam.length} from {team.name}</span>
+                  ) : null}
                 </dd>
               </div>
               <div className="info-row">
                 <dt>Your access</dt>
-                <dd>{isOwner ? 'Head developer' : 'Member'}</dd>
+                <dd>
+                  {isOwner
+                    ? 'Head developer'
+                    : project.via === 'team' && team
+                      ? `Member · through ${team.name}`
+                      : 'Member · invited'}
+                </dd>
               </div>
               <div className="info-row">
                 <dt>On this PC</dt>
@@ -290,8 +301,12 @@ export default function ProjectDashboardScreen() {
 
             <p className="info-foot">
               {isOwner
-                ? 'You own this project: only you can invite or remove members. People join by accepting.'
-                : 'Your access comes from the head developer. Team changes are managed by them.'}
+                ? team && team.memberCount > 0
+                  ? `Everyone on ${team.name} (${team.memberCount}) can open this project, and anyone else gets in by invitation. Only you can invite or remove.`
+                  : 'Only you can open this project until you invite someone — or start a team, which opens your projects to its members.'
+                : project.via === 'team' && team
+                  ? `You can work here because you are on ${team.name}.`
+                  : 'Your access comes from an invitation the head developer sent, and they can take it back.'}
             </p>
           </section>
 
@@ -320,12 +335,19 @@ export default function ProjectDashboardScreen() {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="team-name">{member.displayName}</span>
-                      <span className="badge">Member</span>
+                      <span className={member.via === 'team' ? 'badge' : 'badge badge--accent'}>
+                        {member.via === 'team' ? 'Team' : 'Member'}
+                      </span>
                     </span>
-                    <span className="team-handle">@{member.username}</span>
+                    <span className="team-handle">
+                      @{member.username}
+                      {member.via === 'team' ? ' · through your team' : ''}
+                    </span>
                   </span>
-                  <span className="team-joined">Joined {formatDate(member.joinedAt)}</span>
-                  {isOwner && (
+                  <span className="team-joined">
+                    {member.via === 'team' ? 'Team since' : 'Joined'} {formatDate(member.joinedAt)}
+                  </span>
+                  {isOwner && member.via === 'invite' && (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm w-auto"
@@ -365,7 +387,11 @@ export default function ProjectDashboardScreen() {
 
               {project.members.length === 0 && project.invitations.length === 0 && (
                 <li className="team-empty">
-                  <span>No one else is on this project yet.</span>
+                  <span>
+                    {team && team.memberCount > 0
+                      ? `Nobody from ${team.name} has joined the app yet.`
+                      : 'No one else is on this project yet.'}
+                  </span>
                   {isOwner && (
                     <button
                       type="button"
@@ -385,6 +411,7 @@ export default function ProjectDashboardScreen() {
       <AddMemberDialog
         open={addOpen}
         projectId={project.id}
+        teamName={team ? team.name : null}
         pending={project.invitations}
         onClose={() => setAddOpen(false)}
         onInvited={setProject}

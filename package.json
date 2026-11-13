@@ -1,6 +1,6 @@
 {
   "name": "indra-hub",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "private": true,
   "description": "INDRA HUB \u2014 desktop workspace",
   "author": "TejHorwDev",
@@ -22,6 +22,7 @@
     "sim:appearance": "node scripts/appearance-sim.mjs",
     "sim:workspace": "node scripts/workspace-sim.mjs",
     "sim:team": "node scripts/team-sim.mjs",
+    "sim:collab": "node scripts/collab-sim.mjs",
     "sim:offline": "node scripts/offline-sim.mjs",
     "sim:cloud": "node scripts/cloud-sim.mjs"
   },
