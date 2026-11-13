@@ -158,8 +158,33 @@ export default function AiPanel({
     if (next) setState(next)
   }, [])
 
+  /*
+   * The balance is the server's, so it is only ever shown as the server last
+   * said it — but it used to be read once per open, which meant an allowance an
+   * administrator had just changed stayed stale until the panel was closed and
+   * reopened. A quiet refresh keeps a public deployment honest: someone waiting
+   * for credits does not have to guess whether to restart the app.
+   *
+   * Forty-five seconds is chosen against cost, not freshness: it is one small
+   * RPC, and a run itself always re-checks the server, so enforcement never
+   * depends on this.
+   */
   useEffect(() => {
     void refreshState()
+
+    const timer = window.setInterval(() => {
+      void refreshState()
+    }, 45_000)
+
+    const onFocus = () => {
+      void refreshState()
+    }
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [refreshState])
 
   /*
