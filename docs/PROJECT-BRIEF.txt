@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.6.4
-  Latest release:     v1.6.4 (GitHub, public)
+  Version:            1.6.5
+  Latest release:     v1.6.5 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -52,7 +52,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4.
+v1.6.4, v1.6.5.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -90,7 +90,12 @@ the main process: one team per owner, a roster of up to fifty, additions by
 searching existing accounts, removal, rename and delete, all gated by
 ownership. It also rebuilt the three caption buttons in the title bar, which
 had been full-height blocks with a flat colour swap, and now carry a real
-hover, a press state and a red close.
+hover, a press state and a red close. 1.6.5 is the matte black release: the
+dark theme is rebuilt around a true matte canvas, depth comes from hairlines
+instead of glows, dark becomes the theme a fresh install opens in, and the
+whole app gains a motion layer — pages arrive, lists cascade, controls respond
+to the pointer — all of it transform-and-opacity only and all of it switched
+off by prefers-reduced-motion.
 
 
 3. STACK
@@ -235,7 +240,9 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Bulk copy of freshly generated codes
 
 5.7 Settings (ordinary user)
-  - Appearance: light / dark theme, remembered per device
+  - Appearance: dark (matte black, the default) or light, remembered per device.
+    The theme is a product choice, not a mirror of the operating system's
+    preference, so every PC in an office looks the same out of the box.
   - Account: profile, password, sign out
   - Updates: installed build, running build, update state, "Check for updates",
     "Test connection" (see section 8), copyable technical detail on failure
@@ -279,6 +286,25 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - /developers: notes for this build
   - /credits: attribution
 
+
+5.10 Design, theme and motion
+  - Two themes, one set of tokens. Components never hold a colour of their own;
+    everything reads --bg, --surface, --chrome, --line, --ink and the single
+    wine accent from :root / .dark.
+  - Matte black: canvas #0a0a0b, chrome (title bar and rail) #0d0d0f, panels
+    #121214, wells (inputs) #0c0c0e, hairlines #1f2023. Depth comes from a
+    1px light along the top edge of a raised panel, never from a glow. A
+    selected surface is a 6% lift of the ink, so the accent stays on markers
+    and icons instead of tinting whole blocks.
+  - Light: canvas #f4f4f5, chrome #fbfbfc, panels #ffffff, hairlines #e4e4e8.
+  - Radii 10 / 7 / 14, one easing curve (0.16, 1, 0.3, 1) and five durations.
+  - Motion: route entrances (page, then rows 26ms apart), a panel cascade on
+    two-column pages, project rows lifting 1px under the pointer, buttons
+    compressing on press, nav icons nudging, monograms scaling, a modal rise,
+    a cross-fade when the theme changes, and the title-bar view name fading
+    over. Everything animates transform and opacity only — no layout, no
+    filter, nothing that re-rasterises a surface — and prefers-reduced-motion
+    zeroes the lot. The scrolling pane resets to the top on navigation.
 
 6. DATA MODEL (SQLite)
 ----------------------

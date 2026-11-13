@@ -34,8 +34,13 @@ app.on('second-instance', () => {
 })
 
 /** Keeps the window background in step with the theme so resizes never flash white. */
+/**
+ * The colour the window is painted before the renderer has drawn anything.
+ * It matches --bg in both themes (matte black and the light canvas), so the
+ * first frame does not flash a shade that is about to be replaced.
+ */
 function windowBackground(): string {
-  return nativeTheme.shouldUseDarkColors ? '#101113' : '#f5f5f6'
+  return nativeTheme.shouldUseDarkColors ? '#0a0a0b' : '#f4f4f5'
 }
 
 function createWindow(): void {
