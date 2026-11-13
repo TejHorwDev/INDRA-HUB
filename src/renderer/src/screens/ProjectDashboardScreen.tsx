@@ -7,7 +7,7 @@ import Page from '../components/Page'
 import ProjectTabs from '../components/ProjectTabs'
 import RemoveMemberDialog from '../components/RemoveMemberDialog'
 import { useToast } from '../components/ToastProvider'
-import { AlertCircleIcon, FolderIcon, PlusIcon } from '../components/icons'
+import { AlertCircleIcon, FolderIcon, PlusIcon, SaveIcon } from '../components/icons'
 import { api, errorCode, errorMessage } from '../lib/api'
 import { formatDate, formatRelative, initialsOf } from '../lib/format'
 import { Skeleton } from '../components/Skeleton'
@@ -22,10 +22,33 @@ export default function ProjectDashboardScreen() {
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<string | null>(null)
 
+  const [saving, setSaving] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ProjectMember | null>(null)
   const [removing, setRemoving] = useState(false)
   const [removeError, setRemoveError] = useState<string | null>(null)
+
+  /*
+   * A copy on this PC: the working copy already lives here, but a file can
+   * leave — on a stick, in a folder, into a backup — and open on a machine
+   * that never sees the internet. The dialog is the system's own, so the user
+   * picks the place and owns the result.
+   */
+  async function saveCopy(): Promise<void> {
+    if (saving) return
+    setSaving(true)
+    try {
+      const result = await api.projects.exportFile(projectId)
+      if (result) {
+        const name = result.filePath.split(/[\\/]/).pop() ?? 'project'
+        toast.success(`Saved ${name}.`)
+      }
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setState('loading')
@@ -131,6 +154,16 @@ export default function ProjectDashboardScreen() {
         tabs={<ProjectTabs projectId={project.id} />}
         actions={
           <div className="flex flex-none items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-ghost w-auto"
+              onClick={() => void saveCopy()}
+              disabled={saving}
+              title="Write this project to a file on this PC"
+            >
+              {saving ? <span className="spinner" aria-hidden="true" /> : <SaveIcon size={14} />}
+              Save a copy
+            </button>
             <Link to={`/project/${project.id}/workspace`} className="btn btn-ghost w-auto">
               Open workspace
             </Link>
@@ -175,6 +208,10 @@ export default function ProjectDashboardScreen() {
               <div className="info-row">
                 <dt>Your access</dt>
                 <dd>{isOwner ? 'Head developer' : 'Member'}</dd>
+              </div>
+              <div className="info-row">
+                <dt>Saved on</dt>
+                <dd>This PC</dd>
               </div>
             </dl>
 

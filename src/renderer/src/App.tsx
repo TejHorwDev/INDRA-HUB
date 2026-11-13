@@ -8,7 +8,9 @@ import TitleBar from './components/TitleBar'
 import {
   CodeIcon,
   DashboardIcon,
+  FileIcon,
   HomeIcon,
+  PresentationIcon,
   MoonIcon,
   SettingsIcon,
   SignOutIcon,
@@ -17,6 +19,7 @@ import {
   UserIcon
 } from './components/icons'
 import { useAppStatus } from './lib/appStatus'
+import { routeAllowedOffline, useConnectivity } from './lib/connectivity'
 import { useSession } from './lib/session'
 import { useTheme } from './lib/theme'
 import AdminScreen from './screens/AdminScreen'
@@ -26,6 +29,7 @@ import HomeScreen from './screens/HomeScreen'
 import DevelopersScreen from './screens/DevelopersScreen'
 import DocumentEditorScreen from './screens/DocumentEditorScreen'
 import DocumentsScreen from './screens/DocumentsScreen'
+import LibraryScreen from './screens/LibraryScreen'
 import LoginScreen from './screens/LoginScreen'
 import MaintenanceScreen from './screens/MaintenanceScreen'
 import PresentationEditorScreen from './screens/PresentationEditorScreen'
@@ -36,7 +40,16 @@ import ProjectWorkspaceScreen from './screens/ProjectWorkspaceScreen'
 import RegisterScreen from './screens/RegisterScreen'
 import SettingsScreen from './screens/SettingsScreen'
 
-const SHELL_PATHS = ['/home', '/dashboard', '/developers', '/credits', '/settings', '/project']
+const SHELL_PATHS = [
+  '/home',
+  '/dashboard',
+  '/documents',
+  '/presentations',
+  '/developers',
+  '/credits',
+  '/settings',
+  '/project'
+]
 
 /** Screens stay mounted behind the guard so a reload restores the session. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -61,6 +74,8 @@ function viewLabel(pathname: string): string {
   }
   if (pathname.startsWith('/home')) return 'Home'
   if (pathname.startsWith('/dashboard')) return 'Projects'
+  if (pathname === '/documents') return 'Documents'
+  if (pathname === '/presentations') return 'Presentations'
   if (pathname.startsWith('/developers')) return 'Developers'
   if (pathname.startsWith('/credits')) return 'Credits'
   if (pathname.startsWith('/settings')) return 'Settings'
@@ -75,6 +90,7 @@ export default function App() {
   const { user, signOut } = useSession()
   const { status, refresh: refreshStatus } = useAppStatus()
   const { theme, setTheme } = useTheme()
+  const { offline } = useConnectivity()
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   const signedIn = Boolean(user)
@@ -86,6 +102,14 @@ export default function App() {
    */
   const maintenance = status.maintenanceMode
   const workspaceClosed = maintenance && signedIn && !pathname.startsWith('/admin')
+
+  /*
+   * Offline narrows the app to what it can actually do without a route out:
+   * writing and building a deck. Anything else is redirected rather than shown
+   * half-working — a dashboard whose cloud half is missing is worse than a
+   * clear "this is what works right now".
+   */
+  const blockedOffline = signedIn && offline && !routeAllowedOffline(pathname)
 
   // The title bar names what is actually on screen, not the view underneath.
   const label = workspaceClosed ? 'Maintenance' : viewLabel(pathname)
@@ -127,6 +151,8 @@ export default function App() {
     const destinations = [
       { to: '/home', label: 'Go to Home', icon: <HomeIcon size={15} /> },
       { to: '/dashboard', label: 'Go to Projects', icon: <DashboardIcon size={15} /> },
+      { to: '/documents', label: 'Go to Documents', icon: <FileIcon size={15} /> },
+      { to: '/presentations', label: 'Go to Presentations', icon: <PresentationIcon size={15} /> },
       { to: '/developers', label: 'Go to Developers', icon: <CodeIcon size={15} /> },
       { to: '/credits', label: 'Go to Credits', icon: <SparkIcon size={15} /> },
       { to: '/settings', label: 'Go to Settings', icon: <SettingsIcon size={15} /> }
@@ -179,7 +205,10 @@ export default function App() {
       />
 
       <div className="min-h-0 flex-1">
-        {workspaceClosed ? (
+        {blockedOffline ? (
+          /* Offline: the two things that work, and nothing that does not. */
+          <Navigate to="/documents" replace />
+        ) : workspaceClosed ? (
           <MaintenanceScreen
             message={status.maintenanceMessage}
             onSignOut={() => {
@@ -206,6 +235,8 @@ export default function App() {
           >
             <Route path="/home" element={<HomeScreen />} />
             <Route path="/dashboard" element={<DashboardScreen />} />
+            <Route path="/documents" element={<LibraryScreen kind="documents" />} />
+            <Route path="/presentations" element={<LibraryScreen kind="presentations" />} />
             <Route path="/developers" element={<DevelopersScreen />} />
             <Route path="/credits" element={<CreditsScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />

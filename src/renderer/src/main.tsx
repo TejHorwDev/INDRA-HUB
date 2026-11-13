@@ -7,6 +7,7 @@ import { ToastProvider } from './components/ToastProvider'
 import { SessionProvider } from './lib/session'
 import { ThemeProvider, initTheme } from './lib/theme'
 import { AppStatusProvider } from './lib/appStatus'
+import { ConnectivityProvider } from './lib/connectivity'
 import './styles/index.css'
 import './styles/workspace.css'
 import './styles/document.css'
@@ -23,11 +24,13 @@ createRoot(container).render(
       <ToastProvider>
         <AppStatusProvider>
           <SessionProvider>
-            <ErrorBoundary>
-              <HashRouter>
-                <App />
-              </HashRouter>
-            </ErrorBoundary>
+            <ConnectivityProvider>
+              <ErrorBoundary>
+                <HashRouter>
+                  <App />
+                </HashRouter>
+              </ErrorBoundary>
+            </ConnectivityProvider>
           </SessionProvider>
         </AppStatusProvider>
       </ToastProvider>

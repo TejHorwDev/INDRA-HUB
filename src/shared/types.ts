@@ -119,6 +119,54 @@ export interface ProjectMember {
   joinedAt: string
 }
 
+/** What the operating system says about the machine's route to the internet. */
+export interface ConnectivityState {
+  online: boolean
+  /** When the current answer was established. */
+  since: string
+}
+
+/**
+ * A document or a presentation seen outside its project — the offline
+ * library, where the work of every local project is listed in one place.
+ */
+export interface LibraryItem {
+  id: string
+  projectId: string
+  projectName: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  /** Slides for a presentation; absent for a document. */
+  slideCount?: number
+}
+
+export interface LibrarySnapshot {
+  documents: LibraryItem[]
+  presentations: LibraryItem[]
+}
+
+/** What a saved project file contains. Written by the app, read by it. */
+export interface ProjectArchive {
+  format: 'indrahub.project'
+  version: 1
+  exportedAt: string
+  project: { name: string; description: string }
+  documents: {
+    title: string
+    blocks: unknown
+    createdAt: string
+    updatedAt: string
+  }[]
+  presentations: {
+    title: string
+    theme: string
+    slides: unknown
+    createdAt: string
+    updatedAt: string
+  }[]
+}
+
 export interface ProjectSummary {
   id: string
   name: string

@@ -14,6 +14,9 @@ import type {
   AdminStatus,
   AppPublicStatus,
   AppearanceTreatment,
+  ConnectivityState,
+  LibrarySnapshot,
+  ProjectArchive,
   ChangePasswordInput,
   CreateActivationKeyInput,
   CreatedActivationKey,
@@ -108,7 +111,21 @@ const api = {
     removeMember: (input: {
       projectId: string
       userId: string
-    }): Promise<ApiResult<ProjectDetail>> => ipcRenderer.invoke('projects:remove-member', input)
+    }): Promise<ApiResult<ProjectDetail>> => ipcRenderer.invoke('projects:remove-member', input),
+    /** A copy on this PC: the system dialog, then a file the user owns. */
+    exportFile: (projectId: string): Promise<ApiResult<{ filePath: string } | null>> =>
+      ipcRenderer.invoke('projects:export', projectId),
+    importFile: (): Promise<ApiResult<{ project: ProjectDetail; fileName: string } | null>> =>
+      ipcRenderer.invoke('projects:import'),
+    /** The archive as data, for a caller that already has the file. */
+    archive: (projectId: string): Promise<ApiResult<ProjectArchive>> =>
+      ipcRenderer.invoke('projects:archive', projectId),
+    restore: (raw: string): Promise<ApiResult<ProjectDetail>> =>
+      ipcRenderer.invoke('projects:restore', raw)
+  },
+
+  library: {
+    snapshot: (): Promise<ApiResult<LibrarySnapshot>> => ipcRenderer.invoke('library:snapshot')
   },
 
   documents: {
@@ -180,7 +197,15 @@ const api = {
   },
 
   app: {
-    status: (): Promise<ApiResult<AppPublicStatus>> => ipcRenderer.invoke('app:status')
+    status: (): Promise<ApiResult<AppPublicStatus>> => ipcRenderer.invoke('app:status'),
+    connectivity: (): Promise<ApiResult<ConnectivityState>> =>
+      ipcRenderer.invoke('app:connectivity'),
+    onConnectivity: (listener: (state: ConnectivityState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: ConnectivityState): void =>
+        listener(state)
+      ipcRenderer.on('connectivity:changed', handler)
+      return () => ipcRenderer.removeListener('connectivity:changed', handler)
+    }
   },
 
   updates: {

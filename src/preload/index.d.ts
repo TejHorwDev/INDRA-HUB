@@ -17,6 +17,9 @@ import type {
   AdminStatus,
   AppPublicStatus,
   ChangePasswordInput,
+  ConnectivityState,
+  LibrarySnapshot,
+  ProjectArchive,
   CreateActivationKeyInput,
   CreatedActivationKey,
   DeleteAccountInput,
@@ -84,6 +87,13 @@ export interface IndraBridge {
       projectId: string
       userId: string
     }) => Promise<ApiResult<ProjectDetail>>
+    exportFile: (projectId: string) => Promise<ApiResult<{ filePath: string } | null>>
+    importFile: () => Promise<ApiResult<{ project: ProjectDetail; fileName: string } | null>>
+    archive: (projectId: string) => Promise<ApiResult<ProjectArchive>>
+    restore: (raw: string) => Promise<ApiResult<ProjectDetail>>
+  }
+  library: {
+    snapshot: () => Promise<ApiResult<LibrarySnapshot>>
   }
   documents: {
     list: (projectId: string) => Promise<ApiResult<DocumentSummary[]>>
@@ -140,6 +150,8 @@ export interface IndraBridge {
   }
   app: {
     status: () => Promise<ApiResult<AppPublicStatus>>
+    connectivity: () => Promise<ApiResult<ConnectivityState>>
+    onConnectivity: (listener: (state: ConnectivityState) => void) => () => void
   }
   updates: {
     state: () => Promise<ApiResult<UpdateState>>
