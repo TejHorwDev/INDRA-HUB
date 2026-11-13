@@ -46,6 +46,11 @@ export interface SessionUser {
    * network. It owns work the same way an account does, so it can be adopted.
    */
   mode?: 'account' | 'offline'
+  /**
+   * The chosen mark (`mark:orbit`) or `initials`, or null for someone who has
+   * not chosen. Never image bytes — the picture is drawn from this id.
+   */
+  avatar?: string | null
 }
 
 /** What is sitting in the offline workspace, waiting to be adopted. */
@@ -67,6 +72,7 @@ export interface TeamMember {
   displayName: string
   role: TeamRole
   joinedAt: string
+  avatar?: string | null
 }
 
 export interface TeamDetail {
@@ -123,6 +129,7 @@ export interface UserSummary {
   id: string
   username: string
   displayName: string
+  avatar?: string | null
   /**
    * Present only when the person was found by their email address — the one
    * search that is allowed to reach an account, because names collide.
@@ -142,6 +149,8 @@ export interface RegisterInput {
 export interface ProfileInput {
   displayName: string
   email: string
+  /** `mark:<id>` or `initials`; omitted leaves the current portrait alone. */
+  avatar?: string | null
 }
 
 export interface ChangePasswordInput {
@@ -167,6 +176,7 @@ export interface ProjectMember {
   userId: string
   username: string
   displayName: string
+  avatar?: string | null
   role: 'member'
   /**
    * How they can open this project: an invitation they accepted, or the head

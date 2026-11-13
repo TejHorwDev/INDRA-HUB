@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { initialsOf } from '../lib/format'
+import Avatar from './Avatar'
 import { navGroups } from '../lib/nav'
 import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
@@ -88,7 +88,7 @@ export default function Sidebar() {
             onClick={() => navigate('/settings')}
             aria-label={`Account — ${user.displayName}`}
           >
-            <span className="avatar">{initialsOf(user.displayName)}</span>
+            <Avatar name={user.displayName} avatar={user.avatar} />
             <span className="rail-label">{user.displayName}</span>
           </button>
         )}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { FormEvent } from 'react'
 import { ApiError, api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
+import Avatar, { AVATAR_MARKS } from './Avatar'
 import ConfirmDialog from './ConfirmDialog'
 import PasswordField from './PasswordField'
 import TextField from './TextField'
@@ -19,6 +20,7 @@ export default function AccountPanel() {
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
+  const [avatar, setAvatar] = useState(user?.avatar ?? 'initials')
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [profileField, setProfileField] = useState<string | null>(null)
@@ -37,11 +39,15 @@ export default function AccountPanel() {
   useEffect(() => {
     setDisplayName(user?.displayName ?? '')
     setEmail(user?.email ?? '')
-  }, [user?.displayName, user?.email])
+    setAvatar(user?.avatar ?? 'initials')
+  }, [user?.displayName, user?.email, user?.avatar])
 
   if (!user) return null
 
-  const profileDirty = displayName.trim() !== user.displayName || email.trim() !== user.email
+  const profileDirty =
+    displayName.trim() !== user.displayName ||
+    email.trim() !== user.email ||
+    avatar !== (user.avatar ?? 'initials')
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -61,7 +67,7 @@ export default function AccountPanel() {
 
     setSavingProfile(true)
     try {
-      await api.auth.updateProfile({ displayName: displayName.trim(), email: email.trim() })
+      await api.auth.updateProfile({ displayName: displayName.trim(), email: email.trim(), avatar })
       await refresh()
       toast.success('Profile updated.')
     } catch (error) {
@@ -128,6 +134,50 @@ export default function AccountPanel() {
     <>
       <form onSubmit={saveProfile} noValidate>
         <h3 className="account-subhead">Profile</h3>
+
+        {/* The portrait is chosen here and on the sign-up page from the same
+            eight marks — the account owns it, every screen just draws it. */}
+        <div className="account-portrait">
+          <Avatar
+            name={displayName || user.displayName}
+            avatar={avatar}
+            size="lg"
+            title="Your portrait"
+          />
+          <div className="account-portrait-picks" role="radiogroup" aria-label="Your portrait">
+            {AVATAR_MARKS.map((mark) => {
+              const value = `mark:${mark.id}`
+              return (
+                <button
+                  key={mark.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={avatar === value}
+                  aria-label={mark.label}
+                  title={mark.label}
+                  className={`portrait-pip${avatar === value ? ' is-selected' : ''}`}
+                  onClick={() => setAvatar(value)}
+                  disabled={savingProfile}
+                >
+                  <Avatar name={displayName || user.displayName} avatar={value} />
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={avatar === 'initials'}
+              aria-label="My initials"
+              title="My initials"
+              className={`portrait-pip portrait-pip--initials${avatar === 'initials' ? ' is-selected' : ''}`}
+              onClick={() => setAvatar('initials')}
+              disabled={savingProfile}
+            >
+              <Avatar name={displayName || user.displayName} avatar="initials" />
+            </button>
+          </div>
+        </div>
+
         <div className="account-form">
           <TextField
             label="Display name"

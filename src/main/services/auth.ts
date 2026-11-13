@@ -300,11 +300,30 @@ export function updateProfile(viewer: SessionUser, input: ProfileInput): Session
   const taken = db.prepare('SELECT 1 FROM users WHERE email = ? AND id <> ?').get(email, viewer.id)
   if (taken) throw errors.conflict('Another account already uses that email.', 'email')
 
-  db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(
-    displayName,
-    email,
-    viewer.id
-  )
+  /*
+   * The portrait is an id, not bytes: `initials` or one of the marks the
+   * renderer knows how to draw. Anything else is refused rather than stored,
+   * so a malformed value can never reach a screen that renders it.
+   */
+  const AVATAR_PATTERN = /^(initials|mark:[a-z]{3,16})$/
+  if (input.avatar !== undefined && input.avatar !== null && !AVATAR_PATTERN.test(input.avatar)) {
+    throw errors.validation('That portrait is not one the app can draw.', 'avatar')
+  }
+
+  if (input.avatar !== undefined) {
+    db.prepare('UPDATE users SET display_name = ?, email = ?, avatar = ? WHERE id = ?').run(
+      displayName,
+      email,
+      input.avatar,
+      viewer.id
+    )
+  } else {
+    db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(
+      displayName,
+      email,
+      viewer.id
+    )
+  }
 
   const user = findUserById(viewer.id)
   if (!user) throw errors.authRequired()

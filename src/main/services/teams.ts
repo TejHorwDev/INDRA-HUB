@@ -37,12 +37,14 @@ interface MemberRow {
   username: string
   display_name: string
   joined_at: string
+  avatar: string | null
 }
 
 interface PersonRow {
   id: string
   username: string
   display_name: string
+  avatar?: string | null
 }
 
 function now(): string {
@@ -91,12 +93,12 @@ function requireOwned(viewer: SessionUser): TeamRow {
 function detail(row: TeamRow, viewerId: string): TeamDetail {
   const db = getDatabase()
   const owner = db
-    .prepare('SELECT id, username, display_name FROM users WHERE id = ?')
+    .prepare('SELECT id, username, display_name, avatar FROM users WHERE id = ?')
     .get(row.owner_id) as PersonRow | undefined
 
   const members = db
     .prepare(
-      `SELECT u.id, u.username, u.display_name, m.joined_at
+      `SELECT u.id, u.username, u.display_name, u.avatar, m.joined_at
          FROM team_members m
          JOIN users u ON u.id = m.user_id
         WHERE m.team_id = ?
@@ -122,6 +124,7 @@ function detail(row: TeamRow, viewerId: string): TeamDetail {
         id: owner?.id ?? row.owner_id,
         username: owner?.username ?? 'unknown',
         displayName: owner?.display_name ?? 'Unknown',
+        avatar: owner?.avatar ?? null,
         role: 'owner',
         joinedAt: row.created_at
       },
@@ -129,6 +132,7 @@ function detail(row: TeamRow, viewerId: string): TeamDetail {
         id: member.id,
         username: member.username,
         displayName: member.display_name,
+        avatar: member.avatar,
         role: 'member' as const,
         joinedAt: member.joined_at
       }))

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ProjectMember } from '@shared/types'
-import { initialsOf } from '../lib/format'
+import Avatar from './Avatar'
 import { XIcon } from './icons'
 
 interface RemoveMemberDialogProps {
@@ -59,7 +59,7 @@ export default function RemoveMemberDialog({
 
         <div className="px-6 pb-5">
           <div className="mb-4 flex items-center gap-3">
-            <span className="team-avatar">{member ? initialsOf(member.displayName) : '?'}</span>
+            <Avatar className="team-avatar" name={member?.displayName ?? '?'} avatar={member?.avatar} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium text-[var(--ink)]">
                 {member?.displayName}

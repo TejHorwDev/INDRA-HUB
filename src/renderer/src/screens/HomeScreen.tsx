@@ -23,7 +23,7 @@ import {
   refreshInvitations,
   useInvitations
 } from '../lib/invitations'
-import { initialsOf } from '../lib/format'
+import Avatar from '../components/Avatar'
 import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
 
@@ -382,9 +382,7 @@ export default function HomeScreen() {
             * of its own, and the footer carries the only two facts left.
             */}
           <div className="home-profile-head">
-            <span className="avatar avatar--lg">
-              {initialsOf(user?.displayName ?? '')}
-            </span>
+            <Avatar name={user?.displayName ?? ''} avatar={user?.avatar} size="lg" />
 
             <div className="home-profile-text">
               <h2 className="home-name">{user?.displayName}</h2>
@@ -456,13 +454,7 @@ export default function HomeScreen() {
               <ul className="member-list member-list--flat">
                 {team.members.map((member) => (
                   <li key={member.id} className="member">
-                    <span
-                      className="avatar"
-                     
-                      aria-hidden="true"
-                    >
-                      {initialsOf(member.displayName)}
-                    </span>
+                    <Avatar name={member.displayName} avatar={member.avatar} />
 
                     <span className="member-text">
                       <span className="member-name">
@@ -490,13 +482,7 @@ export default function HomeScreen() {
                 {/* Asked, not joined: the owner sees who has not answered yet. */}
                 {team.invitations.map((invitation) => (
                   <li key={invitation.id} className="member member--invited">
-                    <span
-                      className="avatar"
-                     
-                      aria-hidden="true"
-                    >
-                      {initialsOf(invitation.displayName)}
-                    </span>
+                    <Avatar name={invitation.displayName} />
 
                     <span className="member-text">
                       <span className="member-name">
@@ -553,9 +539,7 @@ export default function HomeScreen() {
           <ul className="member-list member-list--flat">
             {memberOf.map((other) => (
               <li key={other.id} className="member">
-                <span className="avatar" aria-hidden="true">
-                  {initialsOf(other.ownerName)}
-                </span>
+                <Avatar name={other.ownerName} />
                 <span className="member-text">
                   <span className="member-name">{other.name}</span>
                   <span className="member-handle">

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { InvitationSummary, TeamDetail, UserSummary } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
-import { initialsOf } from '../lib/format'
+import Avatar from './Avatar'
 import { CheckIcon, SearchIcon, UserPlusIcon, XIcon } from './icons'
 
 interface AddTeamMemberDialogProps {
@@ -200,9 +200,7 @@ export default function AddTeamMemberDialog({
                     onClick={() => void invite(person)}
                     disabled={Boolean(invitingId)}
                   >
-                    <span className="avatar">
-                      {initialsOf(person.displayName)}
-                    </span>
+                    <Avatar name={person.displayName} avatar={person.avatar} />
                     <span className="member-choice-text">
                       <span className="member-choice-name">{person.displayName}</span>
                       <span className="member-choice-handle">{person.email}</span>
@@ -225,13 +223,7 @@ export default function AddTeamMemberDialog({
             <ul className="member-list">
               {pending.map((invitation) => (
                 <li key={invitation.id} className="member">
-                  <span
-                    className="avatar"
-                   
-                    aria-hidden="true"
-                  >
-                    {initialsOf(invitation.displayName)}
-                  </span>
+                  <Avatar name={invitation.displayName} />
                   <span className="member-text">
                     <span className="member-name">{invitation.displayName}</span>
                     <span className="member-handle">{invitation.email}</span>

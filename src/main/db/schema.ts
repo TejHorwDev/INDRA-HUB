@@ -385,6 +385,15 @@ const MIGRATIONS: string[] = [
      into a document, which is the person's own work, not an entitlement. */
   `
   DROP TABLE IF EXISTS ai_credit_cache;
+  `,
+
+  /* 13 — a portrait belongs to the person, not the device.
+     The value is the id of a mark drawn by the renderer (`mark:orbit`) or
+     `initials`, never image bytes: the picture is generated from the same
+     monochrome system as the rest of the interface, so it looks the same at
+     24px in a member row and at 96px on the chooser, and it costs a string. */
+  `
+  ALTER TABLE users ADD COLUMN avatar TEXT;
   `
 ]
 

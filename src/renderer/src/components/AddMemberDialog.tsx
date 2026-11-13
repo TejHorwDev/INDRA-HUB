@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { InvitationSummary, ProjectDetail, UserSummary } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
-import { initialsOf } from '../lib/format'
+import Avatar from './Avatar'
 import TextField from './TextField'
 import { useToast } from './ToastProvider'
 import { MailIcon, SearchIcon, XIcon } from './icons'
@@ -258,7 +258,7 @@ export default function AddMemberDialog({
             <ul className="member-results">
               {results?.map((user) => (
                 <li key={user.id} className="member-result">
-                  <span className="team-avatar">{initialsOf(user.displayName)}</span>
+                  <Avatar className="team-avatar" name={user.displayName} avatar={user.avatar} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-[var(--ink)]">
                       {user.displayName}
@@ -293,7 +293,7 @@ export default function AddMemberDialog({
             <ul className="member-results">
               {pending.map((invitation) => (
                 <li key={invitation.id} className="member-result">
-                  <span className="team-avatar">{initialsOf(invitation.displayName)}</span>
+                  <Avatar className="team-avatar" name={invitation.displayName} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-[var(--ink)]">
                       {invitation.displayName}

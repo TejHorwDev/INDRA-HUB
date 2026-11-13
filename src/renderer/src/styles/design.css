@@ -2658,3 +2658,302 @@ tbody td {
 .buy-quote-note {
   white-space: normal;
 }
+
+/* ==================================================================
+ * Portraits
+ *
+ * An avatar is either initials or one of eight drawn marks. The mark is an
+ * SVG on a 24 grid, so it is crisp at 24px in a member row and at 92px on the
+ * chooser, and it never needs a second file.
+ * ================================================================== */
+
+.avatar svg {
+  display: block;
+  width: 62%;
+  height: 62%;
+  overflow: visible;
+}
+
+/* A mark needs a little more room than two initials to stay legible. */
+.member .avatar {
+  width: 30px;
+  height: 30px;
+}
+
+.avatar--md {
+  width: 36px;
+  height: 36px;
+  font-size: 12px;
+}
+
+.avatar--xl {
+  width: 92px;
+  height: 92px;
+  border-radius: 24px;
+  font-size: 26px;
+}
+
+.avatar--xl svg {
+  width: 54%;
+  height: 54%;
+}
+
+/* ---------------- sign-up: three steps on one page ---------------- */
+
+.auth-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.auth-step {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.auth-step-bar {
+  height: 2px;
+  border-radius: 2px;
+  background-color: var(--line-strong);
+  transition: background-color 200ms ease;
+}
+
+.auth-step.is-current .auth-step-bar,
+.auth-step.is-done .auth-step-bar {
+  background-color: var(--ink);
+}
+
+.auth-step-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--ink-tertiary);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.auth-step.is-current .auth-step-label {
+  color: var(--ink);
+}
+
+.auth-step-num {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+}
+
+.auth-sub {
+  margin-top: 7px;
+  color: var(--ink-tertiary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.auth-step-body {
+  animation: auth-step-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes auth-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-step-body {
+    animation: none;
+  }
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.auth-actions .btn {
+  width: 100%;
+}
+
+.auth-actions--split {
+  justify-content: space-between;
+}
+
+.auth-actions--split .btn {
+  width: auto;
+}
+
+.auth-actions--split .btn:last-child {
+  flex: 1;
+}
+
+.auth-actions--stack {
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+.auth-hint {
+  margin-top: 12px;
+  color: var(--ink-tertiary);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+/* ---------------- the portrait chooser ---------------- */
+
+.portrait-stage {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.portrait-preview {
+  flex: none;
+}
+
+.portrait-stage-text {
+  min-width: 0;
+}
+
+.portrait-name {
+  color: var(--ink);
+  font-family: var(--font-display-stack);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+
+.portrait-handle {
+  margin-top: 2px;
+  color: var(--ink-tertiary);
+  font-size: 11.5px;
+}
+
+.portrait-note {
+  margin-top: 9px;
+  color: var(--ink-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.portrait-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.portrait-choice {
+  display: grid;
+  place-items: center;
+  padding: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background-color: transparent;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.portrait-choice:hover {
+  border-color: var(--line-strong);
+  background-color: var(--surface-subtle);
+}
+
+.portrait-choice.is-selected {
+  border-color: var(--ink);
+  background-color: var(--surface-raised);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.portrait-choice .avatar {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.portrait-choice--initials .avatar {
+  border-style: dashed;
+  border-color: var(--line-strong);
+}
+
+/* The sign-in link sits after a full-width button, which has no bottom air. */
+.auth-step-body + .auth-alt {
+  margin-top: 24px;
+}
+
+@media (max-width: 420px) {
+  .portrait-choice {
+    padding: 9px 0;
+  }
+}
+
+/* ---------------- portrait in the account panel ---------------- */
+
+.account-portrait {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.account-portrait-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.portrait-pip {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background-color: transparent;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.portrait-pip:hover {
+  border-color: var(--line-strong);
+  background-color: var(--surface-subtle);
+}
+
+.portrait-pip.is-selected {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+.portrait-pip .avatar {
+  width: 24px;
+  height: 24px;
+  border-color: transparent;
+  background-color: transparent;
+  font-size: 9px;
+}
+
+.portrait-pip--initials .avatar {
+  border: 1px dashed var(--line-strong);
+}

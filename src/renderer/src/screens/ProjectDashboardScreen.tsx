@@ -25,7 +25,8 @@ import { api, errorCode, errorMessage } from '../lib/api'
 import { cancelInvitation } from '../lib/invitations'
 import { useConnectivity } from '../lib/connectivity'
 import { useSession } from '../lib/session'
-import { formatDate, formatRelative, initialsOf } from '../lib/format'
+import { formatDate, formatRelative } from '../lib/format'
+import Avatar from '../components/Avatar'
 import { Skeleton } from '../components/Skeleton'
 
 type LoadState = 'loading' | 'ready' | 'missing' | 'error'
@@ -498,7 +499,7 @@ export default function ProjectDashboardScreen() {
 
             <ul className="team-list">
               <li className="team-row">
-                <span className="team-avatar">{initialsOf(project.owner.displayName)}</span>
+                <Avatar className="team-avatar" name={project.owner.displayName} avatar={project.owner.avatar} />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="team-name">{project.owner.displayName}</span>
@@ -511,7 +512,7 @@ export default function ProjectDashboardScreen() {
 
               {project.members.map((member) => (
                 <li className="team-row" key={member.userId}>
-                  <span className="team-avatar">{initialsOf(member.displayName)}</span>
+                  <Avatar className="team-avatar" name={member.displayName} avatar={member.avatar} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="team-name">{member.displayName}</span>
@@ -544,7 +545,7 @@ export default function ProjectDashboardScreen() {
 
               {project.invitations.map((invitation) => (
                 <li className="team-row" key={invitation.id}>
-                  <span className="team-avatar">{initialsOf(invitation.displayName)}</span>
+                  <Avatar className="team-avatar" name={invitation.displayName} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="team-name">{invitation.displayName}</span>

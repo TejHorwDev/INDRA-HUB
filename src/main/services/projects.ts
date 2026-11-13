@@ -115,12 +115,12 @@ function loadRow(projectId: string, viewerId: string): ProjectRow | undefined {
 function readMembers(projectId: string, ownerId: string): ProjectMember[] {
   const rows = getDatabase()
     .prepare(
-      `SELECT m.user_id, m.joined_at, u.username, u.display_name, 'invite' AS via
+      `SELECT m.user_id, m.joined_at, u.username, u.display_name, u.avatar, 'invite' AS via
          FROM project_members m
          JOIN users u ON u.id = m.user_id
         WHERE m.project_id = ?
         UNION ALL
-       SELECT tm.user_id, tm.joined_at, u.username, u.display_name, 'team' AS via
+       SELECT tm.user_id, tm.joined_at, u.username, u.display_name, u.avatar, 'team' AS via
          FROM team_members tm
          JOIN teams t ON t.id = tm.team_id
          JOIN users u ON u.id = tm.user_id
@@ -133,6 +133,7 @@ function readMembers(projectId: string, ownerId: string): ProjectMember[] {
     joined_at: string
     username: string
     display_name: string
+    avatar: string | null
     via: 'invite' | 'team'
   }>
 
@@ -140,6 +141,7 @@ function readMembers(projectId: string, ownerId: string): ProjectMember[] {
     userId: row.user_id,
     username: row.username,
     displayName: row.display_name,
+    avatar: row.avatar,
     role: 'member',
     via: row.via,
     joinedAt: row.joined_at

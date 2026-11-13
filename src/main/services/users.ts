@@ -9,20 +9,31 @@ interface UserRow {
   email: string
   created_at: string
   last_sign_in_at: string | null
+  avatar: string | null
 }
 
 /**
  * Only the public projection leaves this module: no email, no password
  * material, no internal timestamps beyond the account's own session.
  */
-function toSummary(row: { id: string; username: string; display_name: string }): UserSummary {
-  return { id: row.id, username: row.username, displayName: row.display_name }
+function toSummary(row: {
+  id: string
+  username: string
+  display_name: string
+  avatar?: string | null
+}): UserSummary {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    avatar: row.avatar ?? null
+  }
 }
 
 export function findUserById(id: string): SessionUser | null {
   const row = getDatabase()
     .prepare(
-      'SELECT id, username, display_name, email, created_at, last_sign_in_at FROM users WHERE id = ?'
+      'SELECT id, username, display_name, email, created_at, last_sign_in_at, avatar FROM users WHERE id = ?'
     )
     .get(id) as UserRow | undefined
 
@@ -34,6 +45,7 @@ export function findUserById(id: string): SessionUser | null {
     email: row.email,
     createdAt: row.created_at,
     lastSignInAt: row.last_sign_in_at,
+    avatar: row.avatar,
     mode: row.username === OFFLINE_USERNAME ? 'offline' : 'account'
   }
 }
