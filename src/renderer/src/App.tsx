@@ -18,6 +18,7 @@ import {
   SunIcon,
   UserIcon
 } from './components/icons'
+import { isLibraryPath, navDestinations } from './lib/nav'
 import { useAppStatus } from './lib/appStatus'
 import { routeAllowedOffline, useConnectivity } from './lib/connectivity'
 import { useSession } from './lib/session'
@@ -148,15 +149,22 @@ export default function App() {
   }, [navigate])
 
   const commands = useMemo<Command[]>(() => {
-    const destinations = [
-      { to: '/home', label: 'Go to Home', icon: <HomeIcon size={15} /> },
-      { to: '/dashboard', label: 'Go to Projects', icon: <DashboardIcon size={15} /> },
-      { to: '/documents', label: 'Go to Documents', icon: <FileIcon size={15} /> },
-      { to: '/presentations', label: 'Go to Presentations', icon: <PresentationIcon size={15} /> },
-      { to: '/developers', label: 'Go to Developers', icon: <CodeIcon size={15} /> },
-      { to: '/credits', label: 'Go to Credits', icon: <SparkIcon size={15} /> },
-      { to: '/settings', label: 'Go to Settings', icon: <SettingsIcon size={15} /> }
-    ]
+    // The same list the rail renders, so the palette cannot offer a screen the
+    // rail has decided does not exist online.
+    const icons: Record<string, ReactNode> = {
+      '/home': <HomeIcon size={15} />,
+      '/dashboard': <DashboardIcon size={15} />,
+      '/documents': <FileIcon size={15} />,
+      '/presentations': <PresentationIcon size={15} />,
+      '/developers': <CodeIcon size={15} />,
+      '/credits': <SparkIcon size={15} />,
+      '/settings': <SettingsIcon size={15} />
+    }
+    const destinations = navDestinations(offline).map((entry) => ({
+      to: entry.to,
+      label: `Go to ${entry.label}`,
+      icon: icons[entry.to]
+    }))
 
     return [
       ...destinations.map((destination) => ({
@@ -194,7 +202,7 @@ export default function App() {
         }
       }
     ]
-  }, [navigate, pathname, setTheme, signOut, theme, user])
+  }, [navigate, offline, pathname, setTheme, signOut, theme, user])
 
   return (
     <div className="flex h-full flex-col">
@@ -208,6 +216,13 @@ export default function App() {
         {blockedOffline ? (
           /* Offline: the two things that work, and nothing that does not. */
           <Navigate to="/documents" replace />
+        ) : signedIn && !offline && isLibraryPath(pathname) ? (
+          /*
+           * The library is the offline workspace. Online, documents and decks
+           * live in their project, so an old link or a bookmark lands on the
+           * project list rather than on a second, parallel way to find work.
+           */
+          <Navigate to="/dashboard" replace />
         ) : workspaceClosed ? (
           <MaintenanceScreen
             message={status.maintenanceMessage}

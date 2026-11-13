@@ -83,6 +83,7 @@ export * from ${JSON.stringify(join(root, 'src/main/services/settings.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/projects.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/documents.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/presentations.ts'))}
+export * from ${JSON.stringify(join(root, 'src/renderer/src/lib/nav.ts'))}
 `
   )
 
@@ -114,6 +115,33 @@ export * from ${JSON.stringify(join(root, 'src/main/services/presentations.ts'))
 
   globalThis.__online = true
   check(api.recheckConnectivity().online === true, 'and it recovers on its own', 'still offline')
+
+  /* ---- 1b. the two workspaces the rail offers ---------------------- */
+  const online = api.navGroups(false)
+  const onlinePaths = online.flatMap((group) => group.items.map((item) => item.to))
+  check(!onlinePaths.includes('/documents'), 'online, the rail has no separate Documents entry', onlinePaths.join(','))
+  check(!onlinePaths.includes('/presentations'), 'and no separate Presentations entry')
+  check(
+    onlinePaths.includes('/dashboard') && onlinePaths.includes('/home'),
+    'because a project is the container for both'
+  )
+
+  const offlineGroups = api.navGroups(true)
+  const offlinePaths = offlineGroups.flatMap((group) => group.items.map((item) => item.to))
+  check(
+    offlinePaths.includes('/documents') && offlinePaths.includes('/presentations'),
+    'offline, Documents and Presentations are the workspace',
+    offlinePaths.join(',')
+  )
+  check(offlineGroups.length === 1, 'in one group, with no headings to explain a second')
+  check(
+    api.navDestinations(false).every((entry) => entry.to !== '/documents'),
+    'the command palette follows the same list online'
+  )
+  check(
+    api.isLibraryPath('/documents') && api.isLibraryPath('/presentations/123') && !api.isLibraryPath('/dashboard'),
+    'and the library is recognisable as a route, so online it can redirect'
+  )
 
   /* ---- 2. work is written locally, whoever is on the machine ------- */
   const owner = api.register({
