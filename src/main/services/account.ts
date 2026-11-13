@@ -1,5 +1,12 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import type { AccountCreateInput, AccountCredentialsInput, AccountSignInResult, AccountState, SessionUser } from '@shared/types'
+import type {
+  AccountCreateInput,
+  AccountCredentialsInput,
+  AccountSignInResult,
+  AccountState,
+  RegisterInput,
+  SessionUser
+} from '@shared/types'
 import { getDatabase } from '../db/database'
 import {
   accountStateFor,
@@ -15,7 +22,7 @@ import { AppError, errors } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { EMAIL_PATTERN, normalizeEmail } from '../lib/validation'
 import { SupabaseError, asRow, supabaseRpc, supabaseRequest } from '../lib/supabase'
-import { activeSessionUserId, openSessionFor, signOut } from './auth'
+import { activeSessionUserId, discardLocalAccount, openSessionFor, register, signOut } from './auth'
 import { recheckConnectivity } from './connectivity'
 import { syncAfterSignIn } from './sync'
 import { findUserById } from './users'
@@ -386,6 +393,36 @@ export async function createAccount(input: AccountCreateInput): Promise<AccountS
   }
 
   return completeSignIn(payload, email)
+}
+
+/**
+ * Creating an account is creating it on the server.
+ *
+ * Registration used to stop at the local database, and the server half lived
+ * behind a separate button in Account & cloud that was easy to never press. That
+ * is how a project can accumulate accounts the server has never heard of — the
+ * app signs in, the panel opens, and nothing about that person exists anywhere
+ * but their own disk.
+ *
+ * So the two halves happen in one action now. If the server refuses, the local
+ * half is deleted rather than left behind, because an account that exists only
+ * on one PC is worse than an error message.
+ *
+ * The one refusal that is not a failure is email confirmation: the account
+ * genuinely exists on the server, it simply cannot be signed in to until the
+ * address is confirmed, so the message says exactly that.
+ */
+export async function registerOnServer(input: RegisterInput): Promise<SessionUser> {
+  const user = register(input)
+  try {
+    await createAccountFromLocal(input.password ?? '')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (/confirm the address/i.test(message)) throw error
+    discardLocalAccount(user.id)
+    throw error
+  }
+  return findUserById(user.id) ?? user
 }
 
 /**

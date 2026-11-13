@@ -19,7 +19,8 @@ import {
   createAccountFromLocal,
   currentAccountState,
   signInAccount,
-  signOutOfAccount
+  signOutOfAccount,
+  registerOnServer
 } from '../services/account'
 import { archiveProject, exportProjectToFile, importProjectFromFile, restoreArchive } from '../services/archive'
 import { recheckConnectivity } from '../services/connectivity'
@@ -498,7 +499,8 @@ export function registerIpcHandlers(): void {
 
   /* ---------------- accounts ---------------- */
   ipcMain.handle('auth:register', (_event, input: RegisterInput) =>
-    toResult(() => register(input ?? ({} as RegisterInput)))
+    // The local row and the server account are one act now — see registerOnServer.
+    toResult(() => registerOnServer(input ?? ({} as RegisterInput)))
   )
 
   /*

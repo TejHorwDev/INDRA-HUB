@@ -245,6 +245,52 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     'and carries the display name the profile starts from'
   )
 
+  /*
+   * ---- a new account is created on the server, in the same act -------
+   *
+   * Registration used to stop at the local database; the server half was a
+   * separate button nobody had to press. An account that exists only on one PC
+   * is the trap this project kept falling into, so there is a check for it now.
+   */
+  const fresh = boot('pc-fresh')
+  server.accounts.delete('newcomer@example.com')
+  const made = await fresh.registerOnServer({
+    username: 'newcomer',
+    displayName: 'New Comer',
+    email: 'newcomer@example.com',
+    password: 'correct-horse'
+  })
+  check(made.email === 'newcomer@example.com', 'creating an account returns that account')
+  check(fresh.currentAccountState().connected === true, 'and it is signed in to the server at once')
+  check(
+    server.calls.some((call) => call.url.includes('/auth/v1/signup') && call.body?.email === 'newcomer@example.com'),
+    'the server really received the account, not just this PC'
+  )
+
+  /* And when the server refuses, the local half does not survive. */
+  server.accounts.set('taken@example.com', 'whatever')
+  const before2 = fresh
+    .getDatabase()
+    .prepare('SELECT COUNT(*) AS n FROM users')
+    .get().n
+  let refusal = null
+  try {
+    await fresh.registerOnServer({
+      username: 'taken',
+      displayName: 'Taken',
+      email: 'taken@example.com',
+      password: 'correct-horse'
+    })
+  } catch (error) {
+    refusal = error
+  }
+  check(refusal !== null, 'a refused registration reports the refusal')
+  const after2 = fresh
+    .getDatabase()
+    .prepare('SELECT COUNT(*) AS n FROM users')
+    .get().n
+  check(after2 === before2, 'and leaves no account that only exists on this PC', `${before2} → ${after2}`)
+
   /* ---- nothing at rest holds the password or a readable token ----- */
   const stored = api
     .getDatabase()

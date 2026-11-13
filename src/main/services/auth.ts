@@ -216,6 +216,28 @@ export function register(input: RegisterInput): SessionUser {
   return user
 }
 
+/**
+ * Deleting an account that never reached the server.
+ *
+ * Registration is local-then-server so the password hash and the portrait are
+ * written once, with the rest of the account. When the server refuses — the
+ * address is taken, the password was rejected — the local half must not
+ * survive: an account that exists only on this PC is exactly the trap this
+ * project has been digging itself out of.
+ */
+export function discardLocalAccount(userId: string): void {
+  const db = getDatabase()
+  db.exec('BEGIN')
+  try {
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId)
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+  signOut()
+}
+
 export function signIn(input: LoginInput): SessionUser {
   /*
    * Signing in always works, including during maintenance. Refusing here left
