@@ -115,6 +115,31 @@ jobs:
           Get-Content "release/payload.json"
           Get-ChildItem release | Select-Object Name, Length
 
+      # The custom install window, built here and attached to the same release
+      # as an extra file. It is not what the updater reads — payload.json and
+      # latest.yml still come from the stock build — but it means one release
+      # page carries both, with names that say which is which.
+      - name: Put the stock installer inside the custom one
+        shell: bash
+        run: |
+          mkdir -p installer/payload
+          cp "release/INDRA-HUB-Setup-${{ steps.version.outputs.value }}.exe" installer/payload/inder-setup.exe
+          npm pkg set "version=${{ steps.version.outputs.value }}" --prefix installer
+
+      - name: Install the installer's own dependencies
+        working-directory: installer
+        run: npm install --no-audit --no-fund
+
+      - name: Build the custom installer
+        working-directory: installer
+        run: npx electron-builder --win --publish never
+
+      - name: Move it beside the stock installer
+        shell: bash
+        run: |
+          cp installer/dist/*.exe "release/INDRA-HUB-Custom-Setup-${{ steps.version.outputs.value }}.exe"
+          ls -l release/*.exe
+
       - name: Show what was produced
         run: |
           Get-ChildItem release | Select-Object Name, Length

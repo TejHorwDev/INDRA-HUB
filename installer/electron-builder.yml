@@ -34,5 +34,5 @@ extraResources:
 # not something to leave in Program Files. The splash covers the few seconds
 # while the archive unpacks, so the first thing anyone sees is our own frame.
 portable:
-  artifactName: INDRA-HUB-Setup-${version}.${ext}
+  artifactName: INDRA-HUB-Custom-Setup-${version}.${ext}
   splashImage: build/splash.bmp
