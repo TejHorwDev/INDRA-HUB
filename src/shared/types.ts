@@ -228,6 +228,10 @@ export interface CloudProjectSummary {
   updatedAt: string
   /** The local project this copy came from or was pushed to, when known. */
   localProjectId: string | null
+  /** Who owns it, for a copy that was shared with this account. */
+  ownerName?: string | null
+  /** False when somebody else's project is shared with this account. */
+  isOwner?: boolean
 }
 
 /** How one local project relates to the cloud. Read from disk, never the network. */
@@ -239,6 +243,43 @@ export interface CloudProjectState {
   presentations: number
   /** True when local work has changed since the last push. */
   stale: boolean
+  /** True when this project also lives on somebody else's PC. */
+  shared: boolean
+  role: 'owner' | 'member'
+  /** The head developer's name, for a project shared with this account. */
+  ownerName: string | null
+  /** When this PC last agreed with the other one. */
+  lastSyncAt: string | null
+  /** Items changed on both PCs, waiting for a decision. */
+  conflicts: number
+}
+
+/** Somebody on another PC asking to be let into a project. */
+export interface SharedInvitation {
+  id: string
+  cloudId: string
+  projectName: string
+  invitedByName: string
+  createdAt: string
+}
+
+/** An item changed on both PCs, waiting to be answered. */
+export interface CloudConflict {
+  id: string
+  kind: 'document' | 'presentation'
+  title: string
+  detectedAt: string
+}
+
+/** What one pass of the shared project did. */
+export interface SharedSyncResult {
+  projectId: string
+  cloudId: string
+  pulled: number
+  pushed: number
+  syncedAt: string
+  /** Changed on both sides: nothing was written, somebody has to choose. */
+  conflicts: Array<{ kind: 'document' | 'presentation'; title: string }>
 }
 
 export interface CloudPushResult {

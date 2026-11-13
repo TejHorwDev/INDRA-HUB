@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { net } from 'electron'
 import type {
   CloudProjectState,
@@ -53,8 +53,21 @@ import { recheckConnectivity } from './connectivity'
  * when the machine has no route out.
  */
 
-const IDENTITY_KEY = 'cloud_identity'
-const PROFILE_KEY = 'cloud_profile'
+/*
+ * One cloud identity per *account*, not per installation.
+ *
+ * Two people can sign in to this PC in turn, and they must not become the same
+ * person in the cloud: an invitation is addressed to an address, and an
+ * identity shared by everyone who uses the machine would let the wrong account
+ * answer it. The keys carry the account id for that reason.
+ *
+ * Installations from before this change hold a single identity under the two
+ * bare keys. It is adopted, once, by the first account that reaches for the
+ * cloud — that account keeps the cloud copies it already had, and every other
+ * account starts clean.
+ */
+const IDENTITY_PREFIX = 'cloud_identity'
+const PROFILE_PREFIX = 'cloud_profile'
 const TIMEOUT_MS = 15_000
 const REFRESH_MARGIN_MS = 60_000
 
@@ -69,6 +82,14 @@ interface Identity {
 }
 
 /* ---------------- local storage ---------------- */
+
+/** jane@example.com -> ja•••@example.com. Never a credential, just a reminder. */
+function maskEmail(email: string): string {
+  const [name, domain] = String(email ?? '').split('@')
+  if (!domain) return email
+  const head = name.slice(0, 2)
+  return `${head}${'•'.repeat(Math.max(3, name.length - 2))}@${domain}`
+}
 
 function readSetting(key: string): string | null {
   const row = getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as
@@ -90,9 +111,16 @@ function clearSetting(key: string): void {
   getDatabase().prepare('DELETE FROM app_settings WHERE key = ?').run(key)
 }
 
-function readIdentity(): Identity | null {
-  const stored = readSetting(IDENTITY_KEY)
-  if (!stored) return null
+function readIdentity(accountId: string): Identity | null {
+  const stored = readSetting(`${IDENTITY_PREFIX}:${accountId}`)
+  if (!stored) {
+    // One-time adoption of an installation-wide identity from an older build.
+    const legacy = readSetting(IDENTITY_PREFIX)
+    if (!legacy) return null
+    writeSetting(`${IDENTITY_PREFIX}:${accountId}`, legacy)
+    clearSetting(IDENTITY_PREFIX)
+    return readIdentity(accountId)
+  }
   const raw = unsealSecret(stored).value
   if (!raw) return null
   try {
@@ -111,25 +139,43 @@ function readIdentity(): Identity | null {
   }
 }
 
-function saveIdentity(identity: Identity): void {
-  writeSetting(IDENTITY_KEY, sealSecret(JSON.stringify(identity)))
+function saveIdentity(accountId: string, identity: Identity): void {
+  writeSetting(`${IDENTITY_PREFIX}:${accountId}`, sealSecret(JSON.stringify(identity)))
 }
 
-function readProfileId(): string | null {
-  const stored = readSetting(PROFILE_KEY)
-  if (!stored) return null
+interface ProfileRecord {
+  id: string
+  contactEmail: string | null
+  displayName: string | null
+}
+
+function readProfile(accountId: string): ProfileRecord | null {
+  const stored = readSetting(`${PROFILE_PREFIX}:${accountId}`)
+  if (!stored) {
+    const legacy = readSetting(PROFILE_PREFIX)
+    if (!legacy) return null
+    writeSetting(`${PROFILE_PREFIX}:${accountId}`, legacy)
+    clearSetting(PROFILE_PREFIX)
+    return readProfile(accountId)
+  }
   const raw = unsealSecret(stored).value
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as { id?: unknown }
-    return typeof parsed.id === 'string' ? parsed.id : null
+    const parsed = JSON.parse(raw) as { id?: unknown; contactEmail?: unknown; displayName?: unknown }
+    return typeof parsed.id === 'string'
+      ? {
+          id: parsed.id,
+          contactEmail: typeof parsed.contactEmail === 'string' ? parsed.contactEmail : null,
+          displayName: typeof parsed.displayName === 'string' ? parsed.displayName : null
+        }
+      : null
   } catch {
     return null
   }
 }
 
-function saveProfileId(id: string): void {
-  writeSetting(PROFILE_KEY, sealSecret(JSON.stringify({ id })))
+function saveProfile(accountId: string, record: ProfileRecord): void {
+  writeSetting(`${PROFILE_PREFIX}:${accountId}`, sealSecret(JSON.stringify(record)))
 }
 
 /* ---------------- transport ---------------- */
@@ -266,24 +312,44 @@ async function refresh(identity: Identity): Promise<Identity> {
  * is close to expiring, and re-established from the sealed password if the
  * token was rotated away. No network at all while the token is fresh.
  */
-async function identity(): Promise<Identity> {
-  let current = readIdentity()
+async function identity(viewer: SessionUser): Promise<Identity> {
+  let current = readIdentity(viewer.id)
   if (!current) {
     current = await signUp()
-    saveIdentity(current)
+    saveIdentity(viewer.id, current)
     return current
   }
   if (current.expiresAt - REFRESH_MARGIN_MS > Date.now()) return current
 
   const renewed = await refresh(current).catch(() => signInWithPassword(current))
-  saveIdentity(renewed)
+  saveIdentity(viewer.id, renewed)
   return renewed
 }
 
-/** The profile row auth.sql's trigger created for this identity. */
-async function profileFor(actor: Identity): Promise<string> {
-  const known = readProfileId()
-  if (known) return known
+/**
+ * The profile row auth.sql's trigger created for this identity, and the one
+ * field the trigger could not know: the address this person answers cloud
+ * invitations at.
+ *
+ * The address is written once — and again only if the account it belongs to
+ * changes it — so the common path costs no request at all.
+ */
+async function profileFor(viewer: SessionUser, actor: Identity): Promise<string> {
+  const address = viewer.email.trim().toLowerCase()
+  const name = viewer.displayName.trim()
+  const known = readProfile(viewer.id)
+  if (known && known.contactEmail === address && known.displayName === name) return known.id
+
+  if (known) {
+    await request(`/rest/v1/indra_users?id=eq.${encodeURIComponent(known.id)}`, {
+      method: 'PATCH',
+      token: actor.accessToken,
+      prefer: 'return=minimal',
+      body: { contact_email: address, display_name: name }
+    })
+    saveProfile(viewer.id, { id: known.id, contactEmail: address, displayName: name })
+    return known.id
+  }
 
   const rows = await request<{ id: string }[]>(
     `/rest/v1/indra_users?select=id&auth_user_id=eq.${encodeURIComponent(actor.uid)}`,
@@ -291,9 +357,41 @@ async function profileFor(actor: Identity): Promise<string> {
   )
   const id = rows?.[0]?.id
   if (!id) throw errors.cloud('This PC’s cloud profile has not been created yet. Try again in a moment.')
-  saveProfileId(id)
+
+  await request(`/rest/v1/indra_users?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    token: actor.accessToken,
+    prefer: 'return=minimal',
+    body: { contact_email: address, display_name: name }
+  })
+  saveProfile(viewer.id, { id, contactEmail: address, displayName: name })
   return id
 }
+
+/* ---------------- one door for the rest of the app ---------------- */
+
+export interface CloudSession {
+  token: string
+  /** This account's cloud profile id, and the id the RLS policies compare to. */
+  profile: string
+  uid: string
+}
+
+/**
+ * Everything a cloud call needs, resolved once: the account's own identity,
+ * a fresh token, and the profile row behind it. Refused while offline, which
+ * is what keeps the cloud off the offline workspace's path entirely.
+ */
+export async function cloudSession(viewer: SessionUser): Promise<CloudSession> {
+  assertReachable()
+  const actor = await identity(viewer)
+  const profile = await profileFor(viewer, actor)
+  return { token: actor.accessToken, profile, uid: actor.uid }
+}
+
+/** Exposed to the sharing service so there is one transport, not two. */
+export const cloudRequest = request
+export { parseJson as parseCloudJson }
 
 /* ---------------- local ids in the cloud ---------------- */
 
@@ -350,7 +448,9 @@ export function cloudProjectState(viewer: SessionUser, projectId: string): Cloud
   const project = localProject(viewer, projectId)
   const save = getDatabase()
     .prepare(
-      'SELECT cloud_project_id, pushed_at, document_count, presentation_count FROM cloud_saves WHERE project_id = ?'
+      `SELECT cloud_project_id, pushed_at, document_count, presentation_count,
+              role, owner_name, last_sync_at
+         FROM cloud_saves WHERE project_id = ?`
     )
     .get(projectId) as
     | {
@@ -358,6 +458,9 @@ export function cloudProjectState(viewer: SessionUser, projectId: string): Cloud
         pushed_at: string
         document_count: number
         presentation_count: number
+        role: 'owner' | 'member'
+        owner_name: string | null
+        last_sync_at: string | null
       }
     | undefined
 
@@ -368,7 +471,12 @@ export function cloudProjectState(viewer: SessionUser, projectId: string): Cloud
       pushedAt: null,
       documents: 0,
       presentations: 0,
-      stale: project.owner_id === viewer.id
+      stale: project.owner_id === viewer.id,
+      shared: false,
+      role: project.owner_id === viewer.id ? 'owner' : 'member',
+      ownerName: null,
+      lastSyncAt: null,
+      conflicts: 0
     }
   }
 
@@ -384,17 +492,28 @@ export function cloudProjectState(viewer: SessionUser, projectId: string): Cloud
     )
     .get(projectId) as { at: string | null } | undefined
 
+  const conflicts = getDatabase()
+    .prepare('SELECT COUNT(*) AS n FROM cloud_conflicts WHERE project_id = ?')
+    .get(projectId) as { n: number } | undefined
+
   return {
     projectId,
     cloudId: save.cloud_project_id,
     pushedAt: save.pushed_at,
     documents: Number(save.document_count) || 0,
     presentations: Number(save.presentation_count) || 0,
-    stale: Boolean(latest?.at && latest.at > save.pushed_at)
+    // A shared project is "behind" when either side has moved, and only the
+    // network can answer that; the badge therefore speaks about local work.
+    stale: Boolean(latest?.at && latest.at > (save.last_sync_at ?? save.pushed_at)),
+    shared: save.role === 'member',
+    role: save.role,
+    ownerName: save.owner_name,
+    lastSyncAt: save.last_sync_at,
+    conflicts: Number(conflicts?.n) || 0
   }
 }
 
-export async function cloudState(): Promise<CloudState> {
+export async function cloudState(viewer: SessionUser): Promise<CloudState> {
   const online = recheckConnectivity().online
   if (!cloudConfigured()) {
     return {
@@ -406,11 +525,13 @@ export async function cloudState(): Promise<CloudState> {
     }
   }
 
-  const current = readIdentity()
+  const current = readIdentity(viewer.id)
   return {
     available: true,
     linked: Boolean(current),
-    account: current ? current.email.replace(/^device-([0-9a-f]{4})[0-9a-f]*@/, 'pc-$1…') : null,
+    // The address a person recognises is their own; the generated identity
+    // behind it is never shown.
+    account: current ? maskEmail(viewer.email) : null,
     online,
     message: online ? null : 'Offline. The cloud copy is hidden until this PC is back online.'
   }
@@ -475,10 +596,29 @@ export async function pushProject(
     throw errors.forbidden('Only the head developer can save this project to the cloud.')
   }
 
+  /*
+   * Replace-everything is right for a backup and wrong for a project somebody
+   * else is working on: it would delete the rows their work is in. Once a
+   * shared project has a member on another PC, the way to the cloud is Sync.
+   */
+  const collaborators = getDatabase()
+    .prepare(
+      `SELECT COUNT(*) AS n
+         FROM project_members m
+         JOIN users u ON u.id = m.user_id
+        WHERE m.project_id = ? AND u.remote_profile IS NOT NULL`
+    )
+    .get(projectId) as { n: number } | undefined
+  if (Number(collaborators?.n) > 0) {
+    throw errors.validation(
+      'This project is shared with another PC. Use Sync, so nobody’s work is overwritten.'
+    )
+  }
+
   assertReachable()
 
-  const actor = await identity()
-  const profile = await profileFor(actor)
+  const actor = await identity(viewer)
+  const profile = await profileFor(viewer, actor)
   const cloudId = cloudProjectId(projectId)
   const now = new Date().toISOString()
   const token = actor.accessToken
@@ -603,6 +743,45 @@ export async function pushProject(
     }
   }
 
+  /*
+   * The join between these local rows and the cloud rows just written.
+   *
+   * Without it a later sync would see every local item as new and send a
+   * second copy of the whole project. The hash is the test for "changed since
+   * we last agreed", so a push and a sync tell the same story.
+   */
+  const digest = (value: unknown): string =>
+    createHash('sha256').update(JSON.stringify(value)).digest('hex')
+  const map = getDatabase().prepare(
+    `INSERT INTO cloud_items (project_id, kind, local_id, cloud_id, synced_at, synced_hash, force)
+     VALUES (?, ?, ?, ?, ?, ?, 0)
+     ON CONFLICT(project_id, kind, local_id) DO UPDATE SET
+       cloud_id = excluded.cloud_id, synced_at = excluded.synced_at, synced_hash = excluded.synced_hash`
+  )
+  for (const document of documents) {
+    map.run(
+      projectId,
+      'document',
+      document.id,
+      cloudDocumentId(projectId, document.id),
+      document.updated_at,
+      digest({ title: document.title, content: document.content })
+    )
+  }
+  for (const presentation of presentations) {
+    const mine = slides
+      .filter((slide) => slide.presentation_id === presentation.id)
+      .map((slide) => ({ layout: slide.layout, content: parseJson(slide.content, {}), notes: slide.notes }))
+    map.run(
+      projectId,
+      'presentation',
+      presentation.id,
+      cloudPresentationId(projectId, presentation.id),
+      presentation.updated_at,
+      digest({ title: presentation.title, theme: presentation.theme, slides: mine })
+    )
+  }
+
   getDatabase()
     .prepare(
       `INSERT INTO cloud_saves
@@ -640,14 +819,17 @@ interface CloudProjectRow {
  * Security — not this query — decides what comes back: `owner_id` is a filter
  * for speed, never the security boundary.
  */
-export async function listCloudProjects(): Promise<CloudProjectSummary[]> {
+export async function listCloudProjects(viewer: SessionUser): Promise<CloudProjectSummary[]> {
   assertReachable()
-  const actor = await identity()
-  const profile = await profileFor(actor)
+  const actor = await identity(viewer)
+  await profileFor(viewer, actor)
 
-  const rows = await request<CloudProjectRow[]>(
-    `/rest/v1/indra_projects?select=id,name,description,updated_at&owner_id=eq.${encodeURIComponent(profile)}&order=updated_at.desc`,
-    { token: actor.accessToken }
+  // The RPC returns everything this account can open — its own copies and the
+  // projects shared with it — and names the owner, which a member needs to
+  // recognise a project that is not theirs.
+  const rows = await request<Array<CloudProjectRow & { owner_name: string; is_owner: boolean }>>(
+    '/rest/v1/rpc/indra_my_projects',
+    { method: 'POST', token: actor.accessToken, body: {} }
   )
 
   const links = new Map(
@@ -664,7 +846,9 @@ export async function listCloudProjects(): Promise<CloudProjectSummary[]> {
     name: row.name,
     description: row.description ?? '',
     updatedAt: row.updated_at,
-    localProjectId: links.get(row.id) ?? null
+    localProjectId: links.get(row.id) ?? null,
+    ownerName: row.owner_name ?? null,
+    isOwner: row.is_owner !== false
   }))
 }
 
@@ -711,10 +895,12 @@ export async function pullProject(
   cloudId: string
 ): Promise<ProjectDetail> {
   assertReachable()
-  const actor = await identity()
-  const profile = await profileFor(actor)
+  const actor = await identity(viewer)
+  await profileFor(viewer, actor)
   const token = actor.accessToken
-  const filter = `id=eq.${encodeURIComponent(cloudId)}&owner_id=eq.${encodeURIComponent(profile)}`
+  // Access is the database's decision, not this filter's: a member pulling a
+  // shared project is exactly the case the policies were built for.
+  const filter = `id=eq.${encodeURIComponent(cloudId)}`
 
   const [projectRow] = await request<CloudProjectRow[]>(
     `/rest/v1/indra_projects?select=id,name,description,updated_at&${filter}`,
@@ -772,7 +958,63 @@ export async function pullProject(
   const project = restoreArchive(viewer, JSON.stringify(archive))
 
   // The copy knows where it came from: a later push updates this cloud
-  // project rather than adding a second one.
+  // project rather than adding a second one, and each local item remembers the
+  // cloud row it came from, so a sync does not send a second copy of it.
+  const digest = (value: unknown): string =>
+    createHash('sha256').update(JSON.stringify(value)).digest('hex')
+  const map = getDatabase().prepare(
+    `INSERT INTO cloud_items (project_id, kind, local_id, cloud_id, synced_at, synced_hash, force)
+     VALUES (?, ?, ?, ?, ?, ?, 0)
+     ON CONFLICT(project_id, kind, local_id) DO UPDATE SET
+       cloud_id = excluded.cloud_id, synced_at = excluded.synced_at, synced_hash = excluded.synced_hash`
+  )
+  const localDocs = getDatabase()
+    .prepare('SELECT id, title, content FROM documents WHERE project_id = ? ORDER BY created_at')
+    .all(project.id) as unknown as Array<{ id: string; title: string; content: string }>
+  for (const cloudDoc of documents ?? []) {
+    const index = localDocs.findIndex((row) => row.title === cloudDoc.title)
+    const local = index >= 0 ? localDocs.splice(index, 1)[0] : undefined
+    if (!local) continue
+    map.run(
+      project.id,
+      'document',
+      local.id,
+      cloudDoc.id,
+      new Date(cloudDoc.updated_at).toISOString(),
+      digest({ title: local.title, content: local.content })
+    )
+  }
+
+  const localDecks = getDatabase()
+    .prepare('SELECT id, title, theme FROM presentations WHERE project_id = ? ORDER BY created_at')
+    .all(project.id) as unknown as Array<{ id: string; title: string; theme: string }>
+  for (const cloudDeck of presentations ?? []) {
+    const index = localDecks.findIndex((row) => row.title === cloudDeck.title)
+    const local = index >= 0 ? localDecks.splice(index, 1)[0] : undefined
+    if (!local) continue
+    const mine = getDatabase()
+      .prepare(
+        'SELECT layout, content, notes FROM presentation_slides WHERE presentation_id = ? ORDER BY position'
+      )
+      .all(local.id) as unknown as Array<{ layout: string; content: string; notes: string }>
+    map.run(
+      project.id,
+      'presentation',
+      local.id,
+      cloudDeck.id,
+      new Date(cloudDeck.updated_at).toISOString(),
+      digest({
+        title: local.title,
+        theme: local.theme,
+        slides: mine.map((slide) => ({
+          layout: slide.layout,
+          content: parseJson(slide.content, {}),
+          notes: slide.notes
+        }))
+      })
+    )
+  }
+
   getDatabase()
     .prepare(
       `INSERT INTO cloud_saves
@@ -807,8 +1049,8 @@ export async function pullProject(
  */
 const KEY_PREFIX = 'indrahub-cloud-1.'
 
-export function exportCloudKey(): { code: string } {
-  const current = readIdentity()
+export function exportCloudKey(viewer: SessionUser): { code: string } {
+  const current = readIdentity(viewer.id)
   if (!current) throw errors.cloud('Nothing has been saved to the cloud from this PC yet.')
   const payload = JSON.stringify({ v: 1, email: current.email, password: current.password })
   return { code: `${KEY_PREFIX}${Buffer.from(payload, 'utf8').toString('base64url')}` }
@@ -821,7 +1063,7 @@ export function exportCloudKey(): { code: string } {
  * a different account's copies, and a stale badge that opens nothing is worse
  * than no badge.
  */
-export async function adoptCloudKey(raw: string): Promise<CloudState> {
+export async function adoptCloudKey(viewer: SessionUser, raw: string): Promise<CloudState> {
   const code = typeof raw === 'string' ? raw.trim() : ''
   if (!code.startsWith(KEY_PREFIX)) {
     throw errors.validation('That is not a cloud transfer code.', 'code')
@@ -849,14 +1091,14 @@ export async function adoptCloudKey(raw: string): Promise<CloudState> {
     refreshToken: '',
     expiresAt: 0
   })
-  saveIdentity(adopted)
-  clearSetting(PROFILE_KEY)
+  saveIdentity(viewer.id, adopted)
+  clearSetting(`${PROFILE_PREFIX}:${viewer.id}`)
   getDatabase().prepare('DELETE FROM cloud_saves').run()
   // Resolve the profile now, so a broken code fails here rather than on the
   // first save the user tries.
-  await profileFor(adopted)
+  await profileFor(viewer, adopted)
 
-  return cloudState()
+  return cloudState(viewer)
 }
 
 /**
@@ -864,8 +1106,8 @@ export async function adoptCloudKey(raw: string): Promise<CloudState> {
  * belong to the account — but this installation can no longer reach them,
  * which is what "sign this PC out of the cloud" has to mean.
  */
-export function forgetCloudIdentity(): void {
-  clearSetting(IDENTITY_KEY)
-  clearSetting(PROFILE_KEY)
+export function forgetCloudIdentity(viewer: SessionUser): void {
+  clearSetting(`${IDENTITY_PREFIX}:${viewer.id}`)
+  clearSetting(`${PROFILE_PREFIX}:${viewer.id}`)
   getDatabase().prepare('DELETE FROM cloud_saves').run()
 }

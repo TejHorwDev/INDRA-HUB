@@ -275,6 +275,72 @@ const MIGRATIONS: string[] = [
   CREATE INDEX invitations_invitee_idx ON invitations (user_id, status, created_at DESC);
   CREATE INDEX invitations_target_idx
     ON invitations (kind, COALESCE(team_id, project_id), status);
+  `,
+
+  /* 10 — a project that lives on more than one PC */ `
+  /*
+   * People who are on a shared project but do not have an account on this PC.
+   * They are rows in users so every screen that names a member keeps working,
+   * but remote_profile marks them as a copy of somebody else's cloud profile:
+   * they can never sign in here, and they are never offered as somebody to
+   * invite.
+   */
+  ALTER TABLE users ADD COLUMN remote_profile TEXT;
+
+  CREATE UNIQUE INDEX users_remote_idx
+    ON users (remote_profile) WHERE remote_profile IS NOT NULL;
+
+  /*
+   * What this PC knows about the shared copy: whether it is the head
+   * developer's own project or one that was shared with this account, and when
+   * the two were last brought into step.
+   */
+  ALTER TABLE cloud_saves ADD COLUMN owner_profile TEXT;
+  ALTER TABLE cloud_saves ADD COLUMN owner_name TEXT;
+  ALTER TABLE cloud_saves ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'
+    CHECK (role IN ('owner', 'member'));
+  ALTER TABLE cloud_saves ADD COLUMN last_sync_at TEXT;
+
+  /*
+   * The join between a local document or deck and its cloud row.
+   *
+   * The two ids differ: on the owner's PC the cloud id was derived from their
+   * local id, while a member's copy has a local id of its own. This table is
+   * the only place that translation exists, and synced_hash is what "has this
+   * changed?" is really answered with — a clock comparison between two PCs is
+   * never trustworthy.
+   */
+  CREATE TABLE cloud_items (
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL CHECK (kind IN ('document', 'presentation')),
+    local_id    TEXT NOT NULL,
+    cloud_id    TEXT NOT NULL,
+    synced_at   TEXT,
+    synced_hash TEXT,
+    /* Set when the person chose their own copy over the cloud's. */
+    force       INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, kind, local_id)
+  );
+
+  /* Not unique: the same cloud copy may be brought down twice, as two local
+     projects, and both of them then point at it. */
+  CREATE INDEX cloud_items_cloud_idx ON cloud_items (cloud_id);
+  CREATE INDEX cloud_items_local_idx ON cloud_items (project_id, kind, local_id);
+
+  /*
+   * Items both sides changed since the last sync. They are kept, not merged:
+   * one of the two versions is thrown away, and that is the person's decision.
+   */
+  CREATE TABLE cloud_conflicts (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL CHECK (kind IN ('document', 'presentation')),
+    local_id    TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    detected_at TEXT NOT NULL
+  );
+
+  CREATE INDEX cloud_conflicts_project_idx ON cloud_conflicts (project_id, detected_at DESC);
   `
 ]
 

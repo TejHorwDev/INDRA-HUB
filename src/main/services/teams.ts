@@ -239,6 +239,7 @@ export function searchTeamCandidates(viewer: SessionUser, query: unknown): UserS
          FROM users
         WHERE email = ? COLLATE NOCASE
           AND suspended_at IS NULL
+          AND remote_profile IS NULL
           AND id <> ?
           AND id NOT IN (SELECT user_id FROM team_members WHERE team_id = ?)
           AND id NOT IN (

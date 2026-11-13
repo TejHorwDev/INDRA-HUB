@@ -24,6 +24,16 @@ import {
   pullProject,
   pushProject
 } from '../services/cloud'
+import {
+  answerSharedInvitation,
+  cancelShare,
+  listConflicts,
+  pendingShares,
+  resolveConflict,
+  shareByEmail,
+  sharedInvitations,
+  syncProject
+} from '../services/sharing'
 import { librarySnapshot } from '../services/library'
 import { validateEmailQuery } from '../lib/validation'
 import {
@@ -228,16 +238,13 @@ export function registerIpcHandlers(): void {
    * is why the project page can still say where the copy stands with no route
    * out.
    */
-  ipcMain.handle('cloud:state', () => toResult(() => cloudState()))
+  ipcMain.handle('cloud:state', () => toResult(() => cloudState(accountActor())))
 
   ipcMain.handle('cloud:project', (_event, projectId: unknown) =>
     toResult(() => cloudProjectState(actor(), requireProjectId(projectId)))
   )
 
-  ipcMain.handle('cloud:list', () => toResult(() => {
-    accountActor()
-    return listCloudProjects()
-  }))
+  ipcMain.handle('cloud:list', () => toResult(() => listCloudProjects(accountActor())))
 
   ipcMain.handle('cloud:push', (_event, projectId: unknown) =>
     toResult(() => pushProject(accountActor(), requireProjectId(projectId)))
@@ -260,7 +267,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('cloud:key', () =>
     toResult(() => {
       accountActor()
-      return exportCloudKey()
+      return exportCloudKey(accountActor())
     })
   )
 
@@ -269,15 +276,75 @@ export function registerIpcHandlers(): void {
       if (typeof code !== 'string' || code.length === 0 || code.length > 600) {
         throw new Error('invalid transfer code')
       }
-      accountActor()
-      return adoptCloudKey(code)
+      return adoptCloudKey(accountActor(), code)
     })
   )
 
   ipcMain.handle('cloud:forget', () => toResult(() => {
-    forgetCloudIdentity()
+    forgetCloudIdentity(accountActor())
     return null
   }))
+
+  /*
+   * One project, two PCs.
+   *
+   * An owner invites an address (the project is saved first if it has never
+   * been); the person on the other machine sees the question, accepts, and the
+   * project is brought down as their own working copy. Sync is explicit, and a
+   * conflict is a question with two answers, never a merge made on the
+   * person's behalf.
+   */
+  ipcMain.handle('share:invite', (_event, projectId: unknown, email: unknown) =>
+    toResult(() => {
+      const address = typeof email === 'string' ? email.trim() : ''
+      if (address.length === 0 || address.length > 254) throw new Error('invalid email')
+      return shareByEmail(accountActor(), requireProjectId(projectId), address)
+    })
+  )
+
+  ipcMain.handle('share:inbox', () => toResult(() => sharedInvitations(accountActor())))
+
+  ipcMain.handle('share:pending', (_event, projectId: unknown) =>
+    toResult(() => pendingShares(accountActor(), requireProjectId(projectId)))
+  )
+
+  ipcMain.handle('share:answer', (_event, id: unknown, cloudId: unknown, accept: unknown) =>
+    toResult(() => {
+      if (typeof id !== 'string' || id.length === 0 || id.length > 80) throw new Error('invalid id')
+      if (typeof cloudId !== 'string' || cloudId.length === 0 || cloudId.length > 160) {
+        throw new Error('invalid cloud id')
+      }
+      return answerSharedInvitation(accountActor(), id, cloudId, accept === true)
+    })
+  )
+
+  ipcMain.handle('share:cancel', (_event, id: unknown) =>
+    toResult(() => {
+      if (typeof id !== 'string' || id.length === 0 || id.length > 80) throw new Error('invalid id')
+      return cancelShare(accountActor(), id)
+    })
+  )
+
+  ipcMain.handle('share:conflicts', (_event, projectId: unknown) =>
+    toResult(() => listConflicts(accountActor(), requireProjectId(projectId)))
+  )
+
+  ipcMain.handle('share:sync', (_event, projectId: unknown) =>
+    toResult(() => syncProject(accountActor(), requireProjectId(projectId)))
+  )
+
+  ipcMain.handle('share:resolve', (_event, conflictId: unknown, choice: unknown) =>
+    toResult(() => {
+      if (typeof conflictId !== 'string' || conflictId.length === 0 || conflictId.length > 80) {
+        throw new Error('invalid conflict')
+      }
+      return resolveConflict(
+        accountActor(),
+        conflictId,
+        choice === 'cloud' ? 'cloud' : 'local'
+      )
+    })
+  )
 
   /*
    * What the signed-out screens look like. Public by design — the sign-in

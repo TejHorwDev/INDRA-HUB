@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { CloudProjectState, InvitationSummary, ProjectDetail, ProjectMember } from '@shared/types'
+import type {
+  CloudConflict,
+  CloudProjectState,
+  InvitationSummary,
+  ProjectDetail,
+  ProjectMember
+} from '@shared/types'
 import AddMemberDialog from '../components/AddMemberDialog'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
 import ProjectTabs from '../components/ProjectTabs'
 import RemoveMemberDialog from '../components/RemoveMemberDialog'
 import { useToast } from '../components/ToastProvider'
-import { AlertCircleIcon, CloudIcon, FolderIcon, PlusIcon, SaveIcon } from '../components/icons'
+import {
+  AlertCircleIcon,
+  CloudIcon,
+  FolderIcon,
+  PlusIcon,
+  RefreshIcon,
+  SaveIcon
+} from '../components/icons'
 import { api, errorCode, errorMessage } from '../lib/api'
 import { cancelInvitation } from '../lib/invitations'
 import { useConnectivity } from '../lib/connectivity'
@@ -32,6 +45,9 @@ export default function ProjectDashboardScreen() {
   const [saving, setSaving] = useState(false)
   const [cloud, setCloud] = useState<CloudProjectState | null>(null)
   const [pushing, setPushing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [conflicts, setConflicts] = useState<CloudConflict[]>([])
+  const [settling, setSettling] = useState<'cloud' | 'local' | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ProjectMember | null>(null)
   const [removing, setRemoving] = useState(false)
@@ -65,6 +81,59 @@ export default function ProjectDashboardScreen() {
     }
   }
 
+  /**
+   * Bringing this PC and the other one back into step.
+   *
+   * Explicit, always: nothing is pulled, pushed or compared unless somebody
+   * presses this. The answer says what actually happened, including the items
+   * changed on both sides — those are left alone and reported.
+   */
+  async function syncNow(): Promise<void> {
+    if (syncing || noAccount) return
+    setSyncing(true)
+    try {
+      const result = await api.share.sync(projectId)
+      setCloud(await api.cloud.project(projectId).catch(() => null))
+      setConflicts(await api.share.conflicts(projectId).catch(() => []))
+      if (result.conflicts.length > 0) {
+        toast.error(
+          `${result.conflicts.length} ${result.conflicts.length === 1 ? 'item was' : 'items were'} changed on both PCs and left alone.`
+        )
+      } else if (result.pulled + result.pushed === 0) {
+        toast.success('Both copies already agree.')
+      } else {
+        toast.success(
+          `Synced — ${result.pulled} in, ${result.pushed} out.`
+        )
+      }
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function settle(choice: 'cloud' | 'local'): Promise<void> {
+    if (settling !== null) return
+    setSettling(choice)
+    try {
+      for (const item of conflicts) {
+        await api.share.resolve(item.id, choice)
+      }
+      setConflicts([])
+      setCloud(await api.cloud.project(projectId).catch(() => null))
+      toast.success(
+        choice === 'cloud'
+          ? 'The copies from the other PC were taken.'
+          : 'Your copies are kept; the next sync sends them.'
+      )
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setSettling(null)
+    }
+  }
+
   async function saveCopy(): Promise<void> {
     if (saving) return
     setSaving(true)
@@ -89,6 +158,7 @@ export default function ProjectDashboardScreen() {
       setProject(detail)
       // Read from disk, so this works with no connection at all.
       setCloud(await api.cloud.project(projectId).catch(() => null))
+      setConflicts(await api.share.conflicts(projectId).catch(() => []))
       setState('ready')
     } catch (failure) {
       if (errorCode(failure) === 'NOT_FOUND') {
@@ -143,7 +213,46 @@ export default function ProjectDashboardScreen() {
         <div className="space-y-6" aria-busy="true" aria-label="Loading project">
           <Skeleton height={14} width={220} />
           <Skeleton height={12} width={320} />
-          <div className="project-layout">
+          {conflicts.length > 0 && (
+          <div className="conflict-bar" role="status">
+            <span className="conflict-mark" aria-hidden="true">
+              <AlertCircleIcon size={15} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-[var(--ink)]">
+                {conflicts.length === 1
+                  ? `“${conflicts[0].title}” changed on both PCs`
+                  : `${conflicts.length} items changed on both PCs`}
+              </span>
+              <span className="block text-xs text-[var(--ink-tertiary)]">
+                Nothing was overwritten. Keep the copies from this PC, or take the ones from the
+                other, then sync.
+              </span>
+            </span>
+            <span className="flex flex-none items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm w-auto"
+                onClick={() => void settle('local')}
+                disabled={settling !== null}
+              >
+                {settling === 'local' ? <span className="spinner" aria-hidden="true" /> : null}
+                Keep mine
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm w-auto"
+                onClick={() => void settle('cloud')}
+                disabled={settling !== null}
+              >
+                {settling === 'cloud' ? <span className="spinner" aria-hidden="true" /> : null}
+                Take theirs
+              </button>
+            </span>
+          </div>
+        )}
+
+        <div className="project-layout">
             <Skeleton height={190} radius={8} />
             <Skeleton height={190} radius={8} />
           </div>
@@ -199,6 +308,10 @@ export default function ProjectDashboardScreen() {
         tabs={<ProjectTabs projectId={project.id} />}
         actions={
           <div className="flex flex-none items-center gap-2">
+            {/* Once a copy exists, Sync is the way to it: replacing the whole
+                cloud project would delete work saved from another PC. Save to
+                cloud is the first save, and only that. */}
+            {!cloud?.pushedAt ? (
             <button
               type="button"
               className="btn btn-ghost w-auto"
@@ -215,6 +328,23 @@ export default function ProjectDashboardScreen() {
               {pushing ? <span className="spinner" aria-hidden="true" /> : <CloudIcon size={14} />}
               Save to cloud
             </button>
+            ) : null}
+            {cloud?.pushedAt && (
+              <button
+                type="button"
+                className="btn btn-ghost w-auto"
+                onClick={() => void syncNow()}
+                disabled={syncing || noAccount}
+                title={
+                  noAccount
+                    ? 'Syncing needs a connection and an account'
+                    : 'Bring this PC and the other PC back into step'
+                }
+              >
+                {syncing ? <span className="spinner" aria-hidden="true" /> : <RefreshIcon size={14} />}
+                Sync
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-ghost w-auto"
@@ -241,6 +371,45 @@ export default function ProjectDashboardScreen() {
           </div>
         }
       >
+        {conflicts.length > 0 && (
+          <div className="conflict-bar" role="status">
+            <span className="conflict-mark" aria-hidden="true">
+              <AlertCircleIcon size={15} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-[var(--ink)]">
+                {conflicts.length === 1
+                  ? `“${conflicts[0].title}” changed on both PCs`
+                  : `${conflicts.length} items changed on both PCs`}
+              </span>
+              <span className="block text-xs text-[var(--ink-tertiary)]">
+                Nothing was overwritten. Keep the copies from this PC, or take the ones from the
+                other, then sync.
+              </span>
+            </span>
+            <span className="flex flex-none items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm w-auto"
+                onClick={() => void settle('local')}
+                disabled={settling !== null}
+              >
+                {settling === 'local' ? <span className="spinner" aria-hidden="true" /> : null}
+                Keep mine
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm w-auto"
+                onClick={() => void settle('cloud')}
+                disabled={settling !== null}
+              >
+                {settling === 'cloud' ? <span className="spinner" aria-hidden="true" /> : null}
+                Take theirs
+              </button>
+            </span>
+          </div>
+        )}
+
         <div className="project-layout">
           <section className="card" aria-label="Project overview">
             <div className="panel-head">Overview</div>
@@ -283,6 +452,17 @@ export default function ProjectDashboardScreen() {
                 <dt>On this PC</dt>
                 <dd>Yes — opens offline</dd>
               </div>
+              {cloud?.pushedAt && (
+                <div className="info-row">
+                  <dt>Shared</dt>
+                  <dd>
+                    {cloud.role === 'owner'
+                      ? 'Your project — shared from this PC'
+                      : `With you from ${cloud.ownerName ?? 'another PC'}`}
+                    {cloud.lastSyncAt ? ` · synced ${formatRelative(cloud.lastSyncAt)}` : ''}
+                  </dd>
+                </div>
+              )}
               <div className="info-row">
                 <dt>Cloud copy</dt>
                 <dd>

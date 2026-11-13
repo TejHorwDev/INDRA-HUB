@@ -5581,3 +5581,52 @@ body,
     justify-content: flex-end;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   A project on more than one PC
+   --------------------------------------------------------------------------- */
+
+/* The offer to invite somebody who has no account on this machine: the normal
+   case now, so it is a real action with its own explanation, not a footnote. */
+.member-hint--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  height: auto;
+  min-height: 148px;
+  padding: 18px 21px;
+  text-align: left;
+}
+
+.member-hint--stack > p {
+  margin: 0;
+}
+
+.member-hint--stack .btn {
+  margin-top: 2px;
+}
+
+/* Changed on both PCs: a decision, stated in place, above the project. */
+.conflict-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 13px 16px;
+  border: 1px solid color-mix(in srgb, var(--warning, #b4761f) 38%, transparent);
+  border-radius: var(--radius);
+  background-color: color-mix(in srgb, var(--warning, #b4761f) 9%, transparent);
+}
+
+.conflict-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--warning, #b4761f) 16%, transparent);
+  color: var(--warning-ink, #8a5a12);
+}

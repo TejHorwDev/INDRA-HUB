@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { InvitationSummary, TeamDetail, TeamOverview } from '@shared/types'
+import type { InvitationSummary, SharedInvitation, TeamDetail, TeamOverview } from '@shared/types'
 import AddTeamMemberDialog from '../components/AddTeamMemberDialog'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
 import TeamNameDialog from '../components/TeamNameDialog'
 import { useToast } from '../components/ToastProvider'
-import { FolderIcon, UsersIcon, XIcon } from '../components/icons'
+import { FolderIcon, MailIcon, UsersIcon, XIcon } from '../components/icons'
 import { api, errorMessage } from '../lib/api'
 import {
   acceptInvitation,
@@ -19,6 +19,7 @@ import {
 } from '../lib/invitations'
 import { initialsOf, toneOf } from '../lib/format'
 import { useSession } from '../lib/session'
+import { useConnectivity } from '../lib/connectivity'
 
 /**
  * Home: who you are, and who you work with.
@@ -51,7 +52,58 @@ export default function HomeScreen() {
   const [addOpen, setAddOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [answeringId, setAnsweringId] = useState<string | null>(null)
+  const { offline } = useConnectivity()
   const invitations = useInvitations()
+
+  /*
+   * Invitations from another PC arrive through the cloud, so they are fetched
+   * rather than read from this machine's database — and only when there is a
+   * connection to fetch them with. Offline, the section simply is not there,
+   * which is honest: unanswered questions will still be waiting later.
+   */
+  const [remoteInvites, setRemoteInvites] = useState<SharedInvitation[]>([])
+  const [answeringRemote, setAnsweringRemote] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (offline) {
+      setRemoteInvites([])
+      return
+    }
+    let cancelled = false
+    api.share
+      .inbox()
+      .then((list) => {
+        if (!cancelled) setRemoteInvites(list)
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteInvites([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [offline])
+
+  async function answerRemote(invitation: SharedInvitation, accept: boolean): Promise<void> {
+    setAnsweringRemote(invitation.id)
+    try {
+      const result = await api.share.answer(invitation.id, invitation.cloudId, accept)
+      setRemoteInvites((current) => current.filter((entry) => entry.id !== invitation.id))
+      if (accept && result.project) {
+        toast.success(`${invitation.projectName} is on this PC now.`)
+        navigate(`/project/${result.project.id}`)
+        return
+      }
+      if (accept) {
+        toast.success(`Joined ${invitation.projectName}.`)
+      } else {
+        toast.success(`You declined the invitation to ${invitation.projectName}.`)
+      }
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setAnsweringRemote(null)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -179,6 +231,62 @@ export default function HomeScreen() {
                     className="btn btn-ghost btn-sm w-auto"
                     onClick={() => void answer(invitation, false)}
                     disabled={answeringId !== null}
+                  >
+                    Decline
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {remoteInvites.length > 0 && (
+        <section className="home-invites" aria-labelledby="home-remote-title">
+          <div className="home-section-head">
+            <h2 id="home-remote-title" className="home-section-title">
+              From another PC
+            </h2>
+            <span className="home-count">
+              {remoteInvites.length} waiting for you
+            </span>
+          </div>
+
+          <ul className="invite-list">
+            {remoteInvites.map((invitation) => (
+              <li key={invitation.id} className="invite-card">
+                <span className="invite-mark" aria-hidden="true">
+                  <MailIcon size={16} />
+                </span>
+
+                <span className="invite-text">
+                  <span className="invite-title">
+                    {invitation.projectName}
+                    <span className="badge">Other PC</span>
+                  </span>
+                  <span className="invite-sub">
+                    {invitation.invitedByName} invited you to work on this project. Accepting
+                    brings it onto this PC, with its documents and presentations.
+                  </span>
+                </span>
+
+                <span className="invite-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm w-auto"
+                    onClick={() => void answerRemote(invitation, true)}
+                    disabled={answeringRemote !== null}
+                  >
+                    {answeringRemote === invitation.id ? (
+                      <span className="spinner" aria-hidden="true" />
+                    ) : null}
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm w-auto"
+                    onClick={() => void answerRemote(invitation, false)}
+                    disabled={answeringRemote !== null}
                   >
                     Decline
                   </button>
