@@ -153,6 +153,14 @@ what the app reads, so the sign-in screen, the maintenance screen and the IPC
 guards work with no connection; the row catches up over a Realtime socket (or a
 short poll) and each change is applied and broadcast to the open windows.
 
+**When the row counts.** Only once it has an owner. An unclaimed row holds the
+values the project shipped with — nobody can write it — so applying it would
+undo whatever a machine's administrator has just configured. Until the claim,
+each PC is the authority for its own settings (and for its own video); the
+claim is the handover, and the claiming machine publishes everything it is
+already running. (1.6.0 applied unclaimed rows anyway, which is why the first
+video upload after that release disappeared within a minute.)
+
 **Who may write.** Row Level Security allows `SELECT` for everyone (the row is
 public configuration) and `UPDATE` only for the one account named in
 `owner_uid`. The `anon` role has no `UPDATE` grant at all, so even a policy

@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.6.1
-  Latest release:     v1.6.1 (GitHub, public)
+  Version:            1.6.2
+  Latest release:     v1.6.2 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,7 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -74,8 +74,12 @@ registration, activation keys, the sign-in video and its treatment now apply to
 every PC within seconds, and a fresh installation starts with them instead of
 with defaults. 1.6.1 rebuilt the signed-out window: the card that used to float
 in the middle of the screen is gone, and the form now lives in a full-height
-rail attached to the left edge, turned to glass across the film so the video
-plays behind it and fades out where the panel ends.
+rail attached to the window edge, turned to glass across the film so the video
+plays behind it and fades out where the panel ends. 1.6.2 put that rail on the
+right edge, and fixed the bug 1.6.0 introduced: an unclaimed workspace row was
+being applied over the local administrator, so the first sign-in video upload
+after that release vanished within a minute. An unclaimed row now overrules
+nobody, and claiming publishes what the claiming machine already had.
 
 
 3. STACK
@@ -134,8 +138,8 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 --------------------
 
 5.1 Accounts and sessions
-  - Signed-out shell: a full-height rail on the left edge carries the form over
-    the stage. With the administrator's background video installed the stage is
+  - Signed-out shell: a full-height rail on the right edge carries the form
+    over the stage. With the administrator's background video installed the stage is
     the film and the rail becomes glass across it — no card, no border and no
     seam, because the glass fades out toward the stage; the brand sits at the
     top of the rail and one quiet line at the foot. Only the form scrolls, so a
@@ -404,8 +408,20 @@ Tests for this exist and must keep passing:
   require_activation_key, and the sign-in background (asset id, mime, bytes,
   storage path, blur, dim).
 
+  Who is the source of truth:
+    - Once the row has an owner, the row is the source of truth. Until it has
+      one, it overrules nobody: an unclaimed row still holds the values the
+      project shipped with, because only an owner can ever write it, so
+      applying it would silently undo whatever this machine's administrator has
+      just done. That is exactly what went wrong in 1.6.0 (the first video
+      upload after it disappeared within a minute); the rule is now explicit.
+    - Claiming is the handover. The machine that claims publishes what it is
+      already running — maintenance, registration, the message, the video and
+      its treatment — so the fleet inherits the administrator's actual
+      configuration instead of the row's untouched defaults.
+
   How it stays right:
-    - The row is the source of truth. Every local edit is published with an
+    - The row is the source of truth once it has an owner. Every local edit is published with an
       optimistic revision filter; if another machine got there first, the
       patch updates nothing, this machine adopts their row and says so.
     - Every row this machine receives is untrusted input: blur and dim are
