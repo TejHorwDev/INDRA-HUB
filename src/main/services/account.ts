@@ -17,6 +17,7 @@ import { EMAIL_PATTERN, normalizeEmail } from '../lib/validation'
 import { SupabaseError, asRow, supabaseRpc, supabaseRequest } from '../lib/supabase'
 import { activeSessionUserId, openSessionFor, signOut } from './auth'
 import { recheckConnectivity } from './connectivity'
+import { syncAfterSignIn } from './sync'
 import { findUserById } from './users'
 
 /*
@@ -301,7 +302,21 @@ async function completeSignIn(
   const user: SessionUser | null = findUserById(localUserId)
   if (!user) throw errors.cloud('The account signed in but could not be opened on this PC.')
 
-  return { user: openSessionFor(user.id), state: accountStateFor(session, readStoredAccount()) }
+  /* Open the session first: pulling needs somebody to pull as. */
+  const opened = openSessionFor(user.id)
+
+  /*
+   * A new PC catches up before the dashboard opens: whatever this account saved
+   * from another machine is pulled now, so "sign in and continue where you left
+   * off" is true the moment the window appears. Capped, because a slow network
+   * must delay the window by seconds, not keep it shut.
+   */
+  await Promise.race([
+    syncAfterSignIn().catch(() => 0),
+    new Promise<number>((resolve) => setTimeout(() => resolve(0), 4000))
+  ])
+
+  return { user: opened, state: accountStateFor(session, readStoredAccount()) }
 }
 
 async function requestToken(path: string, body: Record<string, unknown>): Promise<AuthTokenPayload> {

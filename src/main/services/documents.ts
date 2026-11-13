@@ -8,6 +8,7 @@ import type {
   UserSummary
 } from '@shared/types'
 import { getDatabase } from '../db/database'
+import { markDirty } from './sync'
 import { errors } from '../lib/errors'
 import { cleanHtml, cleanImageSrc } from '../lib/sanitize'
 import { projectAccess } from './projects'
@@ -163,6 +164,8 @@ export function createDocument(
     throw error
   }
 
+  markDirty(projectId)
+
   return {
     id,
     projectId,
@@ -242,6 +245,8 @@ export function saveDocument(
     throw error
   }
 
+  markDirty(projectId)
+
   const saved = loadDocument(viewer, projectId, documentId)
   return { ...toSummary(saved), blocks }
 }
@@ -261,6 +266,8 @@ export function renameDocument(
     .prepare('UPDATE documents SET title = ?, updated_at = ?, updated_by = ? WHERE id = ?')
     .run(cleanTitle, now, viewer.id, documentId)
   getDatabase().prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId)
+
+  markDirty(projectId)
 
   return toSummary({ ...row, title: cleanTitle, updated_at: now, updated_by: viewer.id })
 }
@@ -289,6 +296,7 @@ export function deleteDocument(
     throw error
   }
   void row
+  markDirty(projectId)
 }
 
 export function listVersions(

@@ -11,6 +11,7 @@ import type {
 } from '@shared/types'
 import { PRESENTATION_THEMES } from '@shared/types'
 import { getDatabase } from '../db/database'
+import { markDirty } from './sync'
 import { convertDocumentToSlides } from '../lib/convert'
 import { errors } from '../lib/errors'
 import { getDocument } from './documents'
@@ -234,6 +235,8 @@ export function createBlankPresentation(
     throw error
   }
 
+  markDirty(projectId)
+
   return getPresentation(viewer, projectId, id)
 }
 
@@ -268,6 +271,8 @@ export function convertDocument(
     db.exec('ROLLBACK')
     throw error
   }
+
+  markDirty(projectId)
 
   return getPresentation(viewer, projectId, id)
 }
@@ -307,6 +312,8 @@ export function savePresentation(
     db.exec('ROLLBACK')
     throw error
   }
+
+  markDirty(projectId)
 
   return getPresentation(viewer, projectId, presentationId)
 }
@@ -350,6 +357,8 @@ export function duplicatePresentation(
     throw error
   }
 
+  markDirty(projectId)
+
   return getPresentation(viewer, projectId, id)
 }
 
@@ -363,4 +372,5 @@ export function deletePresentation(
   getDatabase()
     .prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
     .run(new Date().toISOString(), projectId)
+  markDirty(projectId)
 }

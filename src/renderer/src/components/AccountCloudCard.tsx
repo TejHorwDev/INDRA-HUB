@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { AccountState } from '@shared/types'
+import type { AccountState, CloudSyncState } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
 import Button from './Button'
@@ -40,6 +40,8 @@ export default function AccountCloudCard() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState<CloudSyncState | null>(null)
+  const [savingNow, setSavingNow] = useState(false)
 
   const load = useCallback(() => {
     void api.account
@@ -51,6 +53,27 @@ export default function AccountCloudCard() {
   useEffect(() => {
     load()
   }, [load, user?.id])
+
+  /*
+   * Automatic saving is the main process's job; this just reports it. Five
+   * seconds is short enough to feel live and long enough to cost nothing.
+   */
+  const connected = state?.connected === true
+  useEffect(() => {
+    if (!connected) {
+      setSaved(null)
+      return undefined
+    }
+    const read = (): void => {
+      void api.sync
+        .state()
+        .then(setSaved)
+        .catch(() => undefined)
+    }
+    read()
+    const timer = setInterval(read, 5000)
+    return () => clearInterval(timer)
+  }, [connected])
 
   async function finish(run: () => Promise<{ state: AccountState }>): Promise<void> {
     setBusy(true)
@@ -101,6 +124,17 @@ export default function AccountCloudCard() {
     }
   }
 
+  async function saveNow(): Promise<void> {
+    setSavingNow(true)
+    try {
+      setSaved(await api.sync.now())
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setSavingNow(false)
+    }
+  }
+
   if (!state) {
     return (
       <section className="account-section" aria-busy="true">
@@ -134,9 +168,21 @@ export default function AccountCloudCard() {
           {state.sealed ? '' : ' This PC’s keystore is unavailable, so the session is not encrypted.'}
         </p>
 
+        <p className="account-cloud-note">
+          <strong>{describeSync(saved)}</strong>
+        </p>
+
         {error && <Notice>{error}</Notice>}
 
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm w-auto"
+            onClick={() => void saveNow()}
+            disabled={busy || savingNow || saved?.syncing === true}
+          >
+            {savingNow ? 'Saving…' : 'Save now'}
+          </button>
           <button
             type="button"
             className="btn btn-ghost btn-sm w-auto"
@@ -209,4 +255,32 @@ export default function AccountCloudCard() {
       </form>
     </section>
   )
+}
+
+/** One line about automatic saving, in the order a person would ask. */
+function describeSync(state: CloudSyncState | null): string {
+  if (!state) return 'Automatic saving is starting…'
+  if (state.error) return `The last save did not go through: ${state.error} It will try again.`
+  if (state.syncing) return 'Saving your work to the cloud…'
+  if (state.pending > 0) {
+    return state.pending === 1
+      ? '1 project is waiting to be saved.'
+      : `${state.pending} projects are waiting to be saved.`
+  }
+  if (state.lastSyncedAt) {
+    return `Everything is saved to the cloud · ${ago(state.lastSyncedAt)}`
+  }
+  return 'Automatic saving is on. Your edits go to the cloud as you make them.'
+}
+
+/** "just now", "4 minutes ago", "yesterday" — enough for a status line. */
+function ago(iso: string): string {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (minutes < 1) return 'just now'
+  if (minutes === 1) return 'a minute ago'
+  if (minutes < 60) return `${minutes} minutes ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return hours === 1 ? 'an hour ago' : `${hours} hours ago`
+  const days = Math.round(hours / 24)
+  return days === 1 ? 'yesterday' : `${days} days ago`
 }

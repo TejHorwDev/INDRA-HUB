@@ -135,6 +135,47 @@ realtime and download paths.
 
 ---
 
+## Step 3, first half — automatic saving (2.9.5)
+
+The manual "save to cloud" button is gone from the path that matters: with an
+INDRA account connected, any edit to a project now schedules an upload of that
+project, and signing in on a machine that has never seen the work pulls it down
+before the dashboard opens.
+
+- `services/sync.ts` — a debounced queue (2.5s), a 15s retry, and a `SyncState`
+  the account panel reads.
+- Editors call `markDirty()` after they commit: documents (create, save, rename,
+  delete), presentations (all five mutations), projects (create).
+- `syncAfterSignIn()` runs inside `completeSignIn`, capped at 4s, after the
+  session is opened — pulling needs somebody to pull as.
+- `syncOnStart()` runs once per launch for a PC that was already signed in.
+
+**What it does not do, yet:**
+
+- It never pulls over a project that already exists locally. A second copy on
+  one PC is a worse failure than a missing one.
+- It is per-project last-writer-wins. Two PCs editing the same project at the
+  same time is still step 4's problem (per-document revisions, tombstones).
+- It only runs for a connected INDRA account — nobody's existing installation
+  changes behaviour until they sign in.
+
+`npm run sim:sync` proves the story end to end against a fake Supabase: an edit
+uploads itself, a second PC signs in and has the project, document and deck,
+signing in twice does not duplicate, and an offline edit waits and is saved when
+the connection returns.
+
+## Pictures and the workspace video
+
+Both already went to the server before this work and were checked again:
+
+- **A user's picture** — choosing one publishes it to `portraits/<uid>/…` in the
+  `indra-media` bucket and records it with `indra_set_my_portrait`
+  (`auth.ts` → `publishPortraitInBackground`). Other PCs read it back through
+  `portrait:cloud`; the file on disk is a cache.
+- **The admin's background video** — uploaded to the same bucket and recorded in
+  `indra_workspace`, then downloaded by every PC (that is what
+  `workspace.ts` does, and what its sim is for).
+
 ## Next: step 2 (pictures from the server)
 
 1. `users.avatar` accepts `cloud:<storage path>`; `PORTRAIT_PATTERN`

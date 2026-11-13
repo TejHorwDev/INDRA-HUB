@@ -1266,3 +1266,18 @@ export interface AccountSignInResult {
   user: SessionUser
   state: AccountState
 }
+
+/**
+ * What automatic saving is doing right now, for the account panel.
+ *
+ * `pending` is the number of projects with local edits not yet uploaded;
+ * `lastSyncedAt` is the last time one landed. Both are read from the main
+ * process, which is the only thing that knows.
+ */
+export interface CloudSyncState {
+  connected: boolean
+  pending: number
+  syncing: boolean
+  lastSyncedAt: string | null
+  error: string | null
+}

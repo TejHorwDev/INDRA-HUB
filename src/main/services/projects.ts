@@ -8,6 +8,7 @@ import type {
   SessionUser
 } from '@shared/types'
 import { getDatabase } from '../db/database'
+import { markDirty } from './sync'
 import { errors } from '../lib/errors'
 import { validateProjectInput } from '../lib/validation'
 import { inviteToProject, pendingInvitations } from './invitations'
@@ -216,6 +217,7 @@ export function createProject(viewer: SessionUser, input: CreateProjectInput): P
 
   const row = loadRow(id, viewer.id)
   if (!row) throw new Error('project missing after insert')
+  markDirty(id)
   return detail(row, viewer.id)
 }
 

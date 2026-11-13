@@ -44,6 +44,7 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  CloudSyncState,
   SharedInvitation,
   SharedSyncResult,
   InvitationAnswer,
@@ -152,6 +153,11 @@ export interface IndraBridge {
     summary: () => Promise<ApiResult<OfflineWorkSummary>>
     claim: () => Promise<ApiResult<OfflineWorkSummary>>
   }
+  sync: {
+    state: () => Promise<ApiResult<CloudSyncState>>
+    now: () => Promise<ApiResult<CloudSyncState>>
+  },
+
   cloud: {
     state: () => Promise<ApiResult<CloudState>>
     project: (projectId: string) => Promise<ApiResult<CloudProjectState>>
