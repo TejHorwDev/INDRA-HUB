@@ -447,3 +447,40 @@
     max-height: 320px;
   }
 }
+
+/* -------- tab indicator -------- */
+
+/*
+ * The active tab wipes in from the left instead of blinking on. Transform only,
+ * so switching tabs never costs a layout, and reduced-motion zeroes it with
+ * everything else.
+ */
+.project-tab::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  bottom: -1px;
+  left: 10px;
+  height: 1.5px;
+  border-radius: 2px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 280ms var(--ease);
+}
+
+.project-tab--active {
+  border-bottom-color: transparent;
+}
+
+.project-tab--active::after {
+  transform: scaleX(1);
+}
+
+.project-tab:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent-ring);
+}

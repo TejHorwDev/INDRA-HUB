@@ -5,6 +5,7 @@ import AuthLayout from '../components/AuthLayout'
 import Button from '../components/Button'
 import Notice from '../components/Notice'
 import PasswordField from '../components/PasswordField'
+import { CloudOffIcon } from '../components/icons'
 import TextField from '../components/TextField'
 import { api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
@@ -127,30 +128,33 @@ export default function LoginScreen() {
 
       {/*
         Working offline is a choice as well as a circumstance: someone can open
-        the writing tools on a connected PC without an account. It is the same
-        workspace the offline screen offers, opened the same way.
+        the writing tools on a connected PC without an account. It is a real
+        action, so it is a real button — not a link buried in a sentence.
       */}
-      <p className="auth-alt auth-alt--offline">
-        Or{' '}
-        <button
-          type="button"
-          className="link link-button"
-          onClick={() => {
-            void (async () => {
-              try {
-                await api.offline.start()
-                await refresh()
-                navigate('/documents', { replace: true })
-              } catch (failure) {
-                setFormError(errorMessage(failure))
-              }
-            })()
-          }}
-        >
-          work offline
-        </button>{' '}
-        — the writing tools, saved on this PC, no account needed.
-      </p>
+      <div className="auth-divider" role="separator" aria-label="or">
+        <span>or</span>
+      </div>
+
+      <button
+        type="button"
+        className="btn btn-ghost auth-offline"
+        onClick={() => {
+          void (async () => {
+            try {
+              await api.offline.start()
+              await refresh()
+              navigate('/documents', { replace: true })
+            } catch (failure) {
+              setFormError(errorMessage(failure))
+            }
+          })()
+        }}
+      >
+        <CloudOffIcon size={15} />
+        Work offline
+      </button>
+
+      <p className="auth-foot-note">The writing tools, saved on this PC. No account needed.</p>
 
       {/* Nothing here points at the administration area. The installation ships
           with its administrator already created; the panel is reached with

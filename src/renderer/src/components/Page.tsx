@@ -13,14 +13,12 @@ interface PageProps {
 export default function Page({ title, description, actions, tabs, children }: PageProps) {
   return (
     <div className="mx-auto w-full max-w-[1060px] px-8 pt-8 pb-12">
-      <header className="flex items-end justify-between gap-6 pb-5">
-        <div className="min-w-0">
+      <header className="page-head">
+        <div className="page-head-text">
           <h1 className="page-title">{title}</h1>
-          {description && (
-            <p className="mt-1.5 text-sm text-[var(--ink-tertiary)]">{description}</p>
-          )}
+          {description && <p className="page-description">{description}</p>}
         </div>
-        {actions}
+        {actions && <div className="page-actions">{actions}</div>}
       </header>
 
       {tabs && <div className="page-tabs">{tabs}</div>}
