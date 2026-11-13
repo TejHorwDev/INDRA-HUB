@@ -279,6 +279,14 @@ Rules:
 - No question that is just the topic restated.
 Return JSON only: {"questions": ["...", "..."], "angle": "one sentence on the through-line"}.`
 
+const GAP_SYSTEM = `You are reviewing the first round of research on a topic and deciding what is still missing.
+Given the questions that were asked and what came back, name the gaps that would embarrass the brief if left in: the strongest opposing case, a number or date nobody established, a mechanism that was asserted but never explained, something that changed recently.
+Rules:
+- 2 to 3 questions only, each answerable by a single search.
+- Never repeat a question that was already asked.
+- No preamble.
+Return JSON only: {"questions": ["...", "..."]}.`
+
 const SEARCH_SYSTEM = `You are a research assistant. Answer the question using web search. Be precise and sparing: 120 words at most, no preamble, only what the sources support. If the sources disagree, say so.`
 
 const synthesiseSystem = (deep: boolean): string => `You are writing a research brief that will be placed inside someone's document.
@@ -321,6 +329,8 @@ function isInsufficient(error: unknown): boolean {
 }
 
 interface Body {
+  /** 'status' answers a readiness probe; anything else is a real run. */
+  action?: unknown
   mode?: unknown
   prompt?: unknown
   document?: unknown
@@ -363,6 +373,32 @@ Deno.serve(async (request: Request): Promise<Response> => {
     body = (await request.json()) as Body
   } catch {
     return fail(400, 'bad_request', 'That request could not be read.')
+  }
+
+  /*
+   * The readiness probe.
+   *
+   * "AI does nothing" is not a useful thing for a person to see, and it was the
+   * truth here for as long as the workspace key was missing: every run was
+   * refused with a 503 the screens could only render as a generic failure. This
+   * answers the question directly — is a key present, which variable supplied
+   * it, which models would be used — before any session or balance is looked at,
+   * so it still answers when the rest of the chain is unwell. It reports names,
+   * never the key itself.
+   */
+  if (body.action === 'status') {
+    return reply({
+      ok: true,
+      configured: Boolean(key),
+      keySource: Deno.env.get('GEMINI_API_KEY')
+        ? 'GEMINI_API_KEY'
+        : Deno.env.get('GOOGLE_API_KEY')
+          ? 'GOOGLE_API_KEY'
+          : null,
+      models: MODELS,
+      research: true,
+      unit: 'tokens'
+    })
   }
 
   const mode = body.mode === 'research' ? 'research' : 'chat'
@@ -557,9 +593,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const sources: Citation[] = []
     const evidence: string[] = []
-    for (let index = 0; index < searches.length; index += 1) {
-      const found = searches[index]
-      if (!found) continue
+    const asked: string[] = []
+
+    const absorb = (question: string, found: TurnResult | null): void => {
+      if (!found) return
       const numbers: number[] = []
       for (const citation of found.citations) {
         let position = sources.findIndex((known) => known.url === citation.url)
@@ -567,12 +604,76 @@ Deno.serve(async (request: Request): Promise<Response> => {
           sources.push(citation)
           position = sources.length - 1
         }
-        numbers.push(position + 1)
+        if (!numbers.includes(position + 1)) numbers.push(position + 1)
       }
+      asked.push(question)
       evidence.push(
-        `Question ${index + 1}: ${questions[index]}\nAnswer: ${found.text || '(no answer)'}` +
+        `Question ${asked.length}: ${question}\nAnswer: ${found.text || '(no answer)'}` +
         (numbers.length ? `\nSources available for this question: ${numbers.map((n) => `[${n}]`).join(' ')}` : '')
       )
+    }
+
+    searches.forEach((found, index) => absorb(questions[index], found))
+
+    /*
+     * The gap pass.
+     *
+     * One round answers the questions the plan thought of. This asks what the
+     * answers failed to settle — the opposing case, the number nobody quoted,
+     * the thing that changed this year — and reads those pages too, which is the
+     * difference between a summary and a brief. It is skipped when the run is
+     * already near its time budget or the balance ran out, and a failure here is
+     * not fatal: a brief on the first round is still a brief.
+     */
+    const followUps: string[] = []
+    if (deep && !exhausted && Date.now() - startedAt < TOTAL_BUDGET_MS * 0.6) {
+      try {
+        const gap = await timed('gap', () => turn({
+          key,
+          model: MODELS.plan,
+          system: GAP_SYSTEM,
+          prompt: [
+            title ? `Document: ${title}` : '',
+            `Topic: ${prompt}`,
+            `Questions already asked:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
+            `What came back:\n${evidence.map((item) => item.slice(0, 1400)).join('\n\n').slice(0, 9000)}`,
+            sources.length ? `Sources already used: ${sources.map((s) => s.url).join(' ')}` : ''
+          ].filter(Boolean).join('\n\n'),
+          grounded: false,
+          temperature: 0.4,
+          maxOutputTokens: 600,
+          json: true,
+          timeoutMs: 30_000
+        }))
+        const parsed = JSON.parse(gap?.text ?? '{}') as { questions?: unknown }
+        if (Array.isArray(parsed.questions)) {
+          for (const question of parsed.questions) {
+            if (typeof question !== 'string') continue
+            const clean = question.trim()
+            if (clean.length < 8) continue
+            if (followUps.length >= 3) break
+            if (questions.some((known) => known.toLowerCase() === clean.toLowerCase())) continue
+            followUps.push(clean)
+          }
+        }
+      } catch {
+        /* A gap pass that fails leaves the first round standing. */
+      }
+
+      if (followUps.length && !exhausted) {
+        const extra = await Promise.all(followUps.map((question, index) => timed(`followup:${index + 1}`, () => turn({
+          key,
+          model: MODELS.search,
+          system: SEARCH_SYSTEM,
+          prompt: `${question}\n\nToday is ${new Date().toISOString().slice(0, 10)}.`,
+          grounded: true,
+          temperature: 0.3,
+          maxOutputTokens: 1200,
+          json: false,
+          timeoutMs: SEARCH_TIMEOUT_MS
+        })).catch(() => null)))
+        extra.forEach((found, index) => absorb(followUps[index], found))
+      }
     }
 
     const sourceList = sources.map((source, index) => `[${index + 1}] ${source.title} — ${source.url}`).join('\n')
@@ -581,7 +682,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       angle ? `Through-line: ${angle}` : '',
       document ? `The document so far:\n"""\n${document.slice(0, 6000)}\n"""` : '',
       `Topic: ${prompt}`,
-      `Research questions:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
+      `Research questions:\n${asked.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
       `Findings:\n${evidence.join('\n\n')}`,
       sourceList ? `Sources (cite by number only):\n${sourceList}` : 'No sources were retrieved; write only what the findings support and say where the evidence is thin.',
       language ? `Write in ${language}.` : ''
@@ -605,8 +706,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
       mode,
       model: deep ? MODELS.research : MODELS.search,
       answer: synthesis?.text ?? '',
-      outline: questions,
+      outline: asked,
       angle,
+      followUps,
       citations: sources,
       usage,
       balance: state,
