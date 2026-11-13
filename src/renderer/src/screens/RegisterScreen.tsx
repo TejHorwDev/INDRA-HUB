@@ -188,7 +188,7 @@ export default function RegisterScreen() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             error={fieldError('email')}
-            placeholder="you@company.com"
+            placeholder="you@gmail.com"
             autoComplete="email"
             inputMode="email"
             spellCheck={false}

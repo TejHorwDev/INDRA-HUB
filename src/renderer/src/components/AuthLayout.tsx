@@ -7,14 +7,12 @@ import { useLoginVideo } from '../lib/loginVideo'
 /**
  * Signed-out shell.
  *
- * The window is split, not a card in the middle: a full-height rail attached
- * to the left edge holds the form, and everything to its right is the stage.
- *
- * When the administrator has installed a background video, the stage is that
- * video and the rail turns to glass across it — the film plays behind the form
- * and fades out where the panel ends, so there is no box and no seam. The blur
- * and dim values come from the database rather than being fixed here, so the
- * administrator can trade mood against legibility from the panel.
+ * One centred column and nothing else. With the administrator's background
+ * video installed, that column sits on a veil — a darkening and a blur that
+ * both fade out radially — so the film plays behind and around the form with
+ * no card, no border and no edge anywhere. The blur and dim values come from
+ * the database rather than being fixed here, so the administrator can trade
+ * mood against legibility from the panel.
  *
  * Playback is deliberately boring: muted, inline, looped, and started with an
  * explicit play() call as well as the autoplay attribute. If the video cannot
@@ -109,29 +107,14 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className={`auth-rail${wantsVideo ? ' auth-rail--glass' : ''}`}>
-        {/*
-         * The glass is its own layer: it carries the darkening, the blur of
-         * whatever is behind it, and the mask that fades both out toward the
-         * stage. Text sits above it and is never faded.
-         */}
-        {wantsVideo && <div className="auth-rail-glass" aria-hidden="true" />}
+      {/*
+        * The veil is its own layer: it carries the darkening and the blur of
+        * whatever is behind it, and the radial mask that fades both out. Text
+        * sits above it and is never faded.
+        */}
+      {wantsVideo && <div className="auth-veil" aria-hidden="true" />}
 
-        <div className="auth-brand">
-          <span className="auth-brand-dot" aria-hidden="true" />
-          INDRA HUB
-        </div>
-
-        <div className="auth-rail-main">
-          <div className="auth-panel stagger">{children}</div>
-        </div>
-
-        <div className="auth-rail-foot">
-          <span>Your files stay on this PC.</span>
-        </div>
-      </div>
-
-      <div className="auth-stage" aria-hidden="true" />
+      <div className="auth-panel stagger">{children}</div>
     </div>
   )
 }

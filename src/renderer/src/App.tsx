@@ -63,7 +63,7 @@ function viewLabel(pathname: string): string {
   if (pathname.startsWith('/settings')) return 'Settings'
   if (pathname.startsWith('/admin')) return 'Administration'
   if (pathname.startsWith('/register')) return 'Create account'
-  return 'Sign in'
+  return 'Authentication'
 }
 
 export default function App() {

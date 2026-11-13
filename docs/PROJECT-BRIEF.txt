@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.6.2
-  Latest release:     v1.6.2 (GitHub, public)
+  Version:            1.6.3
+  Latest release:     v1.6.3 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -51,7 +51,7 @@ explicitly rejected "downloads the new installer and runs it".
 
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
-v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2.
+v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -75,11 +75,15 @@ every PC within seconds, and a fresh installation starts with them instead of
 with defaults. 1.6.1 rebuilt the signed-out window: the card that used to float
 in the middle of the screen is gone, and the form now lives in a full-height
 rail attached to the window edge, turned to glass across the film so the video
-plays behind it and fades out where the panel ends. 1.6.2 put that rail on the
-right edge, and fixed the bug 1.6.0 introduced: an unclaimed workspace row was
+plays behind it and fades out where the panel ends. 1.6.2 moved that rail to the
+right edge and fixed the bug 1.6.0 introduced: an unclaimed workspace row was
 being applied over the local administrator, so the first sign-in video upload
 after that release vanished within a minute. An unclaimed row now overrules
-nobody, and claiming publishes what the claiming machine already had.
+nobody, and claiming publishes what the claiming machine already had. 1.6.3
+took the rail away again: one centred column on an edgeless veil — a
+darkening and a blur that both fade out radially — with the wordmark and foot
+line gone, the heading reading Authentication, a gmail placeholder and a Caps
+Lock warning on the password field.
 
 
 3. STACK
