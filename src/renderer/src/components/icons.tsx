@@ -225,6 +225,24 @@ export function PresentationIcon({ size = 16, className }: IconProps) {
   )
 }
 
+export function MailIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <rect x="3" y="5.5" width="18" height="13" rx="2.4" />
+      <path d="m4 7 8 6 8-6" />
+    </svg>
+  )
+}
+
+export function RefreshIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M20 12a8 8 0 1 1-2.6-5.9" />
+      <path d="M20 4.5V10h-5.4" />
+    </svg>
+  )
+}
+
 export function CloudOffIcon({ size = 15, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>

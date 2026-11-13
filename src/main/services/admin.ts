@@ -367,6 +367,7 @@ function listAccounts(): AdminAccountRow[] {
               (SELECT COUNT(*) FROM documents d WHERE d.created_by = u.id) AS document_count,
               (SELECT COUNT(*) FROM presentations pr WHERE pr.created_by = u.id) AS presentation_count
          FROM users u
+        WHERE u.remote_profile IS NULL
         ORDER BY u.created_at DESC
         LIMIT 200`
     )

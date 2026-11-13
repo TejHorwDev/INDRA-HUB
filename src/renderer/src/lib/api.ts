@@ -14,6 +14,8 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  SharedInvitation,
+  SharedSyncResult,
   InvitationAnswer,
   InvitationSummary,
   LibrarySnapshot,
@@ -165,6 +167,19 @@ export const api = {
     key: (): Promise<{ code: string }> => unwrap(bridge().cloud.key()),
     adopt: (code: string): Promise<CloudState> => unwrap(bridge().cloud.adopt(code)),
     forget: (): Promise<null> => unwrap(bridge().cloud.forget())
+  },
+
+  share: {
+    invite: (projectId: string, email: string) => unwrap(bridge().share.invite(projectId, email)),
+    inbox: (): Promise<SharedInvitation[]> => unwrap(bridge().share.inbox()),
+    pending: (projectId: string) => unwrap(bridge().share.pending(projectId)),
+    answer: (id: string, cloudId: string, accept: boolean) =>
+      unwrap(bridge().share.answer(id, cloudId, accept)),
+    cancel: (id: string): Promise<null> => unwrap(bridge().share.cancel(id)),
+    conflicts: (projectId: string) => unwrap(bridge().share.conflicts(projectId)),
+    sync: (projectId: string): Promise<SharedSyncResult> => unwrap(bridge().share.sync(projectId)),
+    resolve: (conflictId: string, choice: 'cloud' | 'local'): Promise<ProjectDetail> =>
+      unwrap(bridge().share.resolve(conflictId, choice))
   },
   users: {
     search: (input: { projectId: string; query: string }): Promise<UserSummary[]> =>

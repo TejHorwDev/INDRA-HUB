@@ -102,8 +102,20 @@ and [supabase/schema.sql](supabase/schema.sql).
 
 The identity layer is applied too — [supabase/auth.sql](supabase/auth.sql) adds member numbers, Google
 identities held by Supabase Auth, and 23 Row Level Security policies, so the database itself decides
-who may read which row. The app is not wired to it yet: accounts and documents still live locally,
-which means nothing is synced and nothing leaves the machine.
+who may read which row.
+
+[supabase/sharing.sql](supabase/sharing.sql) is the third layer, and it is what lets two people on two
+PCs work on one project. It adds the address a profile answers invitations at, a table of invitations
+that only the addressed account can see or answer, and `security definer` functions for inviting,
+answering, revoking and listing the people on a project. Nobody can browse the account table, and
+asking somebody never reveals whether their address is registered.
+
+Once that file has been run, **Invite member → an address with no account on this PC** sends a cloud
+invitation. The other person accepts on their own machine and the project arrives there with its
+documents and presentations. From then on the two copies are kept in step by an explicit **Sync** on
+the project's page; an item changed on both machines is reported and left alone until somebody
+chooses. Accounts, projects and documents are still local: the cloud is a second copy, never the
+working one, and nothing here runs while the machine is offline.
 
 That ordering is deliberate. A desktop app holding a public key is only safe if the *database*
 enforces the rules, so the rules had to exist and be proven before any client could use them. The

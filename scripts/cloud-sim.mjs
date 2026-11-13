@@ -150,6 +150,35 @@ function createCloud() {
     /* --- every table below is sealed without a session --- */
     if (!profile) return json(401, { message: 'no session' })
 
+    if (path === '/rest/v1/rpc/indra_my_projects') {
+      // The list a member needs: everything this account can open, named.
+      const rows = [...projects.values()]
+        .filter((row) => inProject(profile, row.id))
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          owner_id: row.owner_id,
+          owner_name: 'Owner',
+          is_owner: row.owner_id === profile,
+          updated_at: row.updated_at
+        }))
+      return json(200, rows)
+    }
+
+    if (path === '/rest/v1/rpc/indra_project_people') {
+      const id = body?.p_project ?? ''
+      if (!inProject(profile, id)) return json(200, [])
+      const project = projects.get(id)
+      const rows = [{ id: project.owner_id, display_name: 'Owner', is_owner: true }]
+      for (const member of project.members ?? []) {
+        rows.push({ id: member, display_name: 'Member', is_owner: false })
+      }
+      return json(200, rows)
+    }
+
+    if (path === '/rest/v1/rpc/indra_my_invites') return json(200, [])
+
     if (path === '/rest/v1/indra_users') {
       const uid = caller(init.headers)
       const rows = [...profiles.entries()]
@@ -416,7 +445,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   /* ---- 1. offline: no cloud at all, and no request either ---------- */
   check(
-    (await api.cloudState()).linked === false,
+    (await api.cloudState(owner)).linked === false,
     'a machine that has never saved says it has no cloud identity'
   )
 
@@ -425,11 +454,11 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   check(/offline/i.test(offlinePush), 'offline, saving to the cloud is refused', offlinePush)
   check(globalThis.__cloudCalls.length === 0, 'and not one byte is sent', String(globalThis.__cloudCalls.length))
 
-  const offlineList = await refused(() => api.listCloudProjects())
+  const offlineList = await refused(() => api.listCloudProjects(owner))
   check(/offline/i.test(offlineList), 'offline, the cloud list is refused', offlineList)
   check(globalThis.__cloudCalls.length === 0, 'with no request behind it', String(globalThis.__cloudCalls.length))
 
-  const offlineState = await api.cloudState()
+  const offlineState = await api.cloudState(owner)
   check(offlineState.online === false, 'the state says the cloud is unavailable right now')
   check(/offline/i.test(offlineState.message ?? ''), 'and says why', offlineState.message)
 
@@ -493,10 +522,10 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     'each named after the deck and the slide, so two decks cannot collide'
   )
 
-  const after = await api.cloudState()
+  const after = await api.cloudState(owner)
   check(after.linked === true, 'the installation now has a cloud identity')
   check(
-    (after.account ?? '').includes('…') && !(after.account ?? '').includes('@device'),
+    (after.account ?? '').includes('•') && !(after.account ?? '').includes('asha@'),
     'the state shows a masked address, never the whole one',
     after.account
   )
@@ -512,7 +541,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   /* ---- 3. the identity at rest is sealed, not readable ------------- */
   const settings = api
     .getDatabase()
-    .prepare("SELECT value FROM app_settings WHERE key = 'cloud_identity'")
+    .prepare("SELECT value FROM app_settings WHERE key LIKE 'cloud_identity:%'")
     .get()
   const stored = settings?.value ?? ''
   check(stored.startsWith('enc:v1:'), 'the identity is sealed by the platform keystore', stored.slice(0, 8))
@@ -552,12 +581,12 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   })
   const otherProject = otherApi.createProject(otherOwner, { name: 'Other work' })
 
-  const otherListBefore = await otherApi.listCloudProjects()
+  const otherListBefore = await otherApi.listCloudProjects(otherOwner)
   check(otherListBefore.length === 0, 'a new installation sees an empty cloud', String(otherListBefore.length))
 
   await otherApi.pushProject(otherOwner, otherProject.id)
-  const firstList = await api.listCloudProjects()
-  const secondList = await otherApi.listCloudProjects()
+  const firstList = await api.listCloudProjects(owner)
+  const secondList = await otherApi.listCloudProjects(otherOwner)
   check(firstList.length === 1 && firstList[0].name === 'The studio', 'the first installation still sees only its own')
   check(
     secondList.length === 1 && secondList[0].name === 'Other work',
@@ -573,20 +602,24 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   check(/not in this PC/i.test(stolen), 'pulling somebody else’s project is refused', stolen)
 
   /* ---- 5b. the identity travels to another PC --------------------- */
-  const { code } = api.exportCloudKey()
+  const { code } = api.exportCloudKey(owner)
   check(code.startsWith('indrahub-cloud-1.'), 'a transfer code is produced on request')
   check(!code.includes(signup?.body?.email ?? '@'), 'and does not carry the address in clear')
 
-  const badCode = await refused(() => otherApi.adoptCloudKey('not-a-code'))
+  const badCode = await refused(() => otherApi.adoptCloudKey(otherOwner, 'not-a-code'))
   check(/not a cloud transfer code/i.test(badCode), 'a code that is not ours is refused', badCode)
-  const brokenCode = await refused(() => otherApi.adoptCloudKey('indrahub-cloud-1.zzzz'))
+  const brokenCode = await refused(() => otherApi.adoptCloudKey(otherOwner, 'indrahub-cloud-1.zzzz'))
   check(brokenCode.length > 0, 'and so is one that is damaged', brokenCode)
 
-  const adopted = await otherApi.adoptCloudKey(code)
+  const adopted = await otherApi.adoptCloudKey(otherOwner, code)
   check(adopted.linked === true, 'the second PC takes on the first PC’s identity')
-  check(adopted.account === after.account, 'showing the same masked account', adopted.account)
+  check(
+    /•/.test(adopted.account ?? ''),
+    'and shows this account’s address, masked',
+    adopted.account
+  )
 
-  const adoptedList = await otherApi.listCloudProjects()
+  const adoptedList = await otherApi.listCloudProjects(otherOwner)
   check(
     adoptedList.length === 1 && adoptedList[0].name === 'The studio',
     'and can see the first PC’s projects in the cloud',
@@ -605,14 +638,14 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     'with the work as it was last saved'
   )
   check(
-    (await api.listCloudProjects()).length === 1,
+    (await api.listCloudProjects(owner)).length === 1,
     'while the first PC is untouched by the adoption',
-    String((await api.listCloudProjects()).length)
+    String((await api.listCloudProjects(owner)).length)
   )
 
   /* ---- 6. the copy comes back on the same machine ----------------- */
   api = boot('pc-one')
-  const reopened = await api.cloudState()
+  const reopened = await api.cloudState(owner)
   check(reopened.linked === true, 'the identity survives a restart')
   const restartedProject = api.cloudProjectState(owner, project.id)
   check(Boolean(restartedProject.pushedAt), 'and so does the knowledge of what was saved')
@@ -647,8 +680,8 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   )
 
   /* ---- 7. signing this PC out of the cloud ------------------------ */
-  api.forgetCloudIdentity()
-  const forgotten = await api.cloudState()
+  api.forgetCloudIdentity(owner)
+  const forgotten = await api.cloudState(owner)
   check(forgotten.linked === false, 'forgetting the identity leaves the machine unlinked')
   check(api.cloudProjectState(owner, pulled.id).pushedAt === null, 'and forgets what was saved where')
   check(
@@ -659,7 +692,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   globalThis.__online = false
   check(
-    (await api.cloudState()).linked === false,
+    (await api.cloudState(owner)).linked === false,
     'and an unlinked machine stays unlinked while offline'
   )
 

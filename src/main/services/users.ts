@@ -68,6 +68,7 @@ export function findAccountsByEmail(email: string): AccountRow[] {
          FROM users
         WHERE email = ? COLLATE NOCASE
           AND suspended_at IS NULL
+          AND remote_profile IS NULL
         LIMIT 1`
     )
     .all(address) as unknown as AccountRow[]
@@ -88,6 +89,7 @@ export function searchUsers(query: string, projectId: string, limit = 8): UserSu
          FROM users
         WHERE email = ? COLLATE NOCASE
           AND suspended_at IS NULL
+          AND remote_profile IS NULL
           AND id <> (SELECT owner_id FROM projects WHERE id = ?)
           AND id NOT IN (SELECT user_id FROM project_members WHERE project_id = ?)
           AND id NOT IN (

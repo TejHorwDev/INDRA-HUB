@@ -22,6 +22,8 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  SharedInvitation,
+  SharedSyncResult,
   InvitationAnswer,
   InvitationSummary,
   LibrarySnapshot,
@@ -122,6 +124,26 @@ export interface IndraBridge {
     key: () => Promise<ApiResult<{ code: string }>>
     adopt: (code: string) => Promise<ApiResult<CloudState>>
     forget: () => Promise<ApiResult<null>>
+  }
+  share: {
+    invite: (projectId: string, email: string) => Promise<ApiResult<{ id: string; pushed: boolean }>>
+    inbox: () => Promise<ApiResult<SharedInvitation[]>>
+    pending: (
+      projectId: string
+    ) => Promise<ApiResult<Array<{ id: string; email: string; createdAt: string }>>>
+    answer: (
+      id: string,
+      cloudId: string,
+      accept: boolean
+    ) => Promise<ApiResult<{ accepted: boolean; project: ProjectDetail | null }>>
+    cancel: (id: string) => Promise<ApiResult<null>>
+    conflicts: (
+      projectId: string
+    ) => Promise<
+      ApiResult<Array<{ id: string; kind: 'document' | 'presentation'; title: string; detectedAt: string }>>
+    >
+    sync: (projectId: string) => Promise<ApiResult<SharedSyncResult>>
+    resolve: (conflictId: string, choice: 'cloud' | 'local') => Promise<ApiResult<ProjectDetail>>
   }
   documents: {
     list: (projectId: string) => Promise<ApiResult<DocumentSummary[]>>

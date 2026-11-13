@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.4
-  Latest release:     v1.9.4 (GitHub, public)
+  Version:            1.9.5
+  Latest release:     v1.9.5 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -54,7 +54,7 @@ Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
 v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
-v1.9.4.
+v1.9.4, v1.9.5.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -397,6 +397,37 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Teams and projects are still separate objects: deleting a team leaves every
     project, document and account where it was — it only closes the door that
     membership had opened.
+  - **A project can span two PCs (1.9.5).** The head developer invites an
+    address through the cloud (`supabase/sharing.sql`), the person on the other
+    machine accepts on Home, and the project is brought down as a real local
+    project: its documents, decks, slides and people, with this PC's own ids and
+    a row per item recording which cloud item it came from. Their copy names the
+    head developer in the roster and is marked as shared; local member actions
+    stay refused, because the shape of a project is still the owner's.
+  - The two copies are kept in step by an explicit **Sync** on the project page,
+    never silently. Each item remembers a SHA-256 of the version both sides last
+    agreed on, so "changed since" is answered by content rather than by
+    comparing two machines' clocks. Pull runs before push: a change made
+    elsewhere lands first, then this PC's changes go out, guarded by the version
+    they replaced.
+  - An item changed on both PCs is a **conflict**, not a merge: nothing is
+    written, both copies are left exactly as they are, and the project says how
+    many there are and offers "Keep mine" or "Take theirs". Answering writes the
+    choice and the next sync settles it. Silently merging two edits of one
+    document is how a person loses a paragraph they wrote.
+  - "Save to cloud" is the first save and only that; once a copy exists the
+    button is **Sync**, and the replace-everything push is refused on a project
+    that has somebody else's work in it — it would delete the rows that work is
+    in.
+  - Cloud identity is now **per account**, not per installation: two people
+    signing in on one PC are two different people in the cloud, and an
+    invitation addressed to one of them cannot be answered by the other. An
+    installation's pre-1.9.5 identity is adopted by the first account that
+    reaches the cloud, so existing copies keep working.
+  - What this does not do yet: deleting a shared document deletes it on this PC
+    only (propagating a delete is a product decision, not an oversight), there
+    is no live co-editing or presence, and two people editing the same document
+    at the same instant still meet a conflict rather than a merge.
   - Create, rename, delete projects; each has a description
   - Owner/member model stored in project_members, plus team access derived at
     read time

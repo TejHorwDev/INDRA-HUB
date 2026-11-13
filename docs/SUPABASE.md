@@ -113,14 +113,43 @@ Run against the live project, in transactions that were rolled back afterwards:
 
 ---
 
-## Stage 3 — live sync (not started)
+## Stage 3 — sharing between PCs (shipped in 1.9.5)
 
 Two-way sync between the local SQLite copy and Postgres, with conflict rules.
 The local database stays the working copy, so the app keeps working offline and
 nothing becomes slower when the connection drops.
 
-Per-table policies arrive here: a user reads and writes only projects they own
-or belong to. That is when the sealed tables from Stage 1 open up.
+Per-table policies arrived in Stage 2 and are what make this possible: a user
+reads and writes only projects they own or belong to. What Stage 3 adds is the
+door — `supabase/sharing.sql`:
+
+- `indra_users.contact_email` — the address a person answers at (the identity's
+  own address stays generated and private).
+- `indra_project_invites` — one row per question, addressed to an address, with
+  RLS on and **no policies**: the table is reachable only through the functions
+  below, each of which checks the caller itself.
+- `indra_invite_to_project` (owner only), `indra_my_invites` (matched on the
+  caller's address), `indra_answer_invite` (only the addressed account, and the
+  only thing that writes a membership), `indra_cancel_invite` (owner only),
+  `indra_project_people`, `indra_my_projects`, `indra_project_invites_for`.
+
+On the client, `src/main/services/cloud.ts` gains an identity per **account**
+rather than per installation, and `src/main/services/sharing.ts` owns the rest:
+bringing a shared project down with this PC's own ids, and an explicit sync that
+pulls first, then pushes, guarded by the version each item replaced.
+
+Conflict detection is content-based, not clock-based: every item stores a
+SHA-256 of the version both sides last agreed on (`cloud_items.synced_hash`).
+Two machines with different clocks therefore cannot make the whole project look
+changed. An item changed on both sides is written to `cloud_conflicts` and left
+alone until a person chooses "keep mine" or "take theirs".
+
+Proven by `npm run sim:sharing` — two installations in one process, meeting only
+through a stand-in for PostgREST that enforces these rules: invite, accept,
+arrive, edit, send back, receive, conflict, resolve, and nothing sent while
+offline. The SQL itself was exercised against the live project by creating
+profiles, setting JWT claims and re-running the same steps under
+`set role authenticated`.
 
 ---
 

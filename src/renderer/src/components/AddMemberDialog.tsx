@@ -4,7 +4,7 @@ import { api, errorMessage } from '../lib/api'
 import { initialsOf } from '../lib/format'
 import TextField from './TextField'
 import { useToast } from './ToastProvider'
-import { SearchIcon, XIcon } from './icons'
+import { MailIcon, SearchIcon, XIcon } from './icons'
 
 interface AddMemberDialogProps {
   open: boolean
@@ -47,6 +47,9 @@ export default function AddMemberDialog({
   const [addingId, setAddingId] = useState<string | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)
+  const [remoteSending, setRemoteSending] = useState(false)
+  const [remoteSent, setRemoteSent] = useState<string | null>(null)
+  const [remoteError, setRemoteError] = useState<string | null>(null)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -63,6 +66,9 @@ export default function AddMemberDialog({
     setAddError(null)
     setAddingId(null)
     setSentTo(null)
+    setRemoteSending(false)
+    setRemoteSent(null)
+    setRemoteError(null)
   }, [open])
 
   useEffect(() => {
@@ -123,6 +129,29 @@ export default function AddMemberDialog({
     }
   }
 
+  /**
+   * The same address, but for somebody on another PC.
+   *
+   * A person who has an account on this machine is invited locally; a person
+   * who does not cannot be a row here at all. Their invitation travels through
+   * the cloud addressed to their email, and accepting it brings the project
+   * down onto their machine.
+   */
+  async function inviteOnTheirPc(address: string) {
+    setRemoteSending(true)
+    setRemoteError(null)
+    try {
+      await api.share.invite(projectId, address)
+      setRemoteSent(address)
+      setQuery('')
+      toast.success(`Invitation sent to ${address}. It will be waiting on their Home screen.`)
+    } catch (failure) {
+      setRemoteError(errorMessage(failure))
+    } finally {
+      setRemoteSending(false)
+    }
+  }
+
   return (
     <dialog
       ref={dialogRef}
@@ -171,6 +200,12 @@ export default function AddMemberDialog({
           </p>
         )}
 
+        {remoteSent && (
+          <p className="invite-sent" role="status">
+            Invitation sent to {remoteSent}. It will be waiting on their own PC&rsquo;s Home screen.
+          </p>
+        )}
+
         <div
           className={
             results && results.length > 0 ? 'px-3 pb-3' : 'min-h-[168px] px-3 pb-3'
@@ -196,7 +231,29 @@ export default function AddMemberDialog({
               {searchError}
             </p>
           ) : results && results.length === 0 ? (
-            <p className="member-hint">No account uses “{query.trim()}”.</p>
+            <div className="member-hint member-hint--stack">
+              <p>No account on this PC uses “{query.trim()}”.</p>
+              {/* Not on this machine is the normal case: most people who will
+                  work on this project have their own PC. */}
+              <button
+                type="button"
+                className="btn btn-ghost w-auto"
+                onClick={() => void inviteOnTheirPc(query.trim())}
+                disabled={remoteSending}
+              >
+                {remoteSending ? <span className="spinner" aria-hidden="true" /> : <MailIcon size={15} />}
+                Invite {query.trim()} on their own PC
+              </button>
+              <p className="text-xs text-[var(--ink-tertiary)]">
+                They accept it there, and the project arrives on their machine with its documents
+                and presentations.
+              </p>
+              {remoteError && (
+                <p className="member-hint--error" role="alert">
+                  {remoteError}
+                </p>
+              )}
+            </div>
           ) : (
             <ul className="member-results">
               {results?.map((user) => (

@@ -19,6 +19,8 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  SharedInvitation,
+  SharedSyncResult,
   InvitationAnswer,
   InvitationSummary,
   LibrarySnapshot,
@@ -171,6 +173,35 @@ const api = {
     adopt: (code: string): Promise<ApiResult<CloudState>> =>
       ipcRenderer.invoke('cloud:adopt', code),
     forget: (): Promise<ApiResult<null>> => ipcRenderer.invoke('cloud:forget')
+  },
+
+  /*
+   * One project, two PCs: an invitation addressed to an email, answered on the
+   * other machine, and an explicit sync that reports what it could not settle.
+   */
+  share: {
+    invite: (projectId: string, email: string): Promise<ApiResult<{ id: string; pushed: boolean }>> =>
+      ipcRenderer.invoke('share:invite', projectId, email),
+    inbox: (): Promise<ApiResult<SharedInvitation[]>> => ipcRenderer.invoke('share:inbox'),
+    pending: (
+      projectId: string
+    ): Promise<ApiResult<Array<{ id: string; email: string; createdAt: string }>>> =>
+      ipcRenderer.invoke('share:pending', projectId),
+    answer: (
+      id: string,
+      cloudId: string,
+      accept: boolean
+    ): Promise<ApiResult<{ accepted: boolean; project: ProjectDetail | null }>> =>
+      ipcRenderer.invoke('share:answer', id, cloudId, accept),
+    cancel: (id: string): Promise<ApiResult<null>> => ipcRenderer.invoke('share:cancel', id),
+    conflicts: (
+      projectId: string
+    ): Promise<ApiResult<Array<{ id: string; kind: 'document' | 'presentation'; title: string; detectedAt: string }>>> =>
+      ipcRenderer.invoke('share:conflicts', projectId),
+    sync: (projectId: string): Promise<ApiResult<SharedSyncResult>> =>
+      ipcRenderer.invoke('share:sync', projectId),
+    resolve: (conflictId: string, choice: 'cloud' | 'local'): Promise<ApiResult<ProjectDetail>> =>
+      ipcRenderer.invoke('share:resolve', conflictId, choice)
   },
 
   documents: {
