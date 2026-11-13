@@ -657,10 +657,15 @@ export interface PublicAppearance extends AppearanceTreatment {
  * ever enters the renderer's state.
  */
 export interface DeveloperPhoto {
+  /** True only when there is a row *and* a readable file behind it. */
   hasPhoto: boolean
   mime: string | null
   bytes: number
   updatedAt: string | null
+  /** A row exists but its file is missing — the next sync repairs it. */
+  stored: boolean
+  /** The portrait is also published to the shared workspace. */
+  cloud: boolean
 }
 
 export interface AboutInfo {

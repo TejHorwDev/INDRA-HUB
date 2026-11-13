@@ -217,7 +217,11 @@ app.whenReady().then(() => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; font-src 'self' data:"
+            // blob: is on img-src because the About portrait is a Blob URL, exactly
+            // as the sign-in video is on media-src. Without it the packaged app
+            // renders the fallback mark while dev shows the photo — a difference
+            // no screenshot of the dev build would ever reveal.
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:"
           ]
         }
       })

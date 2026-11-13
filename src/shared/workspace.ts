@@ -28,6 +28,12 @@ export const WORKSPACE_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/x-m4v', 
 /** 96 MB, matching the local upload cap. */
 export const WORKSPACE_MAX_VIDEO_BYTES = 96 * 1024 * 1024
 
+/** The image types a developer portrait may be. Same list as about.ts checks. */
+export const WORKSPACE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+
+/** 8 MB, matching the local portrait cap. */
+export const WORKSPACE_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+
 /*
  * One row, as it comes back from PostgREST. Column names are the database's;
  * everything downstream converts to the app's own names once, here.
@@ -45,6 +51,12 @@ export interface WorkspaceRow {
   background_path: string | null
   background_blur: number
   background_dim: number
+  developer_photo_asset_id: string | null
+  developer_photo_mime: string | null
+  developer_photo_bytes: number
+  developer_photo_path: string | null
+  developer_photo_name: string | null
+  developer_photo_updated_at: string | null
   updated_at?: string | null
   updated_by?: string | null
 }

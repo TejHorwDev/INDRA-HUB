@@ -358,7 +358,9 @@ export const api = {
   about: {
     read: (): Promise<AboutInfo> => unwrap(bridge().about.read()),
     photo: (): Promise<{ bytes: Uint8Array; mime: string } | null> =>
-      unwrap(bridge().about.photo())
+      unwrap(bridge().about.photo()),
+    onChange: (listener: (info: AboutInfo) => void): (() => void) =>
+      bridge().about.onChange(listener)
   },
 
   credits: {

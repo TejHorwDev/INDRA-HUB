@@ -46,6 +46,8 @@ export default function AboutCard({
   const toast = useToast()
   const [info, setInfo] = useState<AboutInfo | null>(null)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  /* True when the browser itself refused the bytes — never persisted. */
+  const [broken, setBroken] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [update, setUpdate] = useState<UpdateState | null>(null)
@@ -63,6 +65,15 @@ export default function AboutCard({
   useEffect(() => {
     void load()
   }, [load])
+
+  /*
+   * A portrait published from another PC (or repaired by a reconcile) arrives
+   * without this window asking. The main process re-reads the record and pushes
+   * it; adopting it here is all that is needed, and there is no polling.
+   */
+  useEffect(() => {
+    return api.about.onChange(setInfo)
+  }, [])
 
   /* The updater pushes its own state; the card only renders it. */
   useEffect(() => {
@@ -91,6 +102,7 @@ export default function AboutCard({
     let active = true
     let made: string | null = null
 
+    setBroken(false)
     if (!hasPhoto) {
       setPhotoUrl(null)
       return
@@ -166,6 +178,10 @@ export default function AboutCard({
   const phase = update?.phase ?? 'idle'
   const version = info?.version ?? '—'
 
+  const reach = info?.developer.cloud
+    ? 'Shared with every installation.'
+    : 'On this PC only. Connect the shared workspace in Cloud & sync to put it on every PC.'
+
   /*
    * There is no "you are up to date" line and no check button here: Settings →
    * Updates already says both, and repeating it on a card that is meant to be
@@ -208,9 +224,16 @@ export default function AboutCard({
         </div>
 
         <figure className="about-dev">
-          <div className={`about-portrait${photoUrl ? '' : ' about-portrait--empty'}`}>
-            {photoUrl ? (
-              <img src={photoUrl} alt="Developer" draggable={false} />
+          <div className={`about-portrait${photoUrl && !broken ? '' : ' about-portrait--empty'}`}>
+            {photoUrl && !broken ? (
+              /*
+               * An empty alt is deliberate: the caption underneath already says
+               * who this is, and if the image ever fails to draw, alt text would
+               * paint a word across the circle — which is precisely what a
+               * packaged build without blob: in its CSP did. onError falls back to
+               * the mark so the card degrades quietly instead.
+               */
+              <img src={photoUrl} alt="" draggable={false} onError={() => setBroken(true)} />
             ) : (
               <UserIcon size={34} className="about-portrait-mark" />
             )}
@@ -230,6 +253,19 @@ export default function AboutCard({
           )}
         </figure>
       </div>
+
+      {/*
+       * The one thing an administrator actually needs to know: has this portrait
+       * reached the other PCs, or is it only here? Saying "shared with every
+       * installation" when it is not would be the kind of claim this card is not
+       * allowed to make. It shows only where somebody can act on it — i.e. next
+       * to the tools — and never on the public card.
+       */}
+      {canEditDeveloper && hasPhoto && (
+        <p className={`about-dev-reach${info?.developer.cloud ? ' about-dev-reach--shared' : ''}`}>
+          <span>{reach}</span>
+        </p>
+      )}
 
       {rail && (
         <div className="about-rail">

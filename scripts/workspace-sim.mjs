@@ -73,10 +73,17 @@ const server = {
     background_path: null,
     background_blur: 18,
     background_dim: 46,
+    developer_photo_asset_id: null,
+    developer_photo_mime: null,
+    developer_photo_bytes: 0,
+    developer_photo_path: null,
+    developer_photo_name: null,
+    developer_photo_updated_at: null,
     claim_hash: null,
     updated_at: new Date().toISOString()
   },
   objects: new Map(),
+  objectTypes: new Map(),
   tokens: new Map(),
   offline: false,
   lastPatchAt: 0
@@ -197,7 +204,22 @@ async function fakeFetch(input, init = {}) {
     const objectPath = decodeURIComponent(path.replace('/storage/v1/object/indra-media/', ''))
     const bytes = Buffer.from(await new Response(init.body).arrayBuffer())
     if (bytes.length > 100663296) return json({ message: 'too large' }, 413)
+    // The bucket names its allowed types; storage refuses anything else. This is
+    // the gate that keeps a "portrait" from being an arbitrary file.
+    const headers = init.headers instanceof Headers ? init.headers : new Headers(init.headers ?? {})
+    const mime = String(headers.get('content-type') ?? '')
+    const allowed = [
+      'video/mp4',
+      'video/webm',
+      'video/x-m4v',
+      'video/ogg',
+      'image/png',
+      'image/jpeg',
+      'image/webp'
+    ]
+    if (!allowed.includes(mime)) return json({ message: 'mime type not supported' }, 400)
     server.objects.set(objectPath, bytes)
+    server.objectTypes.set(objectPath, mime)
     return json({ Key: objectPath })
   }
 
@@ -205,7 +227,8 @@ async function fakeFetch(input, init = {}) {
     const objectPath = decodeURIComponent(path.replace('/storage/v1/object/authenticated/indra-media/', ''))
     const bytes = server.objects.get(objectPath)
     if (!bytes) return json({ message: 'not found' }, 404)
-    return new Response(bytes, { status: 200, headers: { 'content-type': 'video/mp4' } })
+    const type = server.objectTypes.get(objectPath) ?? 'application/octet-stream'
+    return new Response(bytes, { status: 200, headers: { 'content-type': type } })
   }
 
   if (path.startsWith('/storage/v1/object/indra-media/') && method === 'DELETE') {
@@ -296,6 +319,7 @@ module.exports = { app, BrowserWindow, safeStorage, net: { fetch: () => { throw 
 export * from ${JSON.stringify(join(root, 'src/main/services/settings.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/appearance.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/backend.ts'))}
+export * from ${JSON.stringify(join(root, 'src/main/services/about.ts'))}
 `
   )
 
@@ -454,6 +478,156 @@ async function main() {
     readFileSync(join(media, readdirSync(media)[0])).length === 4096,
     'the downloaded bytes are on disk'
   )
+
+  /* ---- 4b. the developer portrait reaches every PC -------------- */
+  /*
+   * The report that started this: a portrait chosen in the admin panel showed
+   * on the machine that chose it and nowhere else. It belongs to the shared row
+   * now, and the path that carries it is the same download-and-adopt the video
+   * uses — so what is exercised here is the code a second PC runs.
+   */
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  )
+  const portraitPath = join(userData, 'boss.png')
+  writeFileSync(portraitPath, PNG)
+
+  check(api.readAbout().developer.hasPhoto === false, 'no portrait is installed before one is chosen')
+
+  const installedPortrait = api.installDeveloperPhoto(portraitPath, 'boss.png')
+  check(installedPortrait.developer.hasPhoto === true, 'the administrator can install a portrait')
+  check(installedPortrait.developer.cloud === false, 'it starts out local to this PC')
+  check(api.readAbout().developer.mime === 'image/png', 'the stored type comes from the bytes')
+
+  const chosenId = server.row.developer_photo_asset_id
+  api.queuePush()
+  await until(() => server.row.developer_photo_asset_id !== null, 'the portrait to be published')
+
+  check(Boolean(server.row.developer_photo_asset_id), 'the row names an asset id')
+  check(server.row.developer_photo_mime === 'image/png', 'the row carries the type', String(server.row.developer_photo_mime))
+  check(server.row.developer_photo_bytes === PNG.length, 'and the exact size', String(server.row.developer_photo_bytes))
+  check(
+    String(server.row.developer_photo_path).startsWith('avatar/'),
+    'the object lives under avatar/, not among the videos',
+    String(server.row.developer_photo_path)
+  )
+  const uploadedPortrait = server.objects.get(server.row.developer_photo_path)
+  check(Boolean(uploadedPortrait) && uploadedPortrait.equals(PNG), 'the object in storage is the chosen photo')
+  check(api.readAbout().developer.cloud === true, 'and the panel is told the portrait is shared')
+
+  /*
+   * Now the "other PC" case, on this installation: another machine publishes a
+   * different portrait. Everything the second PC has to do — see the row, fetch
+   * the object, adopt it under the cloud id, drop the old file — runs for real.
+   */
+  // Deliberately a different size from the one above: two same-sized images
+  // would let a test pass by coincidence.
+  const otherPNG = Buffer.concat([
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      'base64'
+    ),
+    Buffer.alloc(37, 9)
+  ])
+  const otherPath = 'avatar/portrait-from-another-pc.png'
+  server.objects.set(otherPath, otherPNG)
+  server.objectTypes.set(otherPath, 'image/png')
+  bump({
+    developer_photo_asset_id: 'portrait-from-another-pc',
+    developer_photo_mime: 'image/png',
+    developer_photo_bytes: otherPNG.length,
+    developer_photo_path: otherPath,
+    developer_photo_name: 'chosen-elsewhere.png',
+    developer_photo_updated_at: new Date().toISOString()
+  })
+  pushRealtimeChange()
+  await until(
+    () => readdirSync(media).some((name) => name.startsWith('portrait-from-another-pc')),
+    'the portrait published on another machine to arrive'
+  )
+
+  const mirrored = api.readAbout().developer
+  check(mirrored.hasPhoto === true, 'a portrait published from another PC is displayed here')
+  check(mirrored.bytes === otherPNG.length, 'with the size the row describes', String(mirrored.bytes))
+  const served = api.readDeveloperPhotoFile()
+  check(
+    Boolean(served) && served.bytes.equals(otherPNG),
+    'and the bytes on this disk are the ones that were published'
+  )
+  check(
+    readdirSync(media).filter((name) => name.endsWith('.png')).length === 1,
+    'the portrait this machine had is not left behind as a second file',
+    readdirSync(media).join(',')
+  )
+
+  /* A file that vanishes must be repaired by the next reconcile, not shown broken. */
+  const livePng = readdirSync(media).find((name) => name.startsWith('portrait-from-another-pc'))
+  rmSync(join(media, livePng ?? ''))
+  check(api.readAbout().developer.hasPhoto === false, 'a portrait whose file is gone is not claimed to exist')
+  check(api.readAbout().developer.stored === true, 'but the record is kept so it can be repaired')
+  await api.reconcile()
+  check(api.readAbout().developer.hasPhoto === true, 'the next reconcile downloads it again')
+  check(
+    Boolean(api.readDeveloperPhotoFile()) &&
+      api.readDeveloperPhotoFile().bytes.equals(otherPNG),
+    'and the repaired file is the right one'
+  )
+
+  /* A row naming something that is not an image is refused, and the old face stays. */
+  bump({
+    developer_photo_asset_id: 'not-an-image',
+    developer_photo_mime: 'application/x-msdownload',
+    developer_photo_bytes: 64,
+    developer_photo_path: 'avatar/evil.exe'
+  })
+  await api.reconcile()
+  check(
+    /portrait/i.test(api.workspaceState().lastError ?? ''),
+    'a portrait with an impossible type is refused',
+    api.workspaceState().lastError ?? 'no error'
+  )
+  check(api.readAbout().developer.hasPhoto === true, 'the portrait already on screen stays')
+
+  /* Another machine removes it: this one must let go too. */
+  bump({
+    developer_photo_asset_id: null,
+    developer_photo_mime: null,
+    developer_photo_bytes: 0,
+    developer_photo_path: null,
+    developer_photo_name: null,
+    developer_photo_updated_at: new Date().toISOString()
+  })
+  await api.reconcile()
+  check(api.readAbout().developer.hasPhoto === false, 'a portrait cleared on another PC disappears here')
+  check(api.readAbout().developer.stored === false, 'and nothing is left to serve')
+
+  /*
+   * A removal made while the network is away must not be undone by the next
+   * reconcile — the row still names the portrait, and adopting it would put the
+   * face straight back.
+   */
+  api.installDeveloperPhoto(portraitPath, 'boss.png')
+  api.queuePush()
+  await until(() => server.row.developer_photo_asset_id !== null, 'a portrait to publish before the removal')
+  const publishedId = server.row.developer_photo_asset_id
+  const publishedPath = server.row.developer_photo_path
+
+  server.offline = true
+  for (const socket of [...sockets]) socket.close()
+  api.removeDeveloperPhoto()
+  api.queuePush()
+  await api.reconcile()
+  check(api.readAbout().developer.hasPhoto === false, 'a removal made offline is not undone by the mirror')
+  check(server.row.developer_photo_asset_id === publishedId, 'nothing was published while offline')
+
+  server.offline = false
+  await api.reconcile()
+  await until(() => server.row.developer_photo_asset_id === null, 'the removal to reach the row once online')
+  check(server.row.developer_photo_asset_id === null, 'the removal is published when the network returns')
+  check(!server.objects.has(publishedPath), 'and the object it pointed at is deleted from storage')
+  await api.reconcile()
+  check(api.readAbout().developer.hasPhoto === false, 'and it stays removed everywhere')
 
   /* ---- 5. a stale push loses to the newer row -------------------- */
   // The server answers "no rows updated", which is what PostgREST does when the
