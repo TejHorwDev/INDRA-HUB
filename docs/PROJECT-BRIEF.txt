@@ -42,7 +42,7 @@ explicitly rejected "downloads the new installer and runs it".
 2. CURRENT STATE
 ----------------
   Version:            2.1.0
-  Latest release:     v2.1.0
+  Latest release:     v2.1.0 (published)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
