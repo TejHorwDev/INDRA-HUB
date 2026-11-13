@@ -49,7 +49,10 @@ export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarP
       <div className="brand">
         <span className="brand-name">Indra Hub</span>
         <span className="brand-sep" aria-hidden="true" />
-        <span className="titlebar-label">{label}</span>
+        {/* Keyed so the name of the view fades over as the view changes. */}
+        <span key={label} className="titlebar-label">
+          {label}
+        </span>
       </div>
 
       <div className="flex min-w-0 flex-1 justify-center px-4">

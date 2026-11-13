@@ -1,12 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ThemeMode } from '@shared/types'
 
 const STORAGE_KEY = 'indra-hub.theme'
-
-function prefersDark(): boolean {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-}
 
 function readStoredTheme(): ThemeMode | null {
   try {
@@ -17,15 +13,35 @@ function readStoredTheme(): ThemeMode | null {
   }
 }
 
-function applyTheme(theme: ThemeMode): void {
+let shiftTimer: number | undefined
+
+/**
+ * Applies the theme. When `animate` is set the colours cross-fade for a quarter
+ * of a second instead of cutting — the class is removed again straight after,
+ * so nothing carries the cost of a global transition in normal use.
+ */
+function applyTheme(theme: ThemeMode, animate = false): void {
   const root = document.documentElement
+  if (animate) {
+    root.classList.add('theme-shifting')
+    window.clearTimeout(shiftTimer)
+    shiftTimer = window.setTimeout(() => root.classList.remove('theme-shifting'), 260)
+  }
   root.classList.toggle('dark', theme === 'dark')
   root.style.colorScheme = theme
 }
 
+/**
+ * Matte black is the theme this product is designed in, so it is the one a
+ * fresh install opens in. The light theme is a deliberate choice, not a
+ * consequence of how the operating system happens to be configured — the
+ * workspace looks the same on every machine in the office.
+ */
+const DEFAULT_THEME: ThemeMode = 'dark'
+
 /** Runs before the first render so the shell never flashes the wrong theme. */
 export function initTheme(): void {
-  applyTheme(readStoredTheme() ?? (prefersDark() ? 'dark' : 'light'))
+  applyTheme(readStoredTheme() ?? DEFAULT_THEME)
 }
 
 interface ThemeContextValue {
@@ -38,23 +54,14 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // Start from the saved choice so the first effect never overrides it.
-  const [theme, setThemeState] = useState<ThemeMode>(
-    () => readStoredTheme() ?? (prefersDark() ? 'dark' : 'light')
-  )
+  const [theme, setThemeState] = useState<ThemeMode>(() => readStoredTheme() ?? DEFAULT_THEME)
+
+  const applied = useRef<ThemeMode | null>(null)
 
   useEffect(() => {
-    applyTheme(theme)
+    applyTheme(theme, applied.current !== null)
+    applied.current = theme
   }, [theme])
-
-  // Follow the OS until the user makes an explicit choice.
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-color-scheme: dark)')
-    const listener = (event: MediaQueryListEvent): void => {
-      if (!readStoredTheme()) setThemeState(event.matches ? 'dark' : 'light')
-    }
-    query.addEventListener('change', listener)
-    return () => query.removeEventListener('change', listener)
-  }, [])
 
   const setTheme = useCallback((next: ThemeMode) => {
     setThemeState(next)

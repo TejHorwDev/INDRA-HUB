@@ -46,18 +46,22 @@
   color-scheme: light;
 
   /* surfaces */
-  --bg: #f5f5f6;
+  --bg: #f4f4f5;
   --surface: #ffffff;
-  --surface-subtle: #f0f0f2;
+  --surface-subtle: #efeff1;
   --surface-raised: #ffffff;
-  --line: #e3e3e7;
-  --line-strong: #d0d1d6;
+  --chrome: #fbfbfc;
+  --line: #e4e4e8;
+  --line-strong: #cfd0d5;
   --hairline: rgba(20, 21, 24, 0.05);
+  /* the one-pixel light along the top of a raised surface */
+  --edge-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --wash-top: radial-gradient(150% 80% at 50% -20%, rgba(255, 255, 255, 0.75), transparent 60%);
 
   /* text */
-  --ink: #141519;
-  --ink-secondary: #5b5e66;
-  --ink-tertiary: #8a8d95;
+  --ink: #131418;
+  --ink-secondary: #575a62;
+  --ink-tertiary: #86888f;
 
   /* one accent: a muted wine red, used for action and selection only */
   --accent: #a33b43;
@@ -75,9 +79,9 @@
   --warning: #9a7220;
 
   /* geometry */
-  --radius: 8px;
-  --radius-sm: 5px;
-  --radius-lg: 12px;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 14px;
   --radius-pill: 999px;
 
   /* motion — one curve, three durations, used by every transition */
@@ -86,6 +90,8 @@
   --dur-fast: 120ms;
   --dur-base: 160ms;
   --dur-slow: 200ms;
+  --dur-page: 280ms;
+  --dur-theme: 240ms;
 
   /* type scale */
   --font-ui: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, -apple-system,
@@ -125,34 +131,45 @@
 .dark {
   color-scheme: dark;
 
-  --bg: #101113;
-  --surface: #151619;
-  --surface-subtle: #191b1f;
-  --surface-raised: #1e2025;
-  --line: #2b2d32;
-  --line-strong: #3a3d43;
-  --hairline: rgba(255, 255, 255, 0.03);
+  /*
+   * Matte black. The canvas is as close to black as still reads as a surface
+   * rather than a hole (#0a0a0b), panels step up through three dim greys, and
+   * the separation between them is a hairline rather than a highlight. Nothing
+   * here is glossy: no white borders, no glass, no glow except the 1px of light
+   * along the top edge of a raised panel.
+   */
+  --bg: #0a0a0b;
+  --surface: #121214;
+  --surface-subtle: #18181b;
+  --surface-raised: #1e1f22;
+  --chrome: #0d0d0f;
+  --line: #1f2023;
+  --line-strong: #33353a;
+  --hairline: rgba(255, 255, 255, 0.04);
+  --edge-top: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --wash-top: radial-gradient(150% 80% at 50% -20%, rgba(255, 255, 255, 0.035), transparent 62%);
 
-  --ink: #f1f1f2;
-  --ink-secondary: #a0a1a8;
-  --ink-tertiary: #70727a;
+  --ink: #f4f4f5;
+  --ink-secondary: #a3a4ab;
+  --ink-tertiary: #74767d;
 
-  --accent: #a33b43;
-  --accent-hover: #b2444d;
-  --accent-active: #8d323a;
+  /* On black the wine needs a shade more light to stay legible. */
+  --accent: #b4444d;
+  --accent-hover: #c2505a;
+  --accent-active: #9d3941;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(163, 59, 67, 0.16);
-  --accent-ring: rgba(163, 59, 67, 0.34);
+  --accent-soft: rgba(180, 68, 77, 0.16);
+  --accent-ring: rgba(198, 84, 94, 0.4);
 
-  --danger: #e0706d;
-  --danger-soft: rgba(224, 112, 109, 0.12);
-  --success: #6fa585;
-  --success-soft: rgba(111, 165, 133, 0.12);
-  --warning: #c2a061;
+  --danger: #e5817e;
+  --danger-soft: rgba(229, 129, 126, 0.12);
+  --success: #74a98a;
+  --success-soft: rgba(116, 169, 138, 0.12);
+  --warning: #c9a86c;
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.32);
-  --shadow-2: 0 4px 14px -4px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.32);
-  --shadow-3: 0 22px 48px -16px rgba(0, 0, 0, 0.7), 0 6px 18px -8px rgba(0, 0, 0, 0.5);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 18px -6px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 26px 54px -18px rgba(0, 0, 0, 0.8), 0 8px 22px -10px rgba(0, 0, 0, 0.6);
 }
 
 @layer base {
@@ -171,6 +188,10 @@
   body {
     margin: 0;
     background-color: var(--bg);
+    /* One barely-there lift at the top of the window. It is fixed, so it costs
+       nothing while the workspace scrolls. */
+    background-image: var(--wash-top);
+    background-attachment: fixed;
     color: var(--ink);
     font-family: var(--font-ui);
     font-size: var(--fs-base);
@@ -182,6 +203,10 @@
 
   ::selection {
     background: var(--accent-soft);
+  }
+
+  .dark ::selection {
+    background: rgba(180, 68, 77, 0.34);
   }
 
   :focus-visible {
@@ -249,6 +274,7 @@
     z-index: 1;
     width: 100%;
     max-width: 368px;
+    animation: auth-in 520ms var(--ease) both;
     /* Auto margins centre a short form, and let a tall one (registration) start
        at the top of the scroll box instead of above it. */
     margin-block: auto;
@@ -437,10 +463,27 @@
 
   /* Focus is neutral on purpose: the accent is red, and a red focus ring
      would read as an error state. */
+  /* On black a field is a well: darker than the card it sits in. */
+  .dark .field-input {
+    background-color: #0c0c0e;
+    border-color: #2a2b2f;
+  }
+
+  .dark .field-input:hover:not(:disabled):not(:focus) {
+    border-color: var(--line-strong);
+  }
+
   .field-input:focus {
     outline: none;
     border-color: var(--ink-secondary);
     box-shadow: 0 0 0 2px var(--accent-ring);
+  }
+
+  /* A red ring on black outshines the primary action, so focus shows as a
+     cool halo instead and the accent is left to the button. */
+  .dark .field-input:focus {
+    border-color: #55575e;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.07);
   }
 
   .field-input[aria-invalid='true'] {
@@ -581,6 +624,14 @@
     box-shadow: var(--shadow-1);
   }
 
+  .dark .btn-primary {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), var(--shadow-1);
+  }
+
+  .dark .btn-primary:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), var(--shadow-2);
+  }
+
   .btn-primary:hover:not(:disabled) {
     background-color: var(--accent-hover);
   }
@@ -603,6 +654,16 @@
     border: 1px solid var(--line);
     background-color: var(--surface);
     color: var(--ink);
+  }
+
+  .dark .btn-ghost {
+    border-color: #2d2f34;
+    background-color: #16171a;
+  }
+
+  .dark .btn-ghost:hover:not(:disabled) {
+    border-color: #3a3d42;
+    background-color: #1c1d21;
   }
 
   .btn-ghost:hover:not(:disabled) {
@@ -747,7 +808,7 @@
     align-items: center;
     height: 46px;
     border-bottom: 1px solid var(--line);
-    background-color: var(--surface);
+    background-color: var(--chrome);
     -webkit-app-region: drag;
     user-select: none;
   }
@@ -783,14 +844,26 @@
     letter-spacing: -0.005em;
     color: var(--ink-tertiary);
     white-space: nowrap;
+    animation: label-in 320ms var(--ease) both;
+  }
+
+  @keyframes label-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 3px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .page-title {
     font-family: var(--font-display-stack);
-    font-size: 1.375rem;
-    font-weight: 600;
-    line-height: 1.15;
-    letter-spacing: -0.028em;
+    font-size: 1.5rem;
+    font-weight: 620;
+    line-height: 1.12;
+    letter-spacing: -0.032em;
     color: var(--ink);
   }
 
@@ -1510,11 +1583,11 @@
     width: min(480px, calc(100vw - 40px));
     max-height: calc(100vh - 64px);
     padding: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background-color: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-lg);
+    background-color: var(--surface-raised);
     color: var(--ink);
-    box-shadow: var(--shadow-3);
+    box-shadow: var(--edge-top), var(--shadow-3);
     overflow: hidden;
   }
 
@@ -1692,7 +1765,7 @@
     width: 236px;
     padding: 8px;
     border-right: 1px solid var(--line);
-    background-color: var(--surface);
+    background-color: var(--chrome);
     transition: width var(--dur-base) var(--ease);
     overflow: hidden;
   }
@@ -1755,6 +1828,23 @@
     font-weight: 550;
   }
 
+  /*
+   * On matte black a tinted block reads as a bruise; a lift of the ink does the
+   * same job and leaves the red to the marker, the icon and the text. Every
+   * selected surface in the app follows this one rule.
+   */
+  .dark .sidebar-item--active,
+  .dark .sidebar-item--active:hover,
+  .dark .settings-nav-item[aria-current='page'],
+  .dark .admin-nav-item--active,
+  .dark .palette-item--active {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .dark .palette-item--active {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
   .sidebar-item--active:hover {
     background-color: var(--accent-soft);
     color: var(--ink);
@@ -1796,7 +1886,15 @@
     padding: 0;
   }
 
-  .sidebar--collapsed .sidebar-label,
+  .sidebar-label {
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+
+  .sidebar--collapsed .sidebar-label {
+    width: 0;
+    opacity: 0;
+  }
+
   .sidebar--collapsed .sidebar-group-label {
     display: none;
   }
@@ -1953,13 +2051,13 @@
   }
 
   .theme-preview--dark {
-    background-color: #08080a;
-    border-color: #232327;
+    background-color: #0a0a0b;
+    border-color: #232427;
   }
 
   .theme-preview--dark .theme-preview-side {
-    background-color: #0f0f11;
-    border-color: #232327;
+    background-color: #0d0d0f;
+    border-color: #232427;
   }
 
   .theme-preview--dark .theme-preview-bar {
@@ -4525,6 +4623,194 @@
     color: var(--ink-tertiary);
   }
 
+  /* ================================================================ *
+   * Depth
+   * A matte surface is told apart from the one beneath it by a hairline
+   * and one pixel of light along its top edge — never by a glow.
+   * ================================================================ */
+  .dark .card,
+  .dark .home-profile,
+  .dark .home-team,
+  .dark .home-memberof,
+  .dark .project-row,
+  .dark .modal-panel,
+  .dark .empty-state,
+  .dark .btn-ghost,
+  .dark .admin-panel,
+  .dark .panel {
+    box-shadow: var(--edge-top);
+  }
+
+  .dark .project-row:hover {
+    box-shadow: var(--edge-top), var(--shadow-2);
+  }
+
+  /* ================================================================ *
+   * Motion
+   * Everything here moves transform and opacity only, so a transition
+   * never costs a layout. `prefers-reduced-motion` zeroes all of it.
+   * ================================================================ */
+
+  /* The workspace, arriving. Applied to a keyed wrapper in AppShell, so a
+     route change replays it and nothing else does. */
+  .page-enter {
+    animation: page-in var(--dur-page) var(--ease) both;
+  }
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Rows inside a page follow it, 26ms apart, and stop counting after eight
+     so a long list does not arrive in slow motion. */
+  .page-enter .project-list > li,
+  .page-enter .member-list > li {
+    animation: row-in 380ms var(--ease) both;
+  }
+
+  .page-enter .project-list > li:nth-child(1),
+  .page-enter .member-list > li:nth-child(1) { animation-delay: 30ms; }
+  .page-enter .project-list > li:nth-child(2),
+  .page-enter .member-list > li:nth-child(2) { animation-delay: 56ms; }
+  .page-enter .project-list > li:nth-child(3),
+  .page-enter .member-list > li:nth-child(3) { animation-delay: 82ms; }
+  .page-enter .project-list > li:nth-child(4),
+  .page-enter .member-list > li:nth-child(4) { animation-delay: 108ms; }
+  .page-enter .project-list > li:nth-child(5),
+  .page-enter .member-list > li:nth-child(5) { animation-delay: 134ms; }
+  .page-enter .project-list > li:nth-child(6),
+  .page-enter .member-list > li:nth-child(6) { animation-delay: 160ms; }
+
+  .page-enter .project-list > li:nth-child(n + 7),
+  .page-enter .member-list > li:nth-child(n + 7) { animation-delay: 180ms; }
+
+  @keyframes auth-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Panels of a two-column page arrive together, the page already moving. */
+  .page-enter .home > section,
+  .page-enter .project-layout > * {
+    animation: row-in 420ms var(--ease) both;
+  }
+
+  .page-enter .home > section:nth-child(2),
+  .page-enter .project-layout > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  /* The page header leads. */
+  .page-enter .page-title {
+    animation: row-in 340ms var(--ease) both;
+  }
+
+  .page-enter .empty-state {
+    animation: row-in 420ms var(--ease) both;
+    animation-delay: 40ms;
+  }
+
+  /* ---------------- interaction ---------------- */
+  .project-row {
+    transition:
+      background-color var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease),
+      box-shadow var(--dur-base) var(--ease),
+      transform var(--dur-base) var(--ease);
+  }
+
+  .project-row:hover {
+    transform: translate3d(0, -1px, 0);
+  }
+
+  .project-row:active {
+    transform: translate3d(0, 0, 0);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.985);
+  }
+
+  .btn-ghost:active:not(:disabled),
+  .btn-subtle:active:not(:disabled) {
+    transform: scale(0.985);
+  }
+
+  .sidebar-icon {
+    transition:
+      transform var(--dur-base) var(--ease),
+      color var(--dur-fast) var(--ease);
+  }
+
+  .sidebar-item:hover .sidebar-icon {
+    transform: translateX(1.5px);
+  }
+
+  .sidebar-item--active:hover .sidebar-icon {
+    transform: none;
+  }
+
+  .member .avatar {
+    transition: transform var(--dur-base) var(--ease);
+  }
+
+  .member:hover .avatar {
+    transform: scale(1.06);
+  }
+
+  .member-choice .avatar {
+    transition: transform var(--dur-base) var(--ease);
+  }
+
+  .member-choice:hover:not(:disabled) .avatar {
+    transform: scale(1.06);
+  }
+
+  /* The scrolling column: rubber-banding belongs to the window, not to a pane
+     inside it. */
+  .shell-main {
+    overscroll-behavior: contain;
+  }
+
+  /* ---------------- theme switch ---------------- */
+  /*
+   * For 240ms after the theme changes, colours cross-fade instead of cutting.
+   * The rule is scoped to that class, so the app never pays for it otherwise.
+   */
+  html.theme-shifting *,
+  html.theme-shifting *::before,
+  html.theme-shifting *::after {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow,
+      outline-color !important;
+    transition-duration: var(--dur-theme) !important;
+    transition-timing-function: var(--ease) !important;
+    transition-delay: 0ms !important;
+  }
+
   .stagger > * {
     animation: rise-in 620ms var(--ease) both;
   }
@@ -4583,11 +4869,11 @@
 @keyframes modal-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
+    transform: translate3d(0, 12px, 0) scale(0.984);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
 
