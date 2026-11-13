@@ -107,10 +107,24 @@ Run and passing on this change: `npm run typecheck` (both projects),
 cloud, sharing, ai, function, about, credits, portrait`.
 
 Not run, and not claimed: the Electron app itself (no display, no Windows), any
-install/uninstall test, or a call against the live Supabase project. The live
-project still needs the `#!/auth` settings checked by hand: **"Confirm email" must
-be off** for sign-up to return a session, otherwise `createAccount` correctly
-returns "confirm the address, then sign in" instead.
+install/uninstall test, or a signed request against the live project.
+
+**The live project was inspected** (`cztyznuoferktewdhyji`) and matches what this
+code assumes:
+
+| Checked | Result |
+| --- | --- |
+| email auto-confirm | **on**, so sign-up returns a session immediately — nothing to configure |
+| `indra_users` profile columns | 8 of 8 the account reads and writes |
+| `indra_ensure_profile`, `indra_portrait_of`, `indra_set_my_portrait`, `indra_in_project`, `indra_my_invites`, `indra_spend_ai` | all present |
+| `authenticated` may update `indra_users` | `contact_email`, `display_name`, `username` — the three the client writes, and no more |
+| RLS | 13 of 13 `indra%` tables |
+| identities | 12 auth users, 7 profiles, **all 7 are `device-*`** — nobody has a human account yet |
+
+That last row is the reason the ordering matters: the very first real sign-in will
+be the first human profile in the project, so the device re-own path (step 4) has
+to exist before those installations start syncing as people. It also means there
+is no risk of a re-own running against accounts that predate this work.
 
 `npm run sim:workspace` remains broken for a reason unrelated to this change: its
 Electron stub lacks `dialog` (so it cannot load), and with that added it runs 36
