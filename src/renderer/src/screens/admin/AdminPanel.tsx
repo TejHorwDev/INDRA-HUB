@@ -14,6 +14,7 @@ import {
   SignOutIcon,
   SparkIcon,
   UserIcon,
+  WalletIcon,
   WindowIcon
 } from '../../components/icons'
 import AccessSection from './AccessSection'
@@ -23,6 +24,7 @@ import ActivitySection from './ActivitySection'
 import BackendPanel from '../../components/BackendPanel'
 import WorkspacePanel from '../../components/WorkspacePanel'
 import ContentSection from './ContentSection'
+import CreditsSection from './CreditsSection'
 import KeysSection from './KeysSection'
 import OverviewSection from './OverviewSection'
 import ProjectsSection from './ProjectsSection'
@@ -61,6 +63,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Control',
     items: [
       { id: 'keys', label: 'Activation keys', icon: <SparkIcon size={15} /> },
+      { id: 'credits', label: 'Credits', icon: <WalletIcon size={15} /> },
       { id: 'access', label: 'Access & controls', icon: <SettingsIcon size={15} /> },
       { id: 'appearance', label: 'Appearance', icon: <PaletteIcon size={15} /> }
     ]
@@ -196,6 +199,7 @@ export default function AdminPanel({ admin, overview, refresh, onSignOut }: Admi
           {section === 'projects' && <ProjectsSection overview={overview} refresh={refresh} />}
           {section === 'content' && <ContentSection overview={overview} refresh={refresh} />}
           {section === 'keys' && <KeysSection overview={overview} refresh={refresh} />}
+          {section === 'credits' && <CreditsSection overview={overview} refresh={refresh} />}
           {section === 'access' && <AccessSection overview={overview} refresh={refresh} />}
           {section === 'appearance' && (
             <AppearanceSection overview={overview} refresh={refresh} />

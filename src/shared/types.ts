@@ -20,6 +20,10 @@ export type ErrorCode =
   | 'ACCOUNT_SUSPENDED'
   | 'MAINTENANCE'
   | 'REGISTRATION_CLOSED'
+  /* The balance ran out, or the run was refused because it would have. */
+  | 'INSUFFICIENT_CREDITS'
+  /* AI could not run: not switched on, no route out, or the model refused. */
+  | 'AI_UNAVAILABLE'
   | 'UNKNOWN'
 
 export type ApiResult<T> =
@@ -840,4 +844,200 @@ export interface GraphNode {
 export interface ProjectGraph {
   root: GraphNode
   counts: { members: number; documents: number; presentations: number }
+}
+
+/* ---------------- credits and AI ---------------- */
+
+/*
+ * The balance is the server's number, never the app's.
+ *
+ * Everything in this block is a *projection* of what Supabase said. The main
+ * process keeps the last answer in SQLite so the Credits screen can draw
+ * something honest while offline — it is labelled with when it was true, and
+ * it is never used to decide whether a request may run. That decision happens
+ * in the Edge Function, against the row, inside the transaction that charges.
+ */
+export interface CreditsState {
+  /** False while this PC has no usable cloud identity yet. */
+  connected: boolean
+  plan: string
+  planName: string
+  daily: number
+  purchased: number
+  total: number
+  dailyAllowance: number
+  spentToday: number
+  requestsToday: number
+  resetAt: string | null
+  planExpiresAt: string | null
+  isAdmin: boolean
+  /** When the server last confirmed these numbers. */
+  syncedAt: string | null
+  /** True when drawn from the local copy because the cloud could not be read. */
+  cached: boolean
+  /** Why the live read failed, in plain words, when it did. */
+  message: string | null
+}
+
+/** One tier, as configured on the server. Price is in whole rupees. */
+export interface CreditPlan {
+  id: string
+  name: string
+  blurb: string
+  dailyCredits: number
+  priceInr: number
+  sort: number
+  current: boolean
+  /** True when this is the tier the account's plan_expires_at refers to. */
+  expiresAt: string | null
+}
+
+export type CreditEntryKind = 'usage' | 'purchase' | 'grant' | 'reset' | 'adjust'
+
+export interface CreditLedgerEntry {
+  id: string
+  kind: CreditEntryKind
+  /** Negative for usage, positive for everything that adds. */
+  amount: number
+  balanceAfter: number
+  meta: Record<string, unknown>
+  createdAt: string
+}
+
+export type PurchaseKind = 'plan' | 'credits'
+export type PurchaseStatus = 'pending' | 'approved' | 'rejected'
+
+export interface PurchaseRequest {
+  id: string
+  kind: PurchaseKind
+  planId: string | null
+  planName: string | null
+  credits: number | null
+  amountInr: number | null
+  note: string
+  status: PurchaseStatus
+  createdAt: string
+  decidedAt: string | null
+}
+
+export interface PurchaseRequestInput {
+  kind: PurchaseKind
+  /** Required for kind 'plan'. */
+  planId?: string
+  /** Required for kind 'credits'; priced by the server. */
+  credits?: number
+  note?: string
+}
+
+export type AiMode = 'chat' | 'research'
+export type AiDepth = 'standard' | 'deep'
+
+export interface AiCitation {
+  title: string
+  url: string
+}
+
+/** Tokens the provider actually reported, and what they cost. */
+export interface AiUsage {
+  prompt: number
+  output: number
+  total: number
+  cost: number
+}
+
+export interface AiTraceStep {
+  stage: string
+  ms: number
+  tokens: number
+  credits: number
+}
+
+export interface AiAnswer {
+  /** A local id, so a run can be referred to in the document and in history. */
+  id: string
+  mode: AiMode
+  model: string
+  answer: string
+  /** The research questions the model chose, in the order it worked through them. */
+  outline: string[]
+  angle: string | null
+  citations: AiCitation[]
+  usage: AiUsage
+  balance: CreditsState | null
+  /** True when the run stopped because the balance ran out mid-way. */
+  exhausted: boolean
+  trace: AiTraceStep[]
+  ms: number
+}
+
+export interface AiAskInput {
+  projectId: string
+  documentId: string
+  prompt: string
+  /** The passage the person selected, if any. */
+  selection?: string
+  depth?: AiDepth
+  language?: string
+  /** Earlier turns in this document's conversation, oldest first. */
+  history?: { role: 'user' | 'model'; text: string }[]
+}
+
+/** One run this PC made, kept so the document can show what was written into it. */
+export interface AiActivity {
+  id: string
+  documentId: string
+  documentTitle: string
+  mode: AiMode
+  model: string
+  prompt: string
+  credits: number
+  tokens: number
+  citationCount: number
+  createdAt: string
+}
+
+/* ---------------- credit administration ---------------- */
+
+export interface AdminCreditAccount {
+  id: string
+  displayName: string
+  username: string
+  email: string | null
+  plan: string
+  planName: string
+  daily: number
+  purchased: number
+  total: number
+  requests: number
+  planExpiresAt: string | null
+  lastSignInAt: string | null
+  suspended: boolean
+}
+
+export interface AdminCreditLedgerRow {
+  id: string
+  kind: CreditEntryKind
+  amount: number
+  balanceAfter: number
+  meta: Record<string, unknown>
+  createdAt: string
+}
+
+export interface AdminCreditSnapshot {
+  /** Every pending request, oldest first — these are what someone has to act on. */
+  pending: Array<PurchaseRequest & { accountId: string; accountName: string; accountEmail: string | null }>
+  decided: Array<PurchaseRequest & { accountId: string; accountName: string; accountEmail: string | null }>
+  plans: CreditPlan[]
+  accounts: AdminCreditAccount[]
+  /** The signed-in app account is an administrator in the cloud, not just here. */
+  live: boolean
+  message: string | null
+}
+
+export interface AdminPlanInput {
+  id: string
+  name?: string
+  dailyCredits?: number
+  priceInr?: number
+  blurb?: string
 }

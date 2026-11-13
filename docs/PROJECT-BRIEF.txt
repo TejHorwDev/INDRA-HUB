@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 1.4.0 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.0.0 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.7
-  Latest release:     v1.9.7 (GitHub, public)
+  Version:            2.0.0
+  Latest release:     v1.9.7 (this branch adds 2.0.0)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -54,7 +54,7 @@ Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
 v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
-v1.9.4, v1.9.5, v1.9.6, v1.9.7.
+v1.9.4, v1.9.5, v1.9.6, v1.9.7, v2.0.0.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -449,7 +449,9 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     until hovered, so dense editors do not become a wall of boxes.
   - Nothing was removed, re-routed, renamed or re-wired: 1.9.6 changes tokens,
     spacing, typography and the project card's markup only. All ten
-    simulations and the typecheck/build pass unchanged.
+    simulations and the typecheck/build pass unchanged. 2.0.0 adds the research
+    panel and the credit screens in the same monochrome language: hairlines,
+    tabular figures, one filled control.
   - **The interface is monochrome (1.9.7).** Black, greys and white; no hue
     anywhere. Emphasis is contrast, weight and space: the primary action is a
     white pane on charcoal (black on paper in light mode), selection is a 2px
@@ -556,8 +558,70 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 
 5.9 Developer and credits screens
   - /developers: notes for this build
-  - /credits: attribution
+  - /credits: the real balance, the tiers, top-ups and the ledger — see 5.11
 
+
+5.11 AI research and credits (2.0.0)
+  - **Where the model lives.** Not in the app. `supabase/functions/ai` (the
+    Edge Function `indra-ai`) holds the provider key in the project's
+    environment and is the only thing that calls a model. The desktop app sends
+    its own cloud token, the open document as plain text, the current selection,
+    the question and the last few turns; nothing else. No key exists in the
+    build, in settings, or in a log — `sim:ai` checks that no provider
+    credential is ever placed in a request the app makes.
+  - **Write.** One turn, inside the document editor: ask for a paragraph, a
+    rewrite or a sharper argument. The model receives the document and writes
+    in its voice. A selection is sent as the passage to work on.
+  - **Research.** Plan → search → read → synthesise. The model first returns
+    3 (standard) or 6 (deep) questions, each narrow enough to search; those
+    searches run in parallel with Google Search grounding; finally a synthesis
+    step writes a brief with `[n]` citations against the sources that were
+    actually retrieved. The panel shows the questions, the brief, every source
+    with its URL, the token count, the credits charged and the balance after.
+    Deep uses `gemini-2.5-pro`; standard uses `gemini-2.5-flash`. Both are
+    environment overrides (`AI_CHAT_MODEL`, `AI_PLAN_MODEL`, `AI_SEARCH_MODEL`,
+    `AI_RESEARCH_MODEL`).
+  - **Insertion is an ordinary edit.** "Add to document" converts the Markdown
+    into the same blocks the editor owns (headings keep the structure the
+    presentation converter reads), appends a "Sources" section with real links,
+    and marks the document dirty. Nothing is written behind the editor's back.
+  - **1 credit = 1,000 tokens**, input and output, rounded up, minimum 1.
+    The cost is computed from the `usageMetadata` the provider reports — never
+    estimated. If the provider reports no usage, the request fails rather than
+    guessing a price.
+  - **Charging is incremental.** Each step of a research run is charged as it
+    completes, through `indra_spend_ai()` with the service role. A run that
+    exhausts the balance stops, keeps what was written, and says so
+    (`exhausted: true`) — the balance never goes below zero.
+  - **Three tiers, editable on the server.** `indra_plans` holds Free (100
+    credits/day, ₹0), Basic (600, ₹299) and Pro (2,500, ₹899). The
+    administrator edits the daily allowance, name and price from
+    Admin → Credits; a change applies from each account's next daily reset.
+  - **Daily reset on the server's clock.** `pg_cron` runs
+    `indra_reset_all_daily()` at 00:05 UTC. `indra_ensure_credit_day()` is the
+    safety net: a balance is topped to its allowance the first time it is read
+    after midnight, so a missed schedule or a laptop that was closed overnight
+    cannot strand anybody.
+  - **Purchases are requests.** No card, no gateway. A plan change or a top-up
+    is a row in `indra_purchase_requests`; the administrator approves or
+    declines it in Admin → Credits, and approval sets the plan (30 days) or adds
+    purchased credits (which never expire and are spent after the daily
+    allowance). Duplicate pending requests are refused by a partial unique
+    index.
+  - **Two gates on the admin console.** The local administrator session, and
+    the server's own check that the signed-in cloud account holds the
+    administrator role. With the second missing, Admin → Credits renders
+    read-only and says why.
+  - **The app never holds authority.** `indra_spend_ai`,
+    `indra_ensure_credit_day` and `indra_reset_all_daily` are revoked from
+    `authenticated`/`anon` and granted only to `service_role`;
+    `grant update` on `indra_users` is narrowed to username, display name and
+    contact address, so no client can write a balance column. SQLite keeps the
+    last balance for display with the time it was true, and it is never
+    consulted before a request.
+  - **Offline is honest.** AI needs a route out; a request is refused rather
+    than queued, and the panel says so. The Credits screen draws the last known
+    balance, labelled as such, and refreshes when the cloud is reachable.
 
 5.10 Design, theme and motion
   - Two themes, one set of tokens. Components never hold a colour of their own;
@@ -580,9 +644,11 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 
 6. DATA MODEL (SQLite)
 ----------------------
-Fifteen tables, created by ordered migrations in src/main/db/schema.ts; the
+Seventeen tables, created by ordered migrations in src/main/db/schema.ts; the
 schema version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the
-number of migrations (seven, the last of which added teams).
+number of migrations (eleven; the last added the credit cache and the AI run
+log). The server side has its own schema in supabase/ (schema.sql, auth.sql,
+sharing.sql, ai-credits.sql).
 
   users              id, username, display_name, email, password_hash,
                      password_salt, created_at, suspended_at
@@ -899,6 +965,16 @@ Honest list; none of these are hidden:
   - Saving to the cloud mirrors the project: it replaces the cloud copy rather
     than merging two divergent versions, and every save rewrites it in full.
     At current project sizes that is a few requests; it is not a sync engine.
+  - AI needs a provider key in the Edge Function's environment
+    (`GEMINI_API_KEY`). Until one is set the function answers `not_configured`
+    and the panel says AI is not switched on — it never fakes an answer.
+  - Research runs are not streamed: the panel shows elapsed time while the run
+    works, then the whole brief. A deep run is bounded by the Edge Function's
+    wall clock (~135s of work by design) and can time out on a very broad topic.
+  - Bring-your-own-key is not implemented. There is one workspace key and one
+    balance per account; a person cannot yet point the app at their own key.
+  - Plan changes and top-ups are approved by hand; there is no payment gateway
+    and no invoice.
   - Google sign-in does not exist in the app and no OAuth client is configured.
   - The app is not wired to any hosted licensing service; activation keys are
     local rows in the local database.
@@ -915,7 +991,8 @@ Honest list; none of these are hidden:
     simple COUNT(*) queries and have shown 0 in some views; the source of truth
     is the counting code in src/main/services/admin.ts.
   - Admin → System reports file size only, not table-level growth.
-  - No automated test suite beyond the two simulations (sim:update, sim:admin);
+  - No automated test suite beyond the simulations (sim:update, sim:admin, and
+    the rest);
     everything else is verified by typecheck, build and manual runs.
   - Nothing in the app is localised; English only.
 
