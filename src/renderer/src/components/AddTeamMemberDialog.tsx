@@ -12,9 +12,16 @@ interface AddTeamMemberDialogProps {
 }
 
 /**
- * Search runs against registered accounts only, in the main process, and the
- * people already on the team are filtered out there rather than here — the UI
- * is never given a choice that would fail.
+ * Adding somebody is done by email address.
+ *
+ * Names collide — and an initials avatar makes two people with the same name
+ * look like the same person — so the one thing that identifies an account is
+ * the address it was registered with. The lookup is exact and happens in the
+ * main process; the people already on the team are filtered out there too, so
+ * the UI is never given a choice that would fail.
+ *
+ * What comes back shows the *name*, because the person adding somebody needs to
+ * see who they are adding, not just confirm an address they already typed.
  */
 export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamMemberDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -47,7 +54,8 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
   useEffect(() => {
     if (!open) return
     const trimmed = query.trim()
-    if (trimmed.length < 2) {
+    // Nothing is asked of the database until the text could be an address.
+    if (trimmed.length < 5 || !trimmed.includes('@')) {
       setResults(null)
       setSearching(false)
       return
@@ -128,21 +136,29 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
               className="field-input member-search-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Name or username"
+              placeholder="Email address"
+              type="email"
               spellCheck={false}
               autoComplete="off"
-              aria-label="Search people"
+              aria-label="Email address of the person to add"
             />
           </div>
         </div>
 
         <div className="member-results">
-          {query.trim().length < 2 ? (
-            <p className="member-empty">Type at least two letters.</p>
+          {query.trim().length === 0 ? (
+            <p className="member-empty">
+              People are found by the email address they signed up with. Names repeat; an address
+              does not.
+            </p>
+          ) : query.trim().length < 5 || !query.includes('@') ? (
+            <p className="member-empty">Keep typing — an email address, like name@gmail.com.</p>
           ) : searching && !results ? (
             <p className="member-empty">Searching…</p>
           ) : results && results.length === 0 ? (
-            <p className="member-empty">Nobody by that name has an account here yet.</p>
+            <p className="member-empty">
+              No account uses <strong className="member-empty-query">{query.trim()}</strong>.
+            </p>
           ) : (
             <ul className="member-list">
               {(results ?? []).map((person) => (
@@ -158,7 +174,7 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
                     </span>
                     <span className="member-choice-text">
                       <span className="member-choice-name">{person.displayName}</span>
-                      <span className="member-choice-handle">@{person.username}</span>
+                      <span className="member-choice-handle">{person.email}</span>
                     </span>
                     {addingId === person.id ? (
                       <span className="spinner" aria-hidden="true" />

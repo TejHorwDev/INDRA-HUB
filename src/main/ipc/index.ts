@@ -25,7 +25,7 @@ import {
   pushProject
 } from '../services/cloud'
 import { librarySnapshot } from '../services/library'
-import { validateSearchQuery } from '../lib/validation'
+import { validateEmailQuery } from '../lib/validation'
 import {
   changeOwnPassword,
   currentUser,
@@ -419,7 +419,7 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('team:search', (_event, query: unknown) =>
-    toResult(() => searchTeamCandidates(actor(), query))
+    toResult(() => searchTeamCandidates(actor(), validateEmailQuery(query)))
   )
 
   ipcMain.handle('projects:list', () => toResult(() => listProjects(actor())))
@@ -924,7 +924,7 @@ export function registerIpcHandlers(): void {
         const viewer = actor()
         const projectId = requireProjectId(payload?.projectId)
         assertCanManageTeam(viewer, projectId)
-        return searchUsers(validateSearchQuery(payload?.query), projectId)
+        return searchUsers(validateEmailQuery(payload?.query), projectId)
       })
   )
 }

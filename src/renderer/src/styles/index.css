@@ -5399,3 +5399,13 @@ body,
 .sidebar-item--active .sidebar-icon {
   color: var(--accent);
 }
+
+/* ---------------- people search ---------------- */
+
+/* The address that failed to match, quoted inside the sentence rather than
+   repeated as a fragment above it. */
+.member-empty-query {
+  color: var(--ink-secondary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
