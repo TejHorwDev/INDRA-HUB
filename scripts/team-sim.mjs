@@ -69,6 +69,8 @@ module.exports = { app, net: { fetch: () => { throw new Error('offline') } }, Br
 export * from ${JSON.stringify(join(root, 'src/main/services/auth.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/settings.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/users.ts'))}
+export * from ${JSON.stringify(join(root, 'src/main/lib/validation.ts'))}
+export * from ${JSON.stringify(join(root, 'src/main/services/projects.ts'))}
 `
   )
 
@@ -166,18 +168,60 @@ export * from ${JSON.stringify(join(root, 'src/main/services/users.ts'))}
   )
   check(api.teamOverview(owner).owned.name === 'The studio', 'the team is unchanged after those attempts')
 
-  /* ---- 4. search offers only valid additions ----------------------- */
-  const found = api.searchTeamCandidates(owner, 'si')
-  check(found.length === 1 && found[0].id === stranger.id, 'search finds an account that could join')
+  /* ---- 4. finding someone is by email, and shows the name ---------- */
+  const found = api.searchTeamCandidates(owner, 'sita@example.test')
+  check(found.length === 1 && found[0].id === stranger.id, 'an exact email finds the account')
+  check(found[0].displayName === 'Sita Magar', 'and the answer carries their name', found[0].displayName)
+  check(found[0].email === 'sita@example.test', 'and the address that matched')
   check(
-    api.searchTeamCandidates(owner, 'bi').every((person) => person.id !== mate.id),
-    'search never offers somebody already on the roster'
+    api.searchTeamCandidates(owner, 'SITA@Example.Test').length === 1,
+    'the address is matched without regard to case'
+  )
+
+  check(
+    api.searchTeamCandidates(owner, 'sita').length === 0 && api.searchTeamCandidates(owner, 'Sita Gurung').length === 0,
+    'a name or its beginning finds nothing — names repeat, so they never search'
   )
   check(
-    api.searchTeamCandidates(owner, 'as').every((person) => person.id !== owner.id),
-    'search never offers the owner'
+    api.searchTeamCandidates(owner, 'sita@example').length === 0,
+    'a partial address is not a match either'
   )
-  check(api.searchTeamCandidates(owner, 'a').length === 0, 'a single letter searches for nothing')
+  check(
+    api.searchTeamCandidates(owner, 'nobody@example.test').length === 0,
+    'an address nobody registered returns nothing'
+  )
+  check(
+    api.searchTeamCandidates(owner, 'bikash@example.test').every((person) => person.id !== mate.id),
+    'the address of somebody already on the roster is not offered'
+  )
+  check(
+    api.searchTeamCandidates(owner, 'asha@example.test').every((person) => person.id !== owner.id),
+    'and the owner cannot add themselves'
+  )
+  check(api.searchTeamCandidates(owner, '').length === 0, 'an empty query searches for nothing')
+  check(
+    refused(() => api.validateEmailQuery('sita')).length > 0,
+    'a query that is not an address is refused before it reaches the table'
+  )
+
+  /* ---- 4b. the same rule when adding to a project ------------------ */
+  const project = api.createProject(owner, { name: 'The studio project' })
+  const onProject = api.searchUsers('sita@example.test', project.id)
+  check(onProject.length === 1 && onProject[0].id === stranger.id, 'a project finds people by email too')
+  check(onProject[0].displayName === 'Sita Magar', 'and shows the name before anybody is added', onProject[0].displayName)
+  check(
+    api.searchUsers('sita', project.id).length === 0,
+    'a project does not search by name either'
+  )
+  api.addMember(owner, project.id, stranger.id)
+  check(
+    api.searchUsers('sita@example.test', project.id).length === 0,
+    'and stops offering somebody who is already on the project'
+  )
+  check(
+    api.searchUsers('asha@example.test', project.id).length === 0,
+    'and never offers the head developer'
+  )
 
   /* ---- 5. removal and rename --------------------------------------- */
   const afterRemove = api.removeTeamMember(owner, mate.id)

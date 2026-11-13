@@ -61,6 +61,19 @@ export function validateProjectInput(input: { name?: string; description?: strin
   return { name, description }
 }
 
+/**
+ * Finding a person is done by email, so the query has to look like one before
+ * it reaches a table. Exact matching happens in SQL; this only prevents a
+ * half-typed name from being treated as an address.
+ */
+export function validateEmailQuery(value: unknown): string {
+  const query = typeof value === 'string' ? value.trim() : ''
+  if (query.length < 5 || !query.includes('@')) {
+    throw errors.validation('Type the email address they signed up with.', 'query')
+  }
+  return query.slice(0, 160)
+}
+
 export function validateSearchQuery(value: unknown): string {
   const query = typeof value === 'string' ? value.trim() : ''
   if (query.length < 2) throw errors.validation('Type at least two characters to search.')

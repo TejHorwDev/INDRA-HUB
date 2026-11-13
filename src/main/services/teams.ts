@@ -231,26 +231,31 @@ export function removeTeamMember(viewer: SessionUser, userId: unknown): TeamDeta
  */
 export function searchTeamCandidates(viewer: SessionUser, query: unknown): UserSummary[] {
   const team = ownedTeam(viewer.id)
-  const search = String(query ?? '').trim()
-  if (search.length < 2) return []
+  // By email, exactly. Names collide; an address does not.
+  const address = String(query ?? '').trim()
+  if (address.length < 3 || !address.includes('@')) return []
 
-  const like = `%${search.replace(/[%_]/g, '')}%`
   const rows = getDatabase()
     .prepare(
-      `SELECT id, username, display_name
+      `SELECT id, username, display_name, email
          FROM users
-        WHERE (username LIKE ? COLLATE NOCASE OR display_name LIKE ? COLLATE NOCASE)
+        WHERE email = ? COLLATE NOCASE
           AND suspended_at IS NULL
           AND id <> ?
           AND id NOT IN (SELECT user_id FROM team_members WHERE team_id = ?)
-        ORDER BY username COLLATE NOCASE ASC
-        LIMIT 8`
+        LIMIT 1`
     )
-    .all(like, like, viewer.id, team?.id ?? '') as unknown as PersonRow[]
+    .all(address, viewer.id, team?.id ?? '') as unknown as Array<{
+    id: string
+    username: string
+    display_name: string
+    email: string
+  }>
 
   return rows.map((row) => ({
     id: row.id,
     username: row.username,
-    displayName: row.display_name
+    displayName: row.display_name,
+    email: row.email
   }))
 }

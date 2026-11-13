@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.1
-  Latest release:     v1.9.1 (GitHub, public)
+  Version:            1.9.2
+  Latest release:     v1.9.2 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -53,7 +53,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1.
+v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -324,9 +324,18 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     email, member since, a link to settings) and the team.
   - One team per owner, created in place, renamed in place, deleted behind a
     confirmation. The roster lists the owner first, then members; a member is
-    removed from the row itself. "Add member" searches registered accounts and
-    offers only people who could actually join — never the owner, never
-    somebody already on the roster, never a suspended account.
+    removed from the row itself.
+  - **People are found by email, not by name (1.9.2).** Names repeat, and an
+    initials avatar makes two people with the same name look like one person,
+    so the search field asks for the address the account was registered with.
+    The match is EXACT and case-insensitive — no prefix, no wildcards — which
+    is both what makes it unambiguous and what keeps it from being used to walk
+    the account table one letter at a time. What comes back shows the person's
+    name and their address, because the name is what the decision is made on.
+  - The same rule applies to a project's members, and both filter in SQL: never
+    the owner, never somebody already on the roster or the project, never a
+    suspended account. A half-typed name is refused before it reaches the
+    table.
   - Being a member of somebody else's team is read-only and shows under
     "Member of"; ownership is checked in the service on every write, not in
     the renderer.
@@ -334,8 +343,8 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     on them, and deleting a team touches no account and no document.
   - Create, rename, delete projects; each has a description
   - Owner/member model stored in project_members
-  - Add members by searching existing users (username, display name, email —
-    email only shown to project members)
+  - Add members by exact email address; the matched account's name and address
+    are shown so the choice is made by name
   - Membership checks on every read and write in the service layer
   - Project dashboard: overview, members, documents, presentations, activity
   - Project workspace: a combined view of the project's material

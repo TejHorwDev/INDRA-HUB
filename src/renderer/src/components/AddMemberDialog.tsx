@@ -14,8 +14,10 @@ interface AddMemberDialogProps {
 }
 
 /**
- * Search runs against registered accounts only, and the main process filters
- * out the owner and anyone already on the project before returning results.
+ * Adding somebody to a project is done by email address, for the same reason the
+ * team dialog is: names repeat, addresses do not. The match is exact, and the
+ * main process filters out the owner and anyone already on the project before
+ * returning — the person's name comes back so the choice is made by name.
  */
 export default function AddMemberDialog({
   open,
@@ -53,7 +55,7 @@ export default function AddMemberDialog({
     if (!open) return
 
     const trimmed = query.trim()
-    if (trimmed.length < 2) {
+    if (trimmed.length < 5 || !trimmed.includes('@')) {
       setResults(null)
       setSearchError(null)
       setSearching(false)
@@ -124,7 +126,7 @@ export default function AddMemberDialog({
               Add member
             </h2>
             <p className="mt-1 text-sm text-[var(--ink-tertiary)]">
-              Find someone with an INDRA HUB account.
+              By the email address they signed up with.
             </p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
@@ -134,11 +136,12 @@ export default function AddMemberDialog({
 
         <div className="px-6 pb-4">
           <TextField
-            label="Search accounts"
+            label="Email address"
             name="memberSearch"
+            type="email"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Username or name"
+            placeholder="name@gmail.com"
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -150,10 +153,15 @@ export default function AddMemberDialog({
             results && results.length > 0 ? 'px-3 pb-3' : 'min-h-[168px] px-3 pb-3'
           }
         >
-          {query.trim().length < 2 ? (
+          {query.trim().length === 0 ? (
             <p className="member-hint">
               <SearchIcon size={14} />
-              Type at least two characters to search.
+              Type the email address they signed up with.
+            </p>
+          ) : query.trim().length < 5 || !query.includes('@') ? (
+            <p className="member-hint">
+              <SearchIcon size={14} />
+              Keep typing — an email address, like name@gmail.com.
             </p>
           ) : searching ? (
             <p className="member-hint">
@@ -165,7 +173,7 @@ export default function AddMemberDialog({
               {searchError}
             </p>
           ) : results && results.length === 0 ? (
-            <p className="member-hint">No accounts match “{query.trim()}”.</p>
+            <p className="member-hint">No account uses “{query.trim()}”.</p>
           ) : (
             <ul className="member-results">
               {results?.map((user) => (
@@ -176,7 +184,7 @@ export default function AddMemberDialog({
                       {user.displayName}
                     </span>
                     <span className="block truncate text-xs text-[var(--ink-tertiary)]">
-                      @{user.username}
+                      {user.email}
                     </span>
                   </span>
                   <button

@@ -88,6 +88,11 @@ export interface UserSummary {
   id: string
   username: string
   displayName: string
+  /**
+   * Present only when the person was found by their email address — the one
+   * search that is allowed to reach an account, because names collide.
+   */
+  email?: string
 }
 
 export interface RegisterInput {
