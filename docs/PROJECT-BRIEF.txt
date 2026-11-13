@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.0
-  Latest release:     v1.9.0 (GitHub, public)
+  Version:            1.9.1
+  Latest release:     v1.9.1 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -53,7 +53,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0.
+v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -297,6 +297,26 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     `owner_id = indra_uid()` accepted, its documents/decks/slides accepted,
     its delete-and-rewrite accepted, and a second identity reading 0 rows and
     changing nothing.
+
+5.1f Finish, motion and type (1.9.1)
+  - The signed-out panel's offline route is a real button on a hairline divider,
+    not a link inside a sentence: icon, label, one line of explanatory text
+    under it. Same action, legible as an action.
+  - Page headers share one frame (`page-head` / `page-description` /
+    `page-actions`) across every screen, so the title, its description and the
+    actions on the right line up identically on Projects, Documents, Settings
+    and a project's own page; on a narrow window the actions take their own
+    line instead of squeezing the title.
+  - Type: headings break by sentence (`text-wrap: balance`), paragraphs avoid
+    orphans (`pretty`), and every number that gets scanned — counts, dates,
+    versions, stats — is tabular.
+  - Controls: one focus ring (a 2px canvas gap and an accent halo) for buttons,
+    rail items, rows, links and window controls; a press is half a pixel and a
+    hair of scale; rows answer the pointer by a pixel and a border.
+  - Motion: route arrival, staggered rows, the active project tab wiping in
+    from the left, the rail's accent on the current section, and a fade on a
+    theme change. All transform/opacity/colour, and `prefers-reduced-motion`
+    zeroes the lot.
 
 5.2 Home, teams and projects
   - Home is the first screen after signing in and the first item in the

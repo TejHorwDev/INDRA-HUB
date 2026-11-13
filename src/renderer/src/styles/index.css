@@ -5198,3 +5198,204 @@ body,
 .update-hint--error {
   color: var(--danger);
 }
+
+/* ================================================================== *
+ * Refinement layer (1.9.1)
+ *
+ * A single pass over the things that make a desktop app feel finished
+ * rather than assembled: where a heading breaks, how a row responds to
+ * the pointer, what a press feels like, and one focus ring instead of
+ * five. Everything here is transform/opacity/colour — no layout, so no
+ * frame is spent reflowing.
+ * ================================================================== */
+
+/* ---------------- page frame ---------------- */
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 20px;
+}
+
+.page-head-text {
+  min-width: 0;
+}
+
+.page-description {
+  margin-top: 6px;
+  max-width: 68ch;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.page-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Below the fold of a narrow window the actions get their own line rather than
+   squeezing the title into two words. */
+@media (max-width: 820px) {
+  .page-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .page-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
+
+/* ---------------- type ---------------- */
+
+/* Headings break where the sentence does; body copy avoids a lonely last word. */
+h1,
+h2,
+h3,
+.page-title,
+.auth-title,
+.hero-title {
+  text-wrap: balance;
+}
+
+p,
+.page-description,
+.account-note,
+.auth-lede,
+.info-foot {
+  text-wrap: pretty;
+}
+
+/* Numbers that get scanned line up: counts, dates, versions, stats. */
+.project-row-meta,
+.info-list dd,
+.home-count,
+.admin-stat-value,
+.update-version,
+.member-meta,
+.library-note {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background-color: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* ---------------- surfaces ---------------- */
+
+/* A theme change is a fade, not a flash. Only long-lived chrome is included, so
+   nothing animates on a per-row basis. */
+body,
+.sidebar,
+.topbar,
+.card,
+.panel,
+.settings-panel {
+  transition:
+    background-color 260ms var(--ease),
+    border-color 260ms var(--ease),
+    color 260ms var(--ease);
+}
+
+/* A row answers the pointer by a pixel and a border, never by moving its text. */
+.project-row {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.project-row:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.project-row:active {
+  transform: translate3d(0, 0, 0);
+}
+
+/* ---------------- controls ---------------- */
+
+.btn {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Press: half a pixel down and a hair of scale. Enough to feel, not to see. */
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px) scale(0.994);
+}
+
+.btn-ghost:active:not(:disabled) {
+  transform: translateY(0.5px) scale(0.994);
+}
+
+/* One focus ring, in one colour, at one offset — for everything focusable. */
+.btn:focus-visible,
+.icon-button:focus-visible,
+.sidebar-item:focus-visible,
+.project-row:focus-visible,
+.link:focus-visible,
+.link-button:focus-visible,
+.member-remove:focus-visible,
+.window-control:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent-ring);
+}
+
+/* ---------------- signed-out panel ---------------- */
+
+/* A hairline with a word in it, instead of a second paragraph of prose. */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 14px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--line);
+}
+
+.auth-offline {
+  width: 100%;
+  height: 38px;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.auth-foot-note {
+  margin-top: 10px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+
+/* ---------------- rail ---------------- */
+
+/* The active section is the only thing in the rail that carries the accent, and
+   it arrives by colour rather than by a jump. */
+.sidebar-icon {
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.sidebar-item--active .sidebar-icon {
+  color: var(--accent);
+}
