@@ -359,7 +359,10 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
        * Edge Function, a member's own balance — belongs to the member paths and
        * must keep working while this switch is off.
        */
-      if (path.startsWith('/rest/v1/rpc/indra_admin_') && !balance.isAdmin) {
+      if (
+        /\/rpc\/indra_admin_(accounts|ledgers?|decide_purchase|set_plan|suspend|refill)/.test(path) &&
+        !balance.isAdmin
+      ) {
         return json(403, { message: 'Only an administrator can do that.' })
       }
 
@@ -368,16 +371,22 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
        * granted when nobody else is live, refused with a reason when somebody
        * is. The sim flips `__aiRoleHeldElsewhere` to exercise both.
        */
-      if (path === '/rest/v1/rpc/indra_claim_credit_admin') {
+      if (path === '/rest/v1/rpc/indra_admin_claim') {
         if (globalThis.__aiRoleHeldElsewhere) {
           return json(200, {
             claimed: false,
-            reason: 'Another administrator is still using the console. Ask them to hand the role over, or try again once that installation has been idle for a day.'
+            adminEmail: 'someone@example.com',
+            reason: 'Another account already administers this installation.'
           })
         }
         balance.isAdmin = true
         globalThis.__aiIsAdmin = true
-        return json(200, { claimed: true, reason: null, userId: 'profile-me', previousUserId: null })
+        return json(200, { claimed: true, adminEmail: 'admin@example.com', reason: null })
+      }
+
+      /* Who administers, asked before anything is claimed. */
+      if (path === '/rest/v1/rpc/indra_admin_who') {
+        return json(200, balance.isAdmin ? { email: 'admin@example.com' } : null)
       }
 
       if (path === '/rest/v1/rpc/indra_credit_reset_info') {
@@ -737,7 +746,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   const snapshot = await api.adminTokenSnapshot(user)
   check(snapshot.live === false, 'a normal account gets no credit console')
   check(snapshot.pending.length === 0 && snapshot.accounts.length === 0, 'and no other account’s numbers with it')
-  check(/not an administrator/i.test(snapshot.message ?? ''), 'the refusal explains itself', snapshot.message)
+  check(/administers/i.test(snapshot.message ?? ''), 'the refusal explains itself', snapshot.message)
   check(
     snapshot.accounts.length === 0 && snapshot.settings?.currency === 'USD',
     'a member may read the prices but nothing about another account'
@@ -845,7 +854,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   const refusedClaim = await api.adminClaimTokenRole(user)
   check(refusedClaim.live === false, 'a role held elsewhere leaves the console read-only')
   check(
-    /still using the console|idle for a day/i.test(refusedClaim.message ?? ''),
+    /already administers this installation/i.test(refusedClaim.message ?? ''),
     'and the refusal is the server’s reason, not a guess',
     refusedClaim.message
   )
@@ -861,7 +870,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   globalThis.__aiIsAdmin = false
   const revoked = await api.adminTokenSnapshot(user)
   check(revoked.live === false && revoked.reachable === true, 'without the role the console is read-only, not broken')
-  check(/not an administrator/i.test(revoked.message ?? ''), 'and it says exactly that', revoked.message)
+  check(/administers/i.test(revoked.message ?? ''), 'and it says exactly that', revoked.message)
   balance.isAdmin = true
   globalThis.__aiIsAdmin = true
 
