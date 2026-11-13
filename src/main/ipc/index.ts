@@ -14,6 +14,16 @@ import type {
 import { toResult } from '../lib/errors'
 import { archiveProject, exportProjectToFile, importProjectFromFile, restoreArchive } from '../services/archive'
 import { recheckConnectivity } from '../services/connectivity'
+import {
+  adoptCloudKey,
+  cloudProjectState,
+  cloudState,
+  exportCloudKey,
+  forgetCloudIdentity,
+  listCloudProjects,
+  pullProject,
+  pushProject
+} from '../services/cloud'
 import { librarySnapshot } from '../services/library'
 import { validateSearchQuery } from '../lib/validation'
 import {
@@ -173,6 +183,57 @@ export function registerIpcHandlers(): void {
   /* ---------------- offline library ---------------- */
   // Every document and deck the account can reach, in one read.
   ipcMain.handle('library:snapshot', () => toResult(() => librarySnapshot(actor())))
+
+  /* ---------------- the cloud copy ---------------- */
+  /*
+   * Every one of these is refused by the main process while the machine is
+   * offline, and every write carries only the installation's own token — the
+   * database's RLS policies, not this IPC layer, decide what an account may
+   * reach. `cloud:project` reads timestamps from disk and works offline, which
+   * is why the project page can still say where the copy stands with no route
+   * out.
+   */
+  ipcMain.handle('cloud:state', () => toResult(() => cloudState()))
+
+  ipcMain.handle('cloud:project', (_event, projectId: unknown) =>
+    toResult(() => cloudProjectState(actor(), requireProjectId(projectId)))
+  )
+
+  ipcMain.handle('cloud:list', () => toResult(() => listCloudProjects()))
+
+  ipcMain.handle('cloud:push', (_event, projectId: unknown) =>
+    toResult(() => pushProject(actor(), requireProjectId(projectId)))
+  )
+
+  ipcMain.handle('cloud:pull', (_event, cloudId: unknown) =>
+    toResult(() => {
+      if (typeof cloudId !== 'string' || cloudId.length === 0 || cloudId.length > 160) {
+        throw new Error('invalid cloud project id')
+      }
+      return pullProject(actor(), cloudId)
+    })
+  )
+
+  /*
+   * Moving the copy to another PC. The code is this PC's cloud identity; it is
+   * only produced when asked for, and only stored by another machine that
+   * proves the password still works.
+   */
+  ipcMain.handle('cloud:key', () => toResult(() => exportCloudKey()))
+
+  ipcMain.handle('cloud:adopt', (_event, code: unknown) =>
+    toResult(() => {
+      if (typeof code !== 'string' || code.length === 0 || code.length > 600) {
+        throw new Error('invalid transfer code')
+      }
+      return adoptCloudKey(code)
+    })
+  )
+
+  ipcMain.handle('cloud:forget', () => toResult(() => {
+    forgetCloudIdentity()
+    return null
+  }))
 
   /*
    * What the signed-out screens look like. Public by design — the sign-in

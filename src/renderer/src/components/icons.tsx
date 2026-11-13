@@ -235,6 +235,14 @@ export function CloudOffIcon({ size = 15, className }: IconProps) {
   )
 }
 
+export function CloudIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <path d="M7.4 18.4h9.2a3.6 3.6 0 0 0 .4-7.2 5.4 5.4 0 0 0-10.2-1.4 4.3 4.3 0 0 0 .6 8.6Z" />
+    </svg>
+  )
+}
+
 export function TemplatesIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>

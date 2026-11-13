@@ -1,0 +1,871 @@
+import { randomBytes } from 'node:crypto'
+import { net } from 'electron'
+import type {
+  CloudProjectState,
+  CloudProjectSummary,
+  CloudPushResult,
+  CloudState,
+  ProjectArchive,
+  ProjectDetail,
+  SessionUser
+} from '@shared/types'
+import { WORKSPACE_KEY, WORKSPACE_URL, normaliseUrl } from '@shared/workspace'
+import { getDatabase } from '../db/database'
+import { errors } from '../lib/errors'
+import { sealSecret, unsealSecret } from '../lib/seal'
+import { restoreArchive } from './archive'
+import { readBackendCredentials } from './backend'
+import { recheckConnectivity } from './connectivity'
+
+/*
+ * The cloud copy.
+ *
+ * Everything the app does is local, and stays that way. This file is the
+ * second copy: a project, its documents and its decks written to Postgres, so
+ * the same installation can bring them back on another machine — or after this
+ * one dies. It is never the working copy. It is never read while offline.
+ *
+ * Why this machine needs an identity
+ * ----------------------------------
+ * The cloud tables are protected by Row Level Security that starts at
+ * `auth.uid()`. The app's accounts are local, with no Supabase identity, so a
+ * request carrying only the publishable key can read nothing and write nothing
+ * — which is correct, and is exactly why a key was never going to be enough.
+ * Instead of weakening those policies, each installation gets a real Supabase
+ * user of its own: an auto-confirmed account with a generated address and a
+ * 32-byte password, the password sealed by the OS keystore on this machine.
+ * The trigger in auth.sql turns that user into a profile with a member number,
+ * and every project it writes is owned by that profile and invisible to every
+ * other installation. There is no service key anywhere in this app.
+ *
+ * The password is kept, not just the refresh token, because a token can be
+ * rotated away from the machine and a copy you can no longer reach is not a
+ * backup.
+ *
+ * Push is a mirror, not a merge
+ * -----------------------------
+ * The machine that presses the button is the truth: the cloud project's
+ * documents and decks are replaced with this project's. Merging two divergent
+ * document trees without asking is how people lose work, and asking is a
+ * dialog nobody reads. One rule, predictable.
+ *
+ * Nothing here runs until the user asks for it, and nothing here runs at all
+ * when the machine has no route out.
+ */
+
+const IDENTITY_KEY = 'cloud_identity'
+const PROFILE_KEY = 'cloud_profile'
+const TIMEOUT_MS = 15_000
+const REFRESH_MARGIN_MS = 60_000
+
+interface Identity {
+  email: string
+  /** Generated here; sealed with the identity, never shown or logged. */
+  password: string
+  uid: string
+  accessToken: string
+  refreshToken: string
+  expiresAt: number
+}
+
+/* ---------------- local storage ---------------- */
+
+function readSetting(key: string): string | null {
+  const row = getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined
+  return row?.value ?? null
+}
+
+function writeSetting(key: string, value: string): void {
+  getDatabase()
+    .prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    )
+    .run(key, value, new Date().toISOString())
+}
+
+function clearSetting(key: string): void {
+  getDatabase().prepare('DELETE FROM app_settings WHERE key = ?').run(key)
+}
+
+function readIdentity(): Identity | null {
+  const stored = readSetting(IDENTITY_KEY)
+  if (!stored) return null
+  const raw = unsealSecret(stored).value
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Partial<Identity>
+    if (!parsed.email || !parsed.password || !parsed.uid) return null
+    return {
+      email: parsed.email,
+      password: parsed.password,
+      uid: parsed.uid,
+      accessToken: parsed.accessToken ?? '',
+      refreshToken: parsed.refreshToken ?? '',
+      expiresAt: Number(parsed.expiresAt) || 0
+    }
+  } catch {
+    return null
+  }
+}
+
+function saveIdentity(identity: Identity): void {
+  writeSetting(IDENTITY_KEY, sealSecret(JSON.stringify(identity)))
+}
+
+function readProfileId(): string | null {
+  const stored = readSetting(PROFILE_KEY)
+  if (!stored) return null
+  const raw = unsealSecret(stored).value
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as { id?: unknown }
+    return typeof parsed.id === 'string' ? parsed.id : null
+  } catch {
+    return null
+  }
+}
+
+function saveProfileId(id: string): void {
+  writeSetting(PROFILE_KEY, sealSecret(JSON.stringify({ id })))
+}
+
+/* ---------------- transport ---------------- */
+
+function endpoint(): { url: string; key: string } {
+  const configured = readBackendCredentials()
+  if (configured) return { url: normaliseUrl(configured.url), key: configured.key }
+  return { url: normaliseUrl(WORKSPACE_URL), key: WORKSPACE_KEY }
+}
+
+function cloudConfigured(): boolean {
+  const key = endpoint().key
+  // A publishable key is what the app ships with; a server-side secret key is
+  // never used here even if someone pastes one into settings.
+  return Boolean(endpoint().url) && key.length > 0 && !key.startsWith('sb_secret_')
+}
+
+/**
+ * Every network entry point starts here.
+ *
+ * The answer is asked of the operating system at the moment of the call rather
+ * than read from the poll that feeds the renderer: a machine that lost its
+ * route five seconds ago must not be given a request it will hang on.
+ */
+function assertReachable(): void {
+  if (!cloudConfigured()) throw errors.cloud('No cloud is configured in this build.')
+  if (!recheckConnectivity().online) {
+    throw errors.cloud('This PC is offline. The cloud copy is not available.')
+  }
+}
+
+interface RequestOptions {
+  method?: string
+  body?: unknown
+  token?: string
+  prefer?: string
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { url, key } = endpoint()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  try {
+    const response = await net.fetch(`${url}${path}`, {
+      method: options.method ?? 'GET',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${options.token ?? key}`,
+        'Content-Type': 'application/json',
+        ...(options.prefer ? { Prefer: options.prefer } : {})
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      throw new Error(`cloud ${response.status}: ${detail.slice(0, 160)}`)
+    }
+    if (response.status === 204) return undefined as T
+    const text = await response.text()
+    return (text ? JSON.parse(text) : undefined) as T
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw errors.cloud('The cloud did not answer in time. Try again when the connection is steadier.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/* ---------------- identity ---------------- */
+
+interface AuthSession {
+  access_token: string
+  refresh_token: string
+  expires_in?: number
+  user?: { id: string; email?: string }
+}
+
+function fromSession(session: AuthSession, base: Pick<Identity, 'email' | 'password'>): Identity {
+  if (!session.access_token || !session.user?.id) {
+    throw errors.cloud('The cloud would not create an identity for this PC.')
+  }
+  return {
+    email: base.email,
+    password: base.password,
+    uid: session.user.id,
+    accessToken: session.access_token,
+    refreshToken: session.refresh_token ?? '',
+    expiresAt: Date.now() + Math.max(60, session.expires_in ?? 3600) * 1000
+  }
+}
+
+/** A generated address the account can never lose: this machine owns it. */
+function deviceEmail(): string {
+  return `device-${randomBytes(8).toString('hex')}@device.indra.hub`
+}
+
+function devicePassword(): string {
+  return randomBytes(32).toString('base64url')
+}
+
+async function signUp(): Promise<Identity> {
+  const email = deviceEmail()
+  const password = devicePassword()
+  const session = await request<AuthSession>('/auth/v1/signup', {
+    method: 'POST',
+    body: { email, password }
+  })
+  return fromSession(session, { email, password })
+}
+
+async function signInWithPassword(identity: Identity): Promise<Identity> {
+  const session = await request<AuthSession>('/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    body: { email: identity.email, password: identity.password }
+  })
+  return fromSession(session, identity)
+}
+
+async function refresh(identity: Identity): Promise<Identity> {
+  if (!identity.refreshToken) return signInWithPassword(identity)
+  const session = await request<AuthSession>('/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST',
+    body: { refresh_token: identity.refreshToken }
+  })
+  return fromSession(session, identity)
+}
+
+/**
+ * The identity behind the cloud copies: created on first use, refreshed when it
+ * is close to expiring, and re-established from the sealed password if the
+ * token was rotated away. No network at all while the token is fresh.
+ */
+async function identity(): Promise<Identity> {
+  let current = readIdentity()
+  if (!current) {
+    current = await signUp()
+    saveIdentity(current)
+    return current
+  }
+  if (current.expiresAt - REFRESH_MARGIN_MS > Date.now()) return current
+
+  const renewed = await refresh(current).catch(() => signInWithPassword(current))
+  saveIdentity(renewed)
+  return renewed
+}
+
+/** The profile row auth.sql's trigger created for this identity. */
+async function profileFor(actor: Identity): Promise<string> {
+  const known = readProfileId()
+  if (known) return known
+
+  const rows = await request<{ id: string }[]>(
+    `/rest/v1/indra_users?select=id&auth_user_id=eq.${encodeURIComponent(actor.uid)}`,
+    { token: actor.accessToken }
+  )
+  const id = rows?.[0]?.id
+  if (!id) throw errors.cloud('This PC’s cloud profile has not been created yet. Try again in a moment.')
+  saveProfileId(id)
+  return id
+}
+
+/* ---------------- local ids in the cloud ---------------- */
+
+/**
+ * Cloud rows are named after the local project they came from, with a prefix,
+ * so two projects that happen to hold a document with the same id can never
+ * collide on the cloud side, and a push is idempotent.
+ */
+function cloudProjectId(projectId: string): string {
+  const row = getDatabase()
+    .prepare('SELECT cloud_project_id FROM cloud_saves WHERE project_id = ?')
+    .get(projectId) as { cloud_project_id: string } | undefined
+  return row?.cloud_project_id ?? projectId
+}
+
+function cloudDocumentId(projectId: string, documentId: string): string {
+  return `${cloudProjectId(projectId)}:d:${documentId}`
+}
+
+function cloudPresentationId(projectId: string, presentationId: string): string {
+  return `${cloudProjectId(projectId)}:p:${presentationId}`
+}
+
+function cloudSlideId(presentationId: string, slideId: string): string {
+  return `${presentationId}:s:${slideId}`
+}
+
+/* ---------------- local state ---------------- */
+
+interface LocalProject {
+  id: string
+  name: string
+  description: string
+  owner_id: string
+}
+
+function localProject(viewer: SessionUser, projectId: string): LocalProject {
+  const row = getDatabase()
+    .prepare('SELECT id, name, description, owner_id FROM projects WHERE id = ?')
+    .get(projectId) as LocalProject | undefined
+  if (!row) throw errors.notFound()
+  // Visibility first, locally: a project this account cannot open never
+  // reaches the network.
+  if (row.owner_id !== viewer.id) {
+    const member = getDatabase()
+      .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
+      .get(projectId, viewer.id)
+    if (!member) throw errors.notFound()
+  }
+  return row
+}
+
+export function cloudProjectState(viewer: SessionUser, projectId: string): CloudProjectState {
+  const project = localProject(viewer, projectId)
+  const save = getDatabase()
+    .prepare(
+      'SELECT cloud_project_id, pushed_at, document_count, presentation_count FROM cloud_saves WHERE project_id = ?'
+    )
+    .get(projectId) as
+    | {
+        cloud_project_id: string
+        pushed_at: string
+        document_count: number
+        presentation_count: number
+      }
+    | undefined
+
+  if (!save) {
+    return {
+      projectId,
+      cloudId: null,
+      pushedAt: null,
+      documents: 0,
+      presentations: 0,
+      stale: project.owner_id === viewer.id
+    }
+  }
+
+  // Staleness is a local question — timestamps already on disk — so the badge
+  // still says something useful offline.
+  const latest = getDatabase()
+    .prepare(
+      `SELECT MAX(at) AS at FROM (
+         SELECT updated_at AS at FROM projects WHERE id = ?1
+         UNION ALL SELECT updated_at FROM documents WHERE project_id = ?1
+         UNION ALL SELECT updated_at FROM presentations WHERE project_id = ?1
+       )`
+    )
+    .get(projectId) as { at: string | null } | undefined
+
+  return {
+    projectId,
+    cloudId: save.cloud_project_id,
+    pushedAt: save.pushed_at,
+    documents: Number(save.document_count) || 0,
+    presentations: Number(save.presentation_count) || 0,
+    stale: Boolean(latest?.at && latest.at > save.pushed_at)
+  }
+}
+
+export async function cloudState(): Promise<CloudState> {
+  const online = recheckConnectivity().online
+  if (!cloudConfigured()) {
+    return {
+      available: false,
+      linked: false,
+      account: null,
+      online,
+      message: 'No cloud is configured in this build.'
+    }
+  }
+
+  const current = readIdentity()
+  return {
+    available: true,
+    linked: Boolean(current),
+    account: current ? current.email.replace(/^device-([0-9a-f]{4})[0-9a-f]*@/, 'pc-$1…') : null,
+    online,
+    message: online ? null : 'Offline. The cloud copy is hidden until this PC is back online.'
+  }
+}
+
+/* ---------------- push ---------------- */
+
+interface LocalDocument {
+  id: string
+  title: string
+  content: string
+  version: number
+  created_at: string
+  updated_at: string
+}
+
+interface LocalPresentation {
+  id: string
+  title: string
+  theme: string
+  conversion_mode: string
+  created_at: string
+  updated_at: string
+}
+
+interface LocalSlide {
+  id: string
+  presentation_id: string
+  position: number
+  layout: string
+  content: string
+  notes: string
+}
+
+function parseJson(raw: string, fallback: unknown): unknown {
+  if (!raw) return fallback
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Writes this project, its documents and its decks to the cloud as this
+ * installation's own copy, replacing what was there.
+ *
+ * Each table is deleted and rewritten rather than upserted: the app's column
+ * grants deliberately allow updating only a project's name, description and
+ * timestamps, so an upsert that touched anything else would be refused by the
+ * database. Replace is also the honest expression of what the button says.
+ */
+export async function pushProject(
+  viewer: SessionUser,
+  projectId: string
+): Promise<CloudPushResult> {
+  const project = localProject(viewer, projectId)
+  if (project.owner_id !== viewer.id) {
+    // A member's changes live in their own local database; the owner's copy is
+    // the one that owns the cloud project. Saying so is better than writing a
+    // row the database would refuse anyway.
+    throw errors.forbidden('Only the head developer can save this project to the cloud.')
+  }
+
+  assertReachable()
+
+  const actor = await identity()
+  const profile = await profileFor(actor)
+  const cloudId = cloudProjectId(projectId)
+  const now = new Date().toISOString()
+  const token = actor.accessToken
+
+  const documents = getDatabase()
+    .prepare(
+      'SELECT id, title, content, version, created_at, updated_at FROM documents WHERE project_id = ? ORDER BY created_at'
+    )
+    .all(projectId) as unknown as LocalDocument[]
+
+  const presentations = getDatabase()
+    .prepare(
+      `SELECT id, title, theme, conversion_mode, created_at, updated_at
+         FROM presentations WHERE project_id = ? ORDER BY created_at`
+    )
+    .all(projectId) as unknown as LocalPresentation[]
+
+  const slides =
+    presentations.length === 0
+      ? []
+      : (getDatabase()
+          .prepare(
+            `SELECT s.id, s.presentation_id, s.position, s.layout, s.content, s.notes
+               FROM presentation_slides s
+               JOIN presentations p ON p.id = s.presentation_id
+              WHERE p.project_id = ?
+              ORDER BY s.position`
+          )
+          .all(projectId) as unknown as LocalSlide[])
+
+  /*
+   * The project row itself. Inserted only if absent, then patched with the
+   * columns the grants allow, so a re-push updates rather than duplicates.
+   */
+  await request('/rest/v1/indra_projects?on_conflict=id', {
+    method: 'POST',
+    token,
+    prefer: 'resolution=ignore-duplicates,return=minimal',
+    body: [
+      {
+        id: cloudId,
+        name: project.name,
+        description: project.description,
+        owner_id: profile,
+        created_at: now,
+        updated_at: now
+      }
+    ]
+  })
+  await request(`/rest/v1/indra_projects?id=eq.${encodeURIComponent(cloudId)}`, {
+    method: 'PATCH',
+    token,
+    prefer: 'return=minimal',
+    body: { name: project.name, description: project.description, updated_at: now }
+  })
+
+  // Documents first: deleting them cascades their versions, which keeps the
+  // cloud copy exactly as large as the local one.
+  await request(`/rest/v1/indra_documents?project_id=eq.${encodeURIComponent(cloudId)}`, {
+    method: 'DELETE',
+    token,
+    prefer: 'return=minimal'
+  })
+  if (documents.length > 0) {
+    await request('/rest/v1/indra_documents', {
+      method: 'POST',
+      token,
+      prefer: 'return=minimal',
+      body: documents.map((document) => ({
+        id: cloudDocumentId(projectId, document.id),
+        project_id: cloudId,
+        title: document.title,
+        content: parseJson(document.content, { blocks: [] }),
+        version: document.version,
+        created_by: profile,
+        updated_by: profile,
+        created_at: document.created_at,
+        updated_at: document.updated_at
+      }))
+    })
+  }
+
+  await request(`/rest/v1/indra_presentations?project_id=eq.${encodeURIComponent(cloudId)}`, {
+    method: 'DELETE',
+    token,
+    prefer: 'return=minimal'
+  })
+  if (presentations.length > 0) {
+    await request('/rest/v1/indra_presentations', {
+      method: 'POST',
+      token,
+      prefer: 'return=minimal',
+      body: presentations.map((presentation) => ({
+        id: cloudPresentationId(projectId, presentation.id),
+        project_id: cloudId,
+        title: presentation.title,
+        theme: presentation.theme,
+        // The cloud column is a checked enum; anything else is a blank deck.
+        conversion_mode: ['blank', 'rule', 'ai'].includes(presentation.conversion_mode)
+          ? presentation.conversion_mode
+          : 'blank',
+        created_by: profile,
+        created_at: presentation.created_at,
+        updated_at: presentation.updated_at
+      }))
+    })
+
+    if (slides.length > 0) {
+      await request('/rest/v1/indra_presentation_slides', {
+        method: 'POST',
+        token,
+        prefer: 'return=minimal',
+        body: slides.map((slide) => ({
+          id: cloudSlideId(cloudPresentationId(projectId, slide.presentation_id), slide.id),
+          presentation_id: cloudPresentationId(projectId, slide.presentation_id),
+          position: slide.position,
+          layout: slide.layout,
+          content: parseJson(slide.content, {}),
+          notes: slide.notes
+        }))
+      })
+    }
+  }
+
+  getDatabase()
+    .prepare(
+      `INSERT INTO cloud_saves
+         (project_id, cloud_project_id, pushed_at, document_count, presentation_count)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(project_id) DO UPDATE SET
+         cloud_project_id   = excluded.cloud_project_id,
+         pushed_at          = excluded.pushed_at,
+         document_count     = excluded.document_count,
+         presentation_count = excluded.presentation_count`
+    )
+    .run(projectId, cloudId, now, documents.length, presentations.length)
+
+  return {
+    cloudId,
+    pushedAt: now,
+    documents: documents.length,
+    presentations: presentations.length
+  }
+}
+
+/* ---------------- read back ---------------- */
+
+interface CloudProjectRow {
+  id: string
+  name: string
+  description: string
+  updated_at: string
+}
+
+/**
+ * The projects in this installation's cloud copy.
+ *
+ * Everything goes through the device identity's own token, so Row Level
+ * Security — not this query — decides what comes back: `owner_id` is a filter
+ * for speed, never the security boundary.
+ */
+export async function listCloudProjects(): Promise<CloudProjectSummary[]> {
+  assertReachable()
+  const actor = await identity()
+  const profile = await profileFor(actor)
+
+  const rows = await request<CloudProjectRow[]>(
+    `/rest/v1/indra_projects?select=id,name,description,updated_at&owner_id=eq.${encodeURIComponent(profile)}&order=updated_at.desc`,
+    { token: actor.accessToken }
+  )
+
+  const links = new Map(
+    (
+      getDatabase().prepare('SELECT project_id, cloud_project_id FROM cloud_saves').all() as Array<{
+        project_id: string
+        cloud_project_id: string
+      }>
+    ).map((row) => [row.cloud_project_id, row.project_id])
+  )
+
+  return (rows ?? []).map((row) => ({
+    cloudId: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    updatedAt: row.updated_at,
+    localProjectId: links.get(row.id) ?? null
+  }))
+}
+
+interface CloudDocumentRow {
+  id: string
+  title: string
+  content: { blocks?: unknown } | null
+  created_at: string
+  updated_at: string
+}
+
+interface CloudPresentationRow {
+  id: string
+  title: string
+  theme: string
+  created_at: string
+  updated_at: string
+}
+
+interface CloudSlideRow {
+  id: string
+  presentation_id: string
+  position: number
+  layout: string
+  content: Record<string, unknown> | null
+  notes: string | null
+}
+
+function quoteList(values: string[]): string {
+  return `(${values.map((value) => `"${value.replace(/["\\]/g, '')}"`).join(',')})`
+}
+
+/**
+ * Brings a cloud project down as a new local project.
+ *
+ * The rows are assembled into the same archive the "copy on this PC" file uses
+ * and handed to the same restore path, so a pulled project is parsed,
+ * sanitised and validated exactly like an imported file — one way in, one set
+ * of rules. The new project remembers which cloud project it came from, so
+ * pushing it later updates that copy instead of making another one.
+ */
+export async function pullProject(
+  viewer: SessionUser,
+  cloudId: string
+): Promise<ProjectDetail> {
+  assertReachable()
+  const actor = await identity()
+  const profile = await profileFor(actor)
+  const token = actor.accessToken
+  const filter = `id=eq.${encodeURIComponent(cloudId)}&owner_id=eq.${encodeURIComponent(profile)}`
+
+  const [projectRow] = await request<CloudProjectRow[]>(
+    `/rest/v1/indra_projects?select=id,name,description,updated_at&${filter}`,
+    { token }
+  )
+  if (!projectRow) throw errors.notFound('That project is not in this PC’s cloud copy.')
+
+  const documents = await request<CloudDocumentRow[]>(
+    `/rest/v1/indra_documents?select=id,title,content,created_at,updated_at&project_id=eq.${encodeURIComponent(cloudId)}&order=updated_at.desc`,
+    { token }
+  )
+
+  const presentations = await request<CloudPresentationRow[]>(
+    `/rest/v1/indra_presentations?select=id,title,theme,created_at,updated_at&project_id=eq.${encodeURIComponent(cloudId)}&order=updated_at.desc`,
+    { token }
+  )
+
+  const slides =
+    presentations.length > 0
+      ? await request<CloudSlideRow[]>(
+          `/rest/v1/indra_presentation_slides?select=id,presentation_id,position,layout,content,notes&presentation_id=in.${quoteList(
+            presentations.map((presentation) => presentation.id)
+          )}&order=position`,
+          { token }
+        )
+      : []
+
+  const archive: ProjectArchive = {
+    format: 'indrahub.project',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    project: { name: projectRow.name, description: projectRow.description ?? '' },
+    documents: (documents ?? []).map((document) => ({
+      title: document.title,
+      blocks: document.content?.blocks ?? [],
+      createdAt: document.created_at,
+      updatedAt: document.updated_at
+    })),
+    presentations: (presentations ?? []).map((presentation) => ({
+      title: presentation.title,
+      theme: presentation.theme,
+      slides: (slides ?? [])
+        .filter((slide) => slide.presentation_id === presentation.id)
+        .sort((a, b) => a.position - b.position)
+        .map((slide) => ({
+          ...(slide.content ?? {}),
+          layout: slide.layout,
+          notes: slide.notes ?? ''
+        })),
+      createdAt: presentation.created_at,
+      updatedAt: presentation.updated_at
+    }))
+  }
+
+  const project = restoreArchive(viewer, JSON.stringify(archive))
+
+  // The copy knows where it came from: a later push updates this cloud
+  // project rather than adding a second one.
+  getDatabase()
+    .prepare(
+      `INSERT INTO cloud_saves
+         (project_id, cloud_project_id, pushed_at, document_count, presentation_count)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(project_id) DO UPDATE SET cloud_project_id = excluded.cloud_project_id,
+         pushed_at = excluded.pushed_at, document_count = excluded.document_count,
+         presentation_count = excluded.presentation_count`
+    )
+    .run(
+      project.id,
+      cloudId,
+      new Date().toISOString(),
+      archive.documents.length,
+      archive.presentations.length
+    )
+
+  return project
+}
+
+/* ---------------- moving the identity to another PC ---------------- */
+
+/**
+ * A transfer code.
+ *
+ * Each installation is its own account in the cloud, which is what keeps two
+ * customers' work apart. The cost is that a second PC is a second account and
+ * would see an empty cloud. This code is how the identity travels: the address
+ * and password that belong to the first PC, encoded so they can be typed or
+ * pasted once on the other machine. It is a credential, and the panel that
+ * shows it says so.
+ */
+const KEY_PREFIX = 'indrahub-cloud-1.'
+
+export function exportCloudKey(): { code: string } {
+  const current = readIdentity()
+  if (!current) throw errors.cloud('Nothing has been saved to the cloud from this PC yet.')
+  const payload = JSON.stringify({ v: 1, email: current.email, password: current.password })
+  return { code: `${KEY_PREFIX}${Buffer.from(payload, 'utf8').toString('base64url')}` }
+}
+
+/**
+ * Adopts another PC's cloud identity, after proving the password still works.
+ *
+ * The local record of which projects were saved is cleared: those rows describe
+ * a different account's copies, and a stale badge that opens nothing is worse
+ * than no badge.
+ */
+export async function adoptCloudKey(raw: string): Promise<CloudState> {
+  const code = typeof raw === 'string' ? raw.trim() : ''
+  if (!code.startsWith(KEY_PREFIX)) {
+    throw errors.validation('That is not a cloud transfer code.', 'code')
+  }
+
+  let parsed: { v?: unknown; email?: unknown; password?: unknown }
+  try {
+    parsed = JSON.parse(Buffer.from(code.slice(KEY_PREFIX.length), 'base64url').toString('utf8'))
+  } catch {
+    throw errors.validation('That cloud transfer code is damaged.', 'code')
+  }
+  const email = typeof parsed.email === 'string' ? parsed.email : ''
+  const password = typeof parsed.password === 'string' ? parsed.password : ''
+  if (parsed.v !== 1 || !/^device-[0-9a-f]{16}@/.test(email) || password.length < 16) {
+    throw errors.validation('That is not a cloud transfer code.', 'code')
+  }
+
+  assertReachable()
+
+  const adopted = await signInWithPassword({
+    email,
+    password,
+    uid: '',
+    accessToken: '',
+    refreshToken: '',
+    expiresAt: 0
+  })
+  saveIdentity(adopted)
+  clearSetting(PROFILE_KEY)
+  getDatabase().prepare('DELETE FROM cloud_saves').run()
+  // Resolve the profile now, so a broken code fails here rather than on the
+  // first save the user tries.
+  await profileFor(adopted)
+
+  return cloudState()
+}
+
+/**
+ * Forgets this machine's cloud identity. The copies in the cloud stay — they
+ * belong to the account — but this installation can no longer reach them,
+ * which is what "sign this PC out of the cloud" has to mean.
+ */
+export function forgetCloudIdentity(): void {
+  clearSetting(IDENTITY_KEY)
+  clearSetting(PROFILE_KEY)
+  getDatabase().prepare('DELETE FROM cloud_saves').run()
+}

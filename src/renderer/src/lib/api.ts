@@ -10,6 +10,10 @@ import type {
   AppPublicStatus,
   AppearanceTreatment,
   ConnectivityState,
+  CloudProjectState,
+  CloudProjectSummary,
+  CloudPushResult,
+  CloudState,
   LibrarySnapshot,
   ProjectArchive,
   ChangePasswordInput,
@@ -124,6 +128,24 @@ export const api = {
 
   library: {
     snapshot: (): Promise<LibrarySnapshot> => unwrap(bridge().library.snapshot())
+  },
+
+  /*
+   * The cloud copy. `project()` reads timestamps from disk and is safe to call
+   * offline; everything else is refused by the main process with no route out,
+   * so a screen never has to guess whether the cloud is reachable.
+   */
+  cloud: {
+    state: (): Promise<CloudState> => unwrap(bridge().cloud.state()),
+    project: (projectId: string): Promise<CloudProjectState> =>
+      unwrap(bridge().cloud.project(projectId)),
+    list: (): Promise<CloudProjectSummary[]> => unwrap(bridge().cloud.list()),
+    push: (projectId: string): Promise<CloudPushResult> => unwrap(bridge().cloud.push(projectId)),
+    pull: (cloudId: string): Promise<ProjectDetail> => unwrap(bridge().cloud.pull(cloudId)),
+    /** This PC's cloud identity, to carry to another machine. */
+    key: (): Promise<{ code: string }> => unwrap(bridge().cloud.key()),
+    adopt: (code: string): Promise<CloudState> => unwrap(bridge().cloud.adopt(code)),
+    forget: (): Promise<null> => unwrap(bridge().cloud.forget())
   },
   users: {
     search: (input: { projectId: string; query: string }): Promise<UserSummary[]> =>
