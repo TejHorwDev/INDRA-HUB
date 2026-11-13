@@ -141,6 +141,7 @@ import {
   readLoginBackgroundFile
 } from '../services/appearance'
 import { checkForUpdates, diagnoseConnection, installUpdate, updateState } from '../services/updates'
+import { installDeveloperPhoto, readAbout, readDeveloperPhotoFile, removeDeveloperPhoto } from '../services/about'
 import {
   inviteTeamMember,
   createTeam,
@@ -1212,6 +1213,51 @@ export function registerIpcHandlers(): void {
     toResult(() => {
       requireAdmin()
       return adminLedger(actor(), requireRecordId(payload?.userId), Number(payload?.limit ?? 40))
+    })
+  )
+
+  /* ---------------- about ---------------- */
+
+  /*
+   * The About card is public: it is the app's name, its version and the
+   * administrator's portrait. Reading it needs no session, and nothing here
+   * returns a path — only metadata, and bytes on request.
+   */
+  ipcMain.handle('about:read', () => toResult(() => readAbout()))
+
+  ipcMain.handle('about:photo', () =>
+    toResult(() => {
+      const file = readDeveloperPhotoFile()
+      return file ? { bytes: file.bytes, mime: file.mime } : null
+    })
+  )
+
+  ipcMain.handle('admin:about:photo:choose', (event) =>
+    toResult(async (): Promise<import('@shared/types').AboutInfo | null> => {
+      requireAdmin()
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options: Electron.OpenDialogOptions = {
+        title: 'Choose a developer photo',
+        buttonLabel: 'Use this photo',
+        properties: ['openFile'],
+        filters: [
+          { name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+          { name: 'All files', extensions: ['*'] }
+        ]
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      if (result.canceled || result.filePaths.length === 0) return null
+      const filePath = result.filePaths[0]
+      return installDeveloperPhoto(filePath, basename(filePath))
+    })
+  )
+
+  ipcMain.handle('admin:about:photo:remove', () =>
+    toResult(() => {
+      requireAdmin()
+      return removeDeveloperPhoto()
     })
   )
 }

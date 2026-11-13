@@ -1,4 +1,5 @@
 import type {
+  AboutInfo,
   AdminCreditLedgerRow,
   AdminCreditSnapshot,
   AdminPlanInput,
@@ -237,6 +238,11 @@ export interface IndraBridge {
     discard: () => Promise<ApiResult<WorkspaceState>>
     onChange: (listener: (state: WorkspaceState) => void) => () => void
   }
+  about: {
+    read: () => Promise<ApiResult<AboutInfo>>
+    photo: () => Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>>
+  }
+
   credits: {
     state: (payload?: { cached?: boolean }) => Promise<ApiResult<CreditsState>>
     plans: () => Promise<ApiResult<CreditPlan[]>>
@@ -307,6 +313,8 @@ export interface IndraBridge {
     chooseLoginVideo: () => Promise<ApiResult<LoginAppearance | null>>
     removeLoginVideo: () => Promise<ApiResult<LoginAppearance>>
     updateAppearanceTreatment: (input: AppearanceTreatment) => Promise<ApiResult<LoginAppearance>>
+    chooseDeveloperPhoto: () => Promise<ApiResult<AboutInfo | null>>
+    removeDeveloperPhoto: () => Promise<ApiResult<AboutInfo>>
     appearanceHealth: () => Promise<
       ApiResult<{ present: boolean; readable: boolean; bytes: number; mime: string | null }>
     >

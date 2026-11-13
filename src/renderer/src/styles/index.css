@@ -7356,3 +7356,184 @@ body {
   border-top: 1px solid var(--line);
   background-color: var(--surface-subtle);
 }
+
+/* ---------------- about ---------------- */
+/*
+ * One card: the name, the version, the administrator's portrait, and the one
+ * action that belongs here — updating the app. Nothing else, on purpose.
+ */
+.about-card {
+  overflow: hidden;
+  max-width: 720px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.about-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: 24px;
+}
+
+.about-ident {
+  min-width: 0;
+}
+
+.about-eyebrow {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.about-name {
+  margin-top: 8px;
+  color: var(--ink);
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.about-version {
+  margin-top: 6px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.about-version span {
+  color: var(--ink-secondary);
+  font-weight: 550;
+}
+
+.about-dev {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.about-portrait {
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background-color: var(--surface-subtle);
+}
+
+.about-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.about-portrait--empty span {
+  color: var(--ink-tertiary);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.about-dev figcaption {
+  color: var(--ink-tertiary);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.about-dev-tools {
+  display: flex;
+  gap: 12px;
+}
+
+.about-dev-tools button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-secondary);
+  font-size: 0.6875rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.about-dev-tools button:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.about-dev-tools button:disabled {
+  color: var(--ink-tertiary);
+  cursor: default;
+}
+
+.about-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+  background-color: var(--surface-subtle);
+}
+
+.about-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-secondary);
+  font-size: var(--fs-xs);
+}
+
+.about-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--ink-tertiary);
+}
+
+.about-status--up-to-date .about-status-dot,
+.about-status--ready .about-status-dot,
+.about-status--available .about-status-dot,
+.about-status--downloading .about-status-dot {
+  background-color: var(--ink);
+}
+
+.about-status--checking .about-status-dot {
+  animation: ai-pulse 1.1s var(--ease) infinite;
+  background-color: var(--ink);
+}
+
+.about-status--error .about-status-dot {
+  border: 1px solid var(--ink-secondary);
+  background-color: transparent;
+}
+
+.about-error {
+  padding: 0 24px 16px;
+  color: var(--ink-secondary);
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 520px) {
+  .about-main {
+    padding: 20px;
+  }
+
+  .about-rail {
+    padding: 12px 20px;
+  }
+}

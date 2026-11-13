@@ -1,3 +1,4 @@
+import AboutCard from '../../components/AboutCard'
 import { SectionHead, formatBytes, formatDateTime } from './shared'
 import type { SectionProps } from './shared'
 
@@ -11,7 +12,9 @@ export default function SystemSection({ overview }: SectionProps) {
         description="What this installation is actually running, read straight from the main process."
       />
 
-      <div className="admin-split">
+      <AboutCard canEditDeveloper />
+
+      <div className="admin-split mt-4">
         <section className="admin-card">
           <div className="admin-card-head">
             <h2>Runtime</h2>

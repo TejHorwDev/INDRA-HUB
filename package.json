@@ -27,7 +27,8 @@
     "sim:cloud": "node scripts/cloud-sim.mjs",
     "sim:sharing": "node scripts/sharing-sim.mjs",
     "sim:ai": "node scripts/ai-sim.mjs",
-    "sim:function": "node scripts/function-sim.mjs"
+    "sim:function": "node scripts/function-sim.mjs",
+    "sim:about": "node scripts/about-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",
