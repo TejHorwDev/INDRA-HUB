@@ -55,31 +55,11 @@ let defaults = {
 }
 
 const INVALID_CHARS = /[<>:"|?*\u0000-\u001f]/
-
-/**
- * The same rules the main process applies. Duplicated on purpose: the page uses
- * them to answer instantly, the main process uses them because it cannot trust
- * the page.
- */
-function pathProblem(value) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return 'Choose a folder.'
-  if (!/^[a-zA-Z]:\\/.test(raw)) return 'Use a full Windows path, like C:\\Program Files\\INDRA HUB.'
-  if (raw.length > 170) return 'That path is too long.'
-  if (INVALID_CHARS.test(raw.slice(2))) return 'A folder name cannot contain < > : " | ? *'
-  if (/^[a-zA-Z]:\\?$/.test(raw)) return 'Choose a folder inside the drive, not the drive itself.'
-  const settled = raw.replace(/[\\/]+$/, '').toLowerCase()
-  const reserved = [
-    'c:\\windows',
-    'c:\\windows\\system32',
-    'c:\\program files',
-    'c:\\program files (x86)',
-    'c:\\users',
-    'c:\\programdata'
-  ]
-  if (reserved.includes(settled)) return 'Choose a folder for the app, not a system folder.'
-  return null
-}
+/** The shared rule from ../app-folder.js — one implementation, two users. */
+const ensureAppFolder = (value) =>
+  typeof window.IndraFolder?.ensureAppFolder === 'function'
+    ? window.IndraFolder.ensureAppFolder(value)
+    : String(value ?? '').trim()
 
 /* ---------------- painting ---------------- */
 
@@ -167,7 +147,7 @@ pathInput.addEventListener('input', () => {
 
 pathInput.addEventListener('blur', () => {
   /* Tidy what people type: no trailing slash, trimmed. */
-  const tidied = pathInput.value.trim().replace(/[\\/]+$/, '')
+  const tidied = ensureAppFolder(pathInput.value)
   if (tidied && tidied !== pathInput.value) {
     pathInput.value = tidied
     state.path = tidied
@@ -180,9 +160,9 @@ browseButton.addEventListener('click', async () => {
   try {
     const picked = await bridge.chooseFolder(pathInput.value.trim())
     if (!picked) return
-    state.path = picked
+    state.path = ensureAppFolder(picked)
     state.followDefault = false
-    pathInput.value = picked
+    pathInput.value = state.path
     paint()
   } catch {
     /* A cancelled dialog is not an error; anything else keeps the old value. */
@@ -236,6 +216,10 @@ async function install() {
     if (!result?.ok) throw new Error(result?.message || 'The installation did not complete.')
     state.percent = 100
     paint()
+    if (typeof result.dir === 'string' && result.dir) {
+      state.path = result.dir
+      completedPath.textContent = `Installed to ${result.dir}`
+    }
     state.installed = true
     go('completed')
   } catch (error) {

@@ -20,6 +20,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
+const { ensureAppFolder } = require('./app-folder')
 
 const APP_NAME = 'INDRA HUB'
 const EXE_NAME = 'INDRA HUB.exe'
@@ -86,11 +87,15 @@ function resolveTarget(scope, requested) {
     return { ok: false, message: 'The install folder cannot contain < > : " | ? *' }
   }
 
-  const dir = path.resolve(raw.replace(/[\\/]+$/, ''))
-  if (dir.length <= 3) return { ok: false, message: 'Choose a folder inside the drive, not the drive itself.' }
-  if (RESERVED.includes(dir.toLowerCase())) {
+  const chosen = path.resolve(raw.replace(/[\\/]+$/, ''))
+  if (chosen.length <= 3) return { ok: false, message: 'Choose a folder inside the drive, not the drive itself.' }
+  if (RESERVED.includes(chosen.toLowerCase())) {
     return { ok: false, message: 'Choose a folder for the app, not a system folder.' }
   }
+
+  /* Its own folder inside whatever was chosen — never loose files in it. */
+  const dir = ensureAppFolder(chosen)
+  if (dir.length > 170) return { ok: false, message: 'That install folder path is too long.' }
   return { ok: true, dir }
 }
 
@@ -179,7 +184,11 @@ ipcMain.handle('setup:defaults', () => ({
 
 /** The folder picker. The page may suggest a starting folder; it cannot pick one. */
 ipcMain.handle('setup:choose-folder', async (_event, suggested) => {
-  const start = typeof suggested === 'string' && /^[a-zA-Z]:\\/.test(suggested) ? suggested : defaultRoot('user')
+  const fallback = path.dirname(defaultRoot('user'))
+  const start =
+    typeof suggested === 'string' && /^[a-zA-Z]:\\/.test(suggested)
+      ? path.dirname(suggested)
+      : fallback
   const answer = await dialog.showOpenDialog(window, {
     title: 'Choose where INDRA HUB is installed',
     defaultPath: start,
@@ -263,7 +272,7 @@ ipcMain.handle('setup:install', async (event, options) => {
       }
       installedExe = exe
       send({ percent: 100, stage: 'Done.' })
-      resolve({ ok: true, exe })
+      resolve({ ok: true, exe, dir: target.dir })
     })
   })
 })
