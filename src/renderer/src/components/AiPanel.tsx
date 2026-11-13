@@ -12,7 +12,7 @@ import { formatRelative } from '../lib/format'
  * Two things it deliberately does not do: it never invents a quote or a source
  * (the brief comes back with the URLs the model was actually given, and they
  * are shown before anything is inserted), and it never claims a cost it did not
- * see — the tokens and the credits under the answer are the numbers the Edge
+ * see — the tokens under the answer are the numbers the Edge
  * Function charged.
  *
  * Inserting is an ordinary edit of the open document: the same blocks, the same
@@ -147,7 +147,7 @@ export default function AiPanel({
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [answer, setAnswer] = useState<AiAnswer | null>(null)
-  const [failure, setFailure] = useState<{ message: string; credits: boolean } | null>(null)
+  const [failure, setFailure] = useState<{ message: string; tokens: boolean } | null>(null)
   const [state, setState] = useState<TokensState | null>(null)
   const [history, setHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([])
   const bottom = useRef<HTMLDivElement | null>(null)
@@ -210,7 +210,8 @@ export default function AiPanel({
     } catch (error) {
       setFailure({
         message: errorMessage(error),
-        credits: errorCode(error) === 'INSUFFICIENT_CREDITS'
+        tokens:
+          errorCode(error) === 'INSUFFICIENT_TOKENS' || errorCode(error) === 'INSUFFICIENT_CREDITS'
       })
       await refreshState()
     } finally {
@@ -339,11 +340,11 @@ export default function AiPanel({
             <InfoIcon />
             <span>
               {failure.message}
-              {failure.credits && (
+              {failure.tokens && (
                 <>
                   {' '}
                   <Link to="/credits" className="link-quiet">
-                    Open Credits
+                    Open Tokens
                   </Link>
                 </>
               )}
