@@ -160,6 +160,7 @@ export default function DashboardScreen() {
   return (
     <>
       <Page
+        eyebrow="Workspace"
         title="Projects"
         description="Every project on this PC, plus the copies saved to your account."
         actions={
@@ -266,7 +267,7 @@ export default function DashboardScreen() {
                 <li key={entry.cloudId}>
                   <button
                     type="button"
-                    className="project-row"
+                    className="project-row project-row--inline"
                     onClick={() => void openCloud(entry)}
                     disabled={pulling !== null}
                   >

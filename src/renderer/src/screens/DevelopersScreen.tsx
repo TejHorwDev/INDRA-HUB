@@ -10,7 +10,11 @@ import Page from '../components/Page'
  */
 export default function DevelopersScreen() {
   return (
-    <Page title="Developers" description="The surface for building on INDRA HUB.">
+    <Page
+      eyebrow="Workspace"
+      title="Developers"
+      description="The surface for building on INDRA HUB."
+    >
       <section className="dev-panel" aria-labelledby="dev-panel-title">
         <div className="dev-panel-head">
           <h2 id="dev-panel-title" className="dev-panel-title">

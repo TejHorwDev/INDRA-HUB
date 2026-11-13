@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { initialsOf } from '../lib/format'
@@ -7,7 +6,6 @@ import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
 import { useInvitations } from '../lib/invitations'
 import {
-  ChevronLeftIcon,
   CodeIcon,
   DashboardIcon,
   FileIcon,
@@ -18,44 +16,33 @@ import {
   SparkIcon
 } from './icons'
 
-const STORAGE_KEY = 'indra-hub.sidebar'
-
 /* The rail is data-driven (lib/nav.ts); this maps a path to its glyph. */
 const ICONS: Record<string, ReactNode> = {
-  '/home': <HomeIcon size={16} />,
-  '/dashboard': <DashboardIcon size={16} />,
-  '/documents': <FileIcon size={16} />,
-  '/presentations': <PresentationIcon size={16} />,
-  '/developers': <CodeIcon size={16} />,
-  '/credits': <SparkIcon size={16} />,
-  '/settings': <SettingsIcon size={16} />
+  '/home': <HomeIcon size={18} />,
+  '/dashboard': <DashboardIcon size={18} />,
+  '/documents': <FileIcon size={18} />,
+  '/presentations': <PresentationIcon size={18} />,
+  '/developers': <CodeIcon size={18} />,
+  '/credits': <SparkIcon size={18} />,
+  '/settings': <SettingsIcon size={18} />
 }
 
+/**
+ * The rail.
+ *
+ * Five destinations do not need a 236px column of words. An icon rail keeps
+ * the whole window for the page, names itself on hover, and puts the one
+ * thing that changes — where you are — in a filled square with a bar at the
+ * edge. The account lives at the bottom, where a desktop app puts it.
+ */
 export default function Sidebar() {
   const navigate = useNavigate()
   const { user, signOut } = useSession()
   const { offline } = useConnectivity()
   const invitations = useInvitations()
-  // A count on Home, because that is where an invitation is answered.
   const waiting = invitations.length
 
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return window.localStorage.getItem(STORAGE_KEY) === 'collapsed'
-    } catch {
-      return false
-    }
-  })
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, collapsed ? 'collapsed' : 'expanded')
-    } catch {
-      // Non-critical: the sidebar still collapses for this session.
-    }
-  }, [collapsed])
-
-  async function handleSignOut() {
+  async function handleSignOut(): Promise<void> {
     await signOut()
     navigate('/login', { replace: true })
   }
@@ -63,89 +50,59 @@ export default function Sidebar() {
   // Online the rail is about projects; offline it is about the two things the
   // machine can do on its own. lib/nav.ts decides, so a simulation can check it.
   const groups = navGroups(offline || user?.mode === 'offline')
+  const items = groups.flatMap((group) => group.items)
 
   return (
-    <aside className={collapsed ? 'sidebar sidebar--collapsed' : 'sidebar'} aria-label="Primary">
-      <nav className="flex flex-col" aria-label="Main">
-        {groups.map((group) => (
-          <div className="sidebar-group" key={group.label}>
-            <div className="sidebar-group-label">{group.label}</div>
-            {group.items.map((item) => (
+    <aside className="rail" aria-label="Primary">
+      <div className="rail-top">
+        <div className="rail-brand" title="INDRA HUB" aria-hidden="true">
+          IH
+        </div>
+
+        <nav className="rail-nav" aria-label="Main">
+          {items.map((item) => {
+            const badge = item.to === '/home' && waiting > 0 ? waiting : null
+            return (
               <NavLink
                 key={item.to}
                 to={item.to}
-                className={({ isActive }) =>
-                  `sidebar-item${isActive ? ' sidebar-item--active' : ''}`
-                }
-                title={
-                  collapsed
-                    ? item.to === '/home' && waiting > 0
-                      ? `${item.label} — ${waiting} waiting`
-                      : item.label
-                    : undefined
+                className="rail-item"
+                aria-label={
+                  badge ? `${item.label} — ${badge} invitations waiting` : item.label
                 }
               >
-                <span className="sidebar-icon">{ICONS[item.to]}</span>
-                <span className="sidebar-label">{item.label}</span>
-                {item.to === '/home' && waiting > 0 && (
-                  <span
-                    className="sidebar-badge"
-                    aria-label={`${waiting} ${waiting === 1 ? 'invitation' : 'invitations'} waiting`}
-                  >
-                    {waiting}
-                  </span>
-                )}
+                <span className="rail-icon">{ICONS[item.to]}</span>
+                <span className="rail-label">{item.label}</span>
+                {badge && <span className="rail-badge">{badge}</span>}
               </NavLink>
-            ))}
-          </div>
-        ))}
-      </nav>
+            )
+          })}
+        </nav>
+      </div>
 
-      <div className="sidebar-footer">
+      <div className="rail-foot">
         {user && (
-          <div
-            className="sidebar-user"
-            title={collapsed ? `${user.displayName} (@${user.username})` : undefined}
+          <button
+            type="button"
+            className="rail-user"
+            onClick={() => navigate('/settings')}
+            aria-label={`Account — ${user.displayName}`}
           >
-            <span className="avatar">
-              {initialsOf(user.displayName)}
-            </span>
-            <span className="sidebar-label sidebar-user-text">
-              <span className="sidebar-user-name">{user.displayName}</span>
-              <span className="sidebar-user-handle">@{user.username}</span>
-            </span>
-            {!collapsed && (
-              <button
-                type="button"
-                className="icon-button sidebar-signout"
-                onClick={() => void handleSignOut()}
-                title="Sign out"
-                aria-label="Sign out"
-              >
-                <SignOutIcon size={14} />
-              </button>
-            )}
-          </div>
+            <span className="avatar">{initialsOf(user.displayName)}</span>
+            <span className="rail-label">{user.displayName}</span>
+          </button>
         )}
 
         <button
           type="button"
-          className="sidebar-item"
-          onClick={() => setCollapsed((current) => !current)}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-pressed={collapsed}
+          className="rail-item"
+          onClick={() => void handleSignOut()}
+          aria-label="Sign out"
         >
-          <span
-            className="sidebar-icon"
-            style={{
-              transform: collapsed ? 'rotate(180deg)' : undefined,
-              transition: 'transform var(--dur-base) var(--ease)'
-            }}
-          >
-            <ChevronLeftIcon size={15} />
+          <span className="rail-icon">
+            <SignOutIcon size={17} />
           </span>
-          <span className="sidebar-label">Collapse</span>
+          <span className="rail-label">Sign out</span>
         </button>
       </div>
     </aside>

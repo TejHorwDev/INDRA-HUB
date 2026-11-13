@@ -83,7 +83,7 @@ export default function HomeScreen() {
     api.projects
       .list()
       .then((list) => {
-        if (!cancelled) setProjects(list.slice(0, 3))
+        if (!cancelled) setProjects(list)
       })
       .catch(() => {
         // Home is still useful without them; the Projects page owns the error.
@@ -215,7 +215,11 @@ export default function HomeScreen() {
   }
 
   return (
-    <Page title="Home" description="Your account, your team, and the work you touched last.">
+    <Page
+      eyebrow="Workspace"
+      title="Home"
+      description="Your account, your team, and the work you touched last."
+    >
       {invitations.length > 0 && (
         <section className="home-invites" aria-labelledby="home-invites-title">
           <div className="home-section-head">
@@ -322,6 +326,45 @@ export default function HomeScreen() {
                   </button>
                 </span>
               </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <div className="stat-strip">
+        <div className="stat">
+          <span className="stat-value">{projects.length}</span>
+          <span className="stat-label">Projects on this PC</span>
+        </div>
+        <div className="stat">
+          <span className="stat-value">{team?.memberCount ?? 0}</span>
+          <span className="stat-label">Team members</span>
+        </div>
+        <div className="stat">
+          <span className="stat-value">{invitations.length + remoteInvites.length}</span>
+          <span className="stat-label">Invitations waiting</span>
+        </div>
+      </div>
+
+      {projects.length > 0 && (
+        <section className="home-recents" aria-labelledby="home-recents-title">
+          <div className="home-section-head home-section-head--rule">
+            <h2 id="home-recents-title" className="home-section-title">
+              Recent projects
+            </h2>
+            <span className="home-count">{projects.length}</span>
+            <Link to="/dashboard" className="link home-section-actions">
+              All projects
+            </Link>
+          </div>
+
+          <ul className="project-list project-list--three">
+            {projects.slice(0, 3).map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onOpen={() => navigate(`/project/${project.id}`)}
+              />
             ))}
           </ul>
         </section>
@@ -498,29 +541,6 @@ export default function HomeScreen() {
         </section>
       </div>
 
-      {projects.length > 0 && (
-        <section className="home-recents" aria-labelledby="home-recents-title">
-          <div className="home-section-head home-section-head--rule">
-            <h2 id="home-recents-title" className="home-section-title">
-              Recent projects
-            </h2>
-            <span className="home-count">{projects.length}</span>
-            <Link to="/dashboard" className="link home-section-actions">
-              All projects
-            </Link>
-          </div>
-
-          <ul className="project-list project-list--three">
-            {projects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onOpen={() => navigate(`/project/${project.id}`)}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
 
       {memberOf.length > 0 && (
         <section className="home-memberof" aria-labelledby="home-memberof-title">

@@ -2,19 +2,29 @@ import type { ReactNode } from 'react'
 
 interface PageProps {
   title: string
+  /** The small line above the title: where this page sits in the app. */
+  eyebrow?: string
   description?: string
   actions?: ReactNode
-  /** Section tabs rendered between the header and the content rule. */
+  /** Section tabs rendered between the masthead and the content. */
   tabs?: ReactNode
   children: ReactNode
 }
 
-/** Shared page frame so every shell screen lines up on the same rhythm. */
-export default function Page({ title, description, actions, tabs, children }: PageProps) {
+/**
+ * The masthead.
+ *
+ * A page starts the same way everywhere: a label for the part of the app you
+ * are in, the page name at display size, one sentence about what is here, and
+ * the actions that belong to the whole page on the right. Everything below is
+ * content, and content never has to invent its own heading rhythm.
+ */
+export default function Page({ title, eyebrow, description, actions, tabs, children }: PageProps) {
   return (
     <div className="page-frame">
-      <header className="page-head">
-        <div className="page-head-text">
+      <header className="masthead">
+        <div className="masthead-text">
+          {eyebrow && <p className="eyebrow">{eyebrow}</p>}
           <h1 className="page-title">{title}</h1>
           {description && <p className="page-description">{description}</p>}
         </div>
@@ -23,12 +33,7 @@ export default function Page({ title, description, actions, tabs, children }: Pa
 
       {tabs && <div className="page-tabs">{tabs}</div>}
 
-      {/*
-        * No rule under the header when there are no tabs: the heading and the
-        * content are one block, separated by space. The tabs bring their own
-        * line, which is the only reason one is ever needed here.
-        */}
-      <div className={tabs ? 'pt-5' : 'pt-5'}>{children}</div>
+      <div className="page-content">{children}</div>
     </div>
   )
 }

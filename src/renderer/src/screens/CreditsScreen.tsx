@@ -214,6 +214,7 @@ export default function CreditsScreen() {
 
   return (
     <Page
+      eyebrow="Account"
       title="Tokens"
       description="What AI costs in this workspace, what is left today, and every movement of the balance."
       actions={

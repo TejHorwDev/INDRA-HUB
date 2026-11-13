@@ -82,6 +82,7 @@ export default function DocumentsScreen() {
   return (
     <>
       <Page
+        eyebrow="Project"
         title="Documents"
         description="Every document in this project."
         tabs={<ProjectTabs projectId={projectId} />}

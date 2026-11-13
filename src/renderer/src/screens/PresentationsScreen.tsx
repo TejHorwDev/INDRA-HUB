@@ -124,6 +124,7 @@ export default function PresentationsScreen() {
   return (
     <>
       <Page
+        eyebrow="Project"
         title="Presentations"
         description="Decks in this project, built blank or from a document."
         tabs={<ProjectTabs projectId={projectId} />}
