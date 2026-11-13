@@ -1,214 +1,294 @@
 /*
  * The installer's screens, and nothing else.
  *
- * One state machine: options -> ready -> installing -> completed. Everything
- * that touches the machine is behind `window.setup` (the preload bridge); when
- * that bridge is absent — this page opened in a browser for review — the same
- * screens run on a simulated install so the design can be judged without
- * installing anything.
+ * One state machine: options → ready → installing → completed. Everything that
+ * touches the machine is behind `window.setup` (the preload bridge); when that
+ * bridge is absent — this page opened in a browser for review — the same screens
+ * run on a simulated install, so the design can be judged without installing.
  */
 
-const bridge = window.setup ?? null;
+const bridge = window.setup ?? null
 
 const state = {
   screen: 'options',
   scope: 'user',
   percent: 0,
   installed: false
-};
+}
 
 const screens = new Map(
   [...document.querySelectorAll('.screen')].map((node) => [node.dataset.screen, node])
-);
-const steps = new Map(
-  [...document.querySelectorAll('.step')].map((node) => [node.dataset.step, node])
-);
-const order = ['options', 'ready', 'installing', 'completed'];
+)
+const steps = new Map([...document.querySelectorAll('.step')].map((node) => [node.dataset.step, node]))
+const order = ['options', 'ready', 'installing', 'completed']
 
-const nextButton = document.getElementById('next');
-const cancelButton = document.getElementById('cancel');
-const bar = document.getElementById('bar');
-const fill = document.getElementById('fill');
-const stageCopy = document.getElementById('install-stage');
-const noteCopy = document.getElementById('install-note');
-const reviewScope = document.getElementById('review-scope');
-const reviewPath = document.getElementById('review-path');
-const launchBox = document.getElementById('launch');
-const versionTag = document.getElementById('version');
+const nextButton = document.getElementById('next')
+const cancelButton = document.getElementById('cancel')
+const bar = document.getElementById('bar')
+const fill = document.getElementById('fill')
+const percentCopy = document.getElementById('percent')
+const stageCopy = document.getElementById('install-stage')
+const noteCopy = document.getElementById('install-note')
+const errorCopy = document.getElementById('error')
+const reviewScope = document.getElementById('review-scope')
+const reviewPath = document.getElementById('review-path')
+const reviewVersion = document.getElementById('review-version')
+const launchBox = document.getElementById('launch')
+const versionTag = document.getElementById('version')
 
 const PATHS = {
   user: '%LOCALAPPDATA%\\Programs\\INDRA HUB',
   machine: '%PROGRAMFILES%\\INDRA HUB'
-};
+}
 
 /* ---------------- painting ---------------- */
 
 function paint() {
   for (const [name, node] of screens) {
-    node.classList.toggle('is-current', name === state.screen);
+    node.classList.toggle('is-current', name === state.screen)
   }
 
-  const here = order.indexOf(state.screen);
+  const here = order.indexOf(state.screen)
   for (const [name, node] of steps) {
-    const at = order.indexOf(name);
-    node.classList.toggle('is-active', at === here);
-    node.classList.toggle('is-done', at < here);
+    const at = order.indexOf(name)
+    node.classList.toggle('is-active', at === here)
+    node.classList.toggle('is-done', at < here)
   }
 
-  reviewScope.textContent = state.scope === 'machine' ? 'Everyone on this PC' : 'Only me';
-  reviewPath.textContent = PATHS[state.scope];
+  reviewScope.textContent = state.scope === 'machine' ? 'Everyone on this PC' : 'Only me'
+  reviewPath.textContent = PATHS[state.scope]
 
   const label =
     state.screen === 'options'
-      ? 'Next'
+      ? 'Continue'
       : state.screen === 'ready'
         ? 'Install'
         : state.screen === 'installing'
           ? 'Installing…'
-          : 'Finish';
+          : 'Finish'
 
-  nextButton.disabled = state.screen === 'installing';
-  nextButton.innerHTML =
-    state.screen === 'completed'
-      ? 'Finish'
-      : `${label} <span class="btn__arrow" aria-hidden="true">→</span>`;
+  nextButton.textContent = label
+  nextButton.disabled = state.screen === 'installing'
+  cancelButton.textContent = state.screen === 'completed' ? 'Close' : 'Cancel'
 
-  cancelButton.textContent = state.screen === 'completed' ? 'Close' : 'Cancel';
-  bar.setAttribute('aria-valuenow', String(Math.round(state.percent)));
-  fill.style.width = `${state.percent}%`;
+  const percent = Math.round(state.percent)
+  bar.setAttribute('aria-valuenow', String(percent))
+  fill.style.width = `${percent}%`
+  percentCopy.textContent = `${percent}%`
 }
 
 function go(screen) {
-  state.screen = screen;
-  paint();
+  state.screen = screen
+  paint()
+}
+
+function showError(message) {
+  errorCopy.textContent = message
+  errorCopy.hidden = false
+}
+
+function clearError() {
+  errorCopy.textContent = ''
+  errorCopy.hidden = true
 }
 
 /* ---------------- choosing ---------------- */
 
 for (const choice of document.querySelectorAll('.choice')) {
   choice.addEventListener('click', () => {
-    if (state.screen !== 'options') return;
-    state.scope = choice.dataset.scope;
+    if (state.screen !== 'options') return
+    state.scope = choice.dataset.scope
     for (const other of document.querySelectorAll('.choice')) {
-      const selected = other === choice;
-      other.classList.toggle('is-selected', selected);
-      other.setAttribute('aria-checked', String(selected));
+      const selected = other === choice
+      other.classList.toggle('is-selected', selected)
+      other.setAttribute('aria-checked', String(selected))
     }
-    paint();
-  });
+    paint()
+  })
 }
 
 /* ---------------- installing ---------------- */
 
 function setStage(text, note) {
-  if (text) stageCopy.textContent = text;
-  if (note !== undefined) noteCopy.textContent = note;
+  if (text) stageCopy.textContent = text
+  if (note !== undefined) noteCopy.textContent = note
 }
 
 async function install() {
-  go('installing');
-  state.percent = 4;
-  paint();
+  clearError()
+  go('installing')
+  state.percent = 2
+  paint()
+  setStage('Preparing…', 'This takes a few seconds.')
 
   if (!bridge) {
     /* Review mode: the same beats, at reading speed. */
     const beats = [
-      [18, 'Preparing…'],
-      [42, 'Unpacking the app…'],
-      [71, 'Creating shortcuts…'],
-      [93, 'Finishing up…']
-    ];
+      [24, 'Copying files…'],
+      [58, 'Copying files…'],
+      [82, 'Creating shortcuts…'],
+      [96, 'Finishing…']
+    ]
     for (const [percent, label] of beats) {
-      setStage(label);
-      state.percent = percent;
-      paint();
-      await new Promise((done) => setTimeout(done, 620));
+      setStage(label)
+      state.percent = percent
+      paint()
+      await new Promise((done) => setTimeout(done, 520))
     }
-    state.percent = 100;
-    paint();
-    state.installed = true;
-    go('completed');
-    return;
+    state.percent = 100
+    paint()
+    state.installed = true
+    go('completed')
+    return
   }
 
   bridge.onProgress((event) => {
-    state.percent = Math.max(0, Math.min(100, Number(event.percent) || 0));
-    if (event.stage) setStage(event.stage);
-    paint();
-  });
+    state.percent = Math.max(0, Math.min(100, Number(event.percent) || 0))
+    if (event.stage) setStage(event.stage)
+    paint()
+  })
 
   try {
-    const result = await bridge.install({ scope: state.scope });
-    if (!result?.ok) throw new Error(result?.message || 'The installation did not complete.');
-    state.percent = 100;
-    paint();
-    state.installed = true;
-    go('completed');
+    const result = await bridge.install({ scope: state.scope })
+    if (!result?.ok) throw new Error(result?.message || 'The installation did not complete.')
+    state.percent = 100
+    paint()
+    state.installed = true
+    go('completed')
   } catch (error) {
-    state.percent = 0;
-    paint();
-    setStage('The installation stopped.', String(error?.message ?? error));
-    noteCopy.textContent = 'Nothing was changed on this PC beyond what was already copied.';
-    nextButton.disabled = false;
-    nextButton.textContent = 'Try again';
-    go('ready');
+    state.percent = 0
+    go('ready')
+    showError(
+      `${error?.message ?? error} Nothing else on this PC was changed — you can try again.`
+    )
   }
 }
 
 /* ---------------- the one button ---------------- */
 
 nextButton.addEventListener('click', () => {
-  if (state.screen === 'options') return go('ready');
-  if (state.screen === 'ready') return void install();
-  if (state.screen === 'completed') return finish();
-});
+  if (state.screen === 'options') return go('ready')
+  if (state.screen === 'ready') return void install()
+  if (state.screen === 'completed') return finish()
+})
 
-cancelButton.addEventListener('click', () => {
-  if (bridge) bridge.close();
-  else if (state.screen === 'completed') go('options');
-});
+function cancel() {
+  if (bridge) return bridge.close()
+  if (state.screen === 'completed') return go('options')
+  if (state.screen !== 'options') return go('options')
+  return undefined
+}
+
+cancelButton.addEventListener('click', cancel)
 
 function finish() {
   if (bridge) {
-    bridge.finish({ launch: launchBox.checked });
-    return;
+    bridge.finish({ launch: launchBox.checked })
+    return
   }
-  go('options');
+  go('options')
 }
 
 document.querySelector('[data-win="close"]')?.addEventListener('click', () => {
-  if (bridge) bridge.close();
-});
+  if (bridge) bridge.close()
+  else window.close()
+})
 document.querySelector('[data-win="minimise"]')?.addEventListener('click', () => {
-  if (bridge) bridge.minimise();
-});
+  bridge?.minimise()
+})
+
+/* Keyboard: the same two actions the buttons offer, and nothing else. */
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancel()
+    return
+  }
+  if (event.key === 'Enter' && !nextButton.disabled) {
+    event.preventDefault()
+    nextButton.click()
+  }
+})
+
+/* ---------------- the film ---------------- */
+
+/*
+ * The background is optional and its absence is invisible: a window with no
+ * video is a flat near-black frame, which is the design, not a failure.
+ *
+ * The main process hands over an absolute path because the file is shipped
+ * beside the app (`resources/background.mp4`) rather than packed into the asar
+ * archive — Chromium cannot stream media out of an archive, which is the
+ * reason the film never played in the first build.
+ */
+async function startBackdrop() {
+  const video = document.getElementById('video')
+  if (!video) return
+
+  let live = false
+  let dead = false
+  const candidates = []
+
+  if (bridge?.background) {
+    try {
+      const url = await bridge.background()
+      if (typeof url === 'string' && url) candidates.push(url)
+    } catch {
+      /* No film in this build. */
+    }
+  }
+  /* Browser review: the file next to the page. */
+  candidates.push(new URL('background.mp4', document.baseURI).href)
+
+  let index = 0
+
+  const giveUp = () => {
+    if (live || dead) return
+    /* Still buffering a large file is not a failure. */
+    if (video.readyState >= 2) return landed()
+    dead = true
+    video.remove()
+  }
+
+  const next = () => {
+    if (live || dead) return
+    const source = candidates[index]
+    index += 1
+    if (!source) return giveUp()
+    video.src = source
+    video.load()
+    void video.play?.().catch(() => undefined)
+  }
+
+  const landed = () => {
+    live = true
+    video.classList.add('is-live')
+  }
+
+  video.addEventListener('playing', landed)
+  video.addEventListener('canplay', landed)
+  video.addEventListener('error', () => {
+    if (!live) next()
+  })
+
+  /* A film that has not started within eight seconds is not going to. */
+  setTimeout(giveUp, 8000)
+
+  next()
+}
 
 /* ---------------- chrome ---------------- */
 
-const video = document.getElementById('video');
-/*
- * The film, if this build was given one. It is optional by design: the page is
- * complete without it, so an installer can never fail because a video did not
- * decode.
- */
-if (video) {
-  const sources = ['background.webm', 'background.mp4'];
-  for (const source of sources) {
-    const node = document.createElement('source');
-    node.src = source;
-    node.type = source.endsWith('.webm') ? 'video/webm' : 'video/mp4';
-    video.appendChild(node);
-  }
-  video.addEventListener('loadeddata', () => video.classList.add('is-live'), { once: true });
-  video.addEventListener('error', () => video.remove(), { once: true });
-  /* A muted video that will not autoplay is fine to ignore; the fallback stays. */
-  void video.play?.().catch(() => undefined);
+if (bridge?.version) {
+  bridge
+    .version()
+    .then((value) => {
+      if (!value) return
+      versionTag.textContent = `v${value}`
+      reviewVersion.textContent = value
+    })
+    .catch(() => undefined)
 }
 
-if (bridge) {
-  bridge.version?.().then((value) => {
-    if (value) versionTag.textContent = `v${value}`;
-  }).catch(() => undefined);
-}
-
-paint();
+void startBackdrop()
+paint()
