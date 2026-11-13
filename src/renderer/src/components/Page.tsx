@@ -12,7 +12,7 @@ interface PageProps {
 /** Shared page frame so every shell screen lines up on the same rhythm. */
 export default function Page({ title, description, actions, tabs, children }: PageProps) {
   return (
-    <div className="mx-auto w-full max-w-[1180px] px-7 pt-6 pb-10">
+    <div className="page-frame">
       <header className="page-head">
         <div className="page-head-text">
           <h1 className="page-title">{title}</h1>

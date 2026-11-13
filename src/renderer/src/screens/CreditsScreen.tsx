@@ -356,7 +356,7 @@ export default function CreditsScreen() {
                       </p>
                       <button
                         type="button"
-                        className="btn btn-ghost btn-sm w-auto"
+                        className="btn btn-ghost btn-sm w-auto plan-row-action"
                         disabled={
                           plan.current ||
                           busyTier !== null ||
@@ -427,7 +427,7 @@ export default function CreditsScreen() {
                     </div>
                     <button
                       type="button"
-                      className="btn btn-primary btn-sm w-auto"
+                      className="btn btn-primary w-auto buy-submit"
                       onClick={() => void requestTopUp()}
                       disabled={busyTier !== null || offline || !topUpValid}
                     >
@@ -460,8 +460,12 @@ export default function CreditsScreen() {
                     })}
                   </div>
 
-                  {topUpError && <p className="member-hint">{topUpError}</p>}
-                  <p className="member-hint mt-3">
+                  {topUpError && (
+                    <p className="token-error" role="alert">
+                      {topUpError}
+                    </p>
+                  )}
+                  <p className="token-note">
                     {`Top-ups run from ${tokens(settings.minTopup)} to ${tokens(
                       settings.maxTopup
                     )} tokens, in whole packs.`}{' '}
@@ -588,7 +592,7 @@ export default function CreditsScreen() {
         )}
       </section>
 
-      <p className="member-hint mt-4 max-w-[760px]">
+      <p className="token-note mt-4">
         These numbers are the server's, read when the page opens. Nothing is stored on this PC, and
         nothing here authorises a request: the database writes the charge itself, from the tokens the
         model actually reported.{' '}

@@ -329,6 +329,10 @@ export default function HomeScreen() {
 
       <div className="home">
         <section className="home-profile">
+          <div className="home-section-head">
+            <h2 className="home-section-title">Account</h2>
+          </div>
+
           {/*
             * Identity reads as one block: the monogram and the two lines that
             * name the account sit together in a header, the address is a row
@@ -496,7 +500,7 @@ export default function HomeScreen() {
 
       {projects.length > 0 && (
         <section className="home-recents" aria-labelledby="home-recents-title">
-          <div className="home-section-head">
+          <div className="home-section-head home-section-head--rule">
             <h2 id="home-recents-title" className="home-section-title">
               Recent projects
             </h2>
@@ -520,9 +524,12 @@ export default function HomeScreen() {
 
       {memberOf.length > 0 && (
         <section className="home-memberof" aria-labelledby="home-memberof-title">
-          <h2 id="home-memberof-title" className="home-section-title">
-            Member of
-          </h2>
+          <div className="home-section-head">
+            <h2 id="home-memberof-title" className="home-section-title">
+              Member of
+            </h2>
+            <span className="home-count">{memberOf.length}</span>
+          </div>
           <ul className="member-list member-list--flat">
             {memberOf.map((other) => (
               <li key={other.id} className="member">

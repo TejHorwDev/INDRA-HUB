@@ -8493,3 +8493,804 @@ body {
   justify-self: end;
   font-size: 0.6875rem;
 }
+
+/* ==================================================================
+ * PHASE 1 — a calmer, more deliberate surface
+ *
+ * One pass over the shared frame and the four screens that set the tone:
+ * Home, Projects, Developers and Tokens.
+ *
+ * The rules below are the visual contract for everything that follows:
+ *
+ *   - Three colours only. Matte black, greys, white. No hue, no gradient.
+ *   - One surface step between a panel and the canvas, never a glow.
+ *   - One height per control size, one radius, one focus ring.
+ *   - A section header is 13px of ink; its hairline is the only divider.
+ *   - Emptiness is compact and left-aligned, with one clear action.
+ *
+ * These rules sit outside the component layer, so they win over the layers
+ * above them without those layers having to be rewritten. Nothing here
+ * changes a state machine, a request, a price or an entitlement.
+ * ================================================================== */
+
+/* ---------------- tokens ---------------- */
+/*
+ * A little more canvas contrast than before: panels step up two greys, the
+ * hairline stays quiet, and tertiary text is lifted because it carries every
+ * micro-label in the app at 10–11px.
+ */
+:root {
+  --bg: #f6f6f7;
+  --chrome: #fbfbfc;
+  --surface: #ffffff;
+  --surface-subtle: #f1f1f2;
+  --surface-raised: #ffffff;
+  --line: #e5e5e7;
+  --line-strong: #d0d1d4;
+
+  --ink: #0c0d0e;
+  --ink-secondary: #56585d;
+  --ink-tertiary: #808289;
+
+  --accent: #0c0d0e;
+  --accent-hover: #232427;
+  --accent-active: #000000;
+  --accent-ink: #ffffff;
+
+  --wash-top: none;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+}
+
+.dark {
+  --bg: #0b0c0d;
+  --chrome: #0e0f11;
+  --surface: #131417;
+  --surface-subtle: #1a1b1f;
+  --surface-raised: #202127;
+  --line: #24262b;
+  --line-strong: #35373d;
+
+  --ink: #f6f6f7;
+  --ink-secondary: #a9abb1;
+  --ink-tertiary: #86888f;
+
+  --accent: #f6f6f7;
+  --accent-hover: #ffffff;
+  --accent-active: #e2e2e4;
+  --accent-ink: #0b0c0d;
+
+  --wash-top: none;
+}
+
+/* A desktop window paints one flat surface: no wash, no vignette, no glow. */
+body {
+  background-image: none;
+}
+
+/* ---------------- page frame ---------------- */
+
+.page-frame {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: 34px 32px 64px;
+}
+
+@media (max-width: 980px) {
+  .page-frame {
+    padding: 26px 22px 52px;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-frame {
+    padding: 20px 16px 44px;
+  }
+}
+
+.page-head {
+  align-items: flex-end;
+  gap: 20px;
+  padding-bottom: 20px;
+}
+
+.page-title {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.021em;
+}
+
+.page-description {
+  max-width: 62ch;
+  margin-top: 6px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+/* ---------------- controls ---------------- */
+
+.btn {
+  height: 32px;
+  padding: 0 13px;
+  gap: 7px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 560;
+  letter-spacing: 0.002em;
+}
+
+.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--fs-xs);
+}
+
+.btn-lg {
+  height: 38px;
+  font-size: var(--fs-base);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ink-tertiary);
+  outline-offset: 2px;
+}
+
+/* A secondary action needs an edge to sit on; a ghost with no border reads as
+   a label until it is hovered. */
+.btn-ghost,
+.dark .btn-ghost {
+  border: 1px solid var(--line-strong);
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+.btn-ghost:hover:not(:disabled),
+.dark .btn-ghost:hover:not(:disabled) {
+  border-color: var(--ink-tertiary);
+  background-color: var(--surface-subtle);
+}
+
+.field-input,
+.field-textarea,
+.text-field input,
+.text-field textarea {
+  border-radius: var(--radius-sm);
+}
+
+/* ---------------- rail ---------------- */
+
+.sidebar {
+  width: 232px;
+  padding: 10px 10px 8px;
+}
+
+.sidebar--collapsed {
+  width: 56px;
+}
+
+.sidebar-group-label {
+  padding: 18px 10px 6px;
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+}
+
+.sidebar-item {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+/* One marker, not two: the bar is the selection, the fill is the surface. */
+.sidebar-item.sidebar-item--active,
+.dark .sidebar-item.sidebar-item--active {
+  background-color: var(--surface-subtle);
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.sidebar-item--active::before {
+  display: none;
+}
+
+.sidebar-item--active .sidebar-icon,
+.dark .sidebar-item--active .sidebar-icon {
+  color: var(--ink);
+}
+
+/* ---------------- emptiness ---------------- */
+/*
+ * A compact panel, left-aligned. A centred hero made a page that had nothing
+ * on it look like the most important screen in the app.
+ */
+.empty-state {
+  align-items: flex-start;
+  padding: 30px 28px;
+  text-align: left;
+}
+
+.empty-state-icon {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-subtle);
+  color: var(--ink-secondary);
+}
+
+.empty-state-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.008em;
+}
+
+.empty-state--panel .empty-state-title {
+  font-size: var(--fs-sm);
+}
+
+.empty-state-description {
+  max-width: 46ch;
+  margin-top: 6px;
+  color: var(--ink-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.empty-state-action {
+  margin-top: 18px;
+}
+
+.empty-state--panel {
+  padding: 20px 0 6px;
+}
+
+.error-screen .empty-state {
+  align-items: center;
+  text-align: center;
+}
+
+/* ---------------- section headers ---------------- */
+
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.home-section-head--rule {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.home-section-title {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  text-transform: none;
+}
+
+.home-count {
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.home-section-actions {
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* ---------------- home ---------------- */
+
+.home {
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.home-profile,
+.home-team,
+.home-memberof {
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.home-profile,
+.home-team {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Both cards open with the same 13px title, so they read as one row. */
+.home-profile > .home-section-head {
+  margin-bottom: 16px;
+}
+
+.home-team > .home-section-head {
+  margin-bottom: 12px;
+}
+
+.home-profile {
+  gap: 0;
+}
+
+.home-profile-head {
+  gap: 12px;
+}
+
+.home-name {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+
+.home-handle {
+  margin-top: 2px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.home-email {
+  margin-top: 16px;
+  color: var(--ink-secondary);
+  font-size: var(--fs-sm);
+}
+
+.home-profile-actions {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.home-since {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+}
+
+.home-team-name {
+  margin-top: 0;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-team .empty-state {
+  margin-top: 0;
+  padding: 0;
+}
+
+.home-team .empty-state-icon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 12px;
+}
+
+.home-team-foot {
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.home-recents,
+.home-memberof {
+  margin-top: 26px;
+}
+
+.home-recents .project-list {
+  margin-top: 14px;
+}
+
+.home-memberof .home-section-title {
+  color: var(--ink);
+}
+
+.home-memberof .member-list {
+  margin-top: 12px;
+}
+
+/* ---------------- projects ---------------- */
+
+.project-row {
+  min-height: 92px;
+  padding: 14px;
+  gap: 12px;
+  border-radius: 10px;
+}
+
+.project-row:hover {
+  border-color: var(--line-strong);
+}
+
+.dark .project-row:hover,
+.dark .project-row:focus-visible {
+  background-color: var(--surface-subtle);
+}
+
+.project-row-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+
+.project-row-desc {
+  margin-top: 3px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  -webkit-line-clamp: 2;
+}
+
+.project-row-meta {
+  margin-top: 10px;
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  letter-spacing: 0.01em;
+}
+
+.project-row-mark,
+.project-row > .library-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-subtle);
+  color: var(--ink-tertiary);
+}
+
+.project-row:hover .project-row-mark {
+  border-color: var(--line-strong);
+  color: var(--ink-secondary);
+}
+
+.project-row-chevron {
+  margin-top: 8px;
+  opacity: 0.4;
+}
+
+.cloud-shelf {
+  margin-top: 34px;
+}
+
+.cloud-shelf .home-section-head {
+  margin-bottom: 14px;
+  padding-inline: 0;
+}
+
+/* ---------------- developers ---------------- */
+
+.dev-panel {
+  max-width: 620px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.dev-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dev-panel-title {
+  color: var(--ink);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  letter-spacing: -0.008em;
+}
+
+.dev-panel-body {
+  max-width: 58ch;
+  margin-top: 8px;
+  color: var(--ink-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+}
+
+/* ---------------- tokens ---------------- */
+
+.token-balance {
+  margin-bottom: 26px;
+  padding-bottom: 22px;
+}
+
+.token-balance-main {
+  align-items: flex-end;
+}
+
+.token-eyebrow {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.token-figure {
+  margin-top: 4px;
+  gap: 8px;
+}
+
+.token-figure strong {
+  font-size: clamp(2.35rem, 5vw, 3.1rem);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+}
+
+.token-figure span {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.token-meta {
+  margin-top: 8px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+
+/* The plan is a chip, so it reads as a fact about the balance. */
+.token-plan {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+}
+
+.token-plan-dot {
+  width: 4px;
+  height: 4px;
+  background-color: var(--ink-secondary);
+}
+
+.token-split {
+  gap: 20px;
+  margin-top: 20px;
+  padding-top: 16px;
+}
+
+.token-split-cell dt {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+}
+
+.token-split-cell dd {
+  margin-top: 4px;
+  font-size: 1.0625rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+}
+
+.token-split-cell dd small {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-2xs);
+}
+
+.token-meter {
+  height: 3px;
+  margin-top: 14px;
+  border-radius: 2px;
+  background-color: var(--line);
+}
+
+.token-meter span {
+  border-radius: 2px;
+}
+
+.token-body {
+  max-width: 880px;
+  gap: 28px;
+}
+
+.token-group + .token-group {
+  margin-top: 28px;
+}
+
+.token-group-head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+}
+
+.token-group-head > span:first-child {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: -0.006em;
+}
+
+.token-group-head > span:last-child {
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+}
+
+.token-group-body {
+  padding: 14px 0 0;
+}
+
+.token-group-note {
+  max-width: 66ch;
+  padding: 10px 0;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.token-note {
+  max-width: 66ch;
+  margin-top: 12px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+/* An error is not a hint: it takes the ink, not the quiet grey. */
+.token-error {
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+/* Plans: four fixed columns, so allowance, price and action line up. */
+.plan-row {
+  grid-template-columns: minmax(96px, 132px) minmax(0, 1fr) 100px 148px;
+  gap: 18px;
+  padding: 15px 0;
+}
+
+.plan-row--current {
+  padding-left: 12px;
+}
+
+.plan-row-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.plan-row-tag {
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+}
+
+.plan-row-allowance {
+  gap: 3px;
+}
+
+.plan-row-allowance strong {
+  font-size: var(--fs-base);
+  font-weight: 550;
+}
+
+.plan-row-blurb {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-2xs);
+}
+
+.plan-row-price {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.plan-row-price small {
+  margin-top: 2px;
+  font-size: 0.5625rem;
+}
+
+.plan-row-action {
+  width: 148px;
+  padding: 0 8px;
+  justify-self: end;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .plan-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 10px;
+  }
+
+  .plan-row-action {
+    width: auto;
+    justify-self: start;
+  }
+}
+
+/* Top up: an input, a quote and one action on the same baseline. */
+.buy-row {
+  grid-template-columns: 164px minmax(0, 1fr) minmax(148px, auto);
+  gap: 18px;
+  align-items: end;
+}
+
+.buy-row .field-input {
+  height: 34px;
+}
+
+.buy-quote {
+  gap: 2px;
+  padding-left: 18px;
+}
+
+.buy-quote-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+}
+
+.buy-quote-value {
+  font-size: 1.25rem;
+  font-weight: 550;
+}
+
+.buy-quote-note {
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+}
+
+.buy-submit {
+  height: 34px;
+  min-width: 148px;
+  justify-self: end;
+}
+
+/* Presets are options in a row, not pills floating on the page. */
+.buy-presets {
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.buy-preset {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+}
+
+.buy-preset--on {
+  border-color: var(--ink-tertiary);
+  background-color: var(--surface-subtle);
+}
+
+.buy-preset--select {
+  padding: 0 6px 0 10px;
+}
+
+@media (max-width: 760px) {
+  .buy-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .buy-quote {
+    padding-left: 0;
+    padding-top: 10px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .buy-submit {
+    justify-self: stretch;
+    width: 100%;
+  }
+}
