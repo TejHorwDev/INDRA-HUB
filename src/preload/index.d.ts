@@ -247,6 +247,7 @@ export interface IndraBridge {
     signUp: (input: WorkspaceCredentialsInput) => Promise<ApiResult<WorkspaceState>>
     signOut: () => Promise<ApiResult<WorkspaceState>>
     claim: (input: WorkspaceClaimInput) => Promise<ApiResult<WorkspaceState>>
+    claimAsAdmin: () => Promise<ApiResult<WorkspaceState>>
     sync: () => Promise<ApiResult<WorkspaceState>>
     discard: () => Promise<ApiResult<WorkspaceState>>
     onChange: (listener: (state: WorkspaceState) => void) => () => void

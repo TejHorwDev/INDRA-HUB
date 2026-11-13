@@ -366,6 +366,8 @@ export const api = {
     signUp: (input: WorkspaceCredentialsInput): Promise<WorkspaceState> =>
       unwrap(bridge().workspace.signUp(input)),
     signOut: (): Promise<WorkspaceState> => unwrap(bridge().workspace.signOut()),
+    /** Takes an unclaimed workspace, authorised by this installation's administrator. */
+    claimAsAdmin: (): Promise<WorkspaceState> => unwrap(bridge().workspace.claimAsAdmin()),
     claim: (input: WorkspaceClaimInput): Promise<WorkspaceState> => unwrap(bridge().workspace.claim(input)),
     sync: (): Promise<WorkspaceState> => unwrap(bridge().workspace.sync()),
     discard: (): Promise<WorkspaceState> => unwrap(bridge().workspace.discard()),

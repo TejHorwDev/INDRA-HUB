@@ -60,7 +60,9 @@ export default function WorkspacePanel() {
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState<'sign-in' | 'sign-up' | 'claim' | 'sync' | 'sign-out' | null>(null)
+  const [busy, setBusy] = useState<
+    'sign-in' | 'sign-up' | 'claim' | 'claim-admin' | 'sync' | 'sign-out' | null
+  >(null)
 
   const adopt = useCallback((next: WorkspaceState) => setState(next), [])
 
@@ -294,14 +296,73 @@ export default function WorkspacePanel() {
                 {busy === 'claim' ? 'Claiming…' : 'Claim this workspace'}
               </button>
             </div>
+
+            {/*
+              A second way in, because the first depends on a code that exists
+              nowhere: not in the app, not in this database, only in whoever
+              wrote it down. Without this, a lost code means every setting and
+              the sign-in video stay on one PC forever.
+            */}
+            <div className="admin-claim-divider">
+              <span>or</span>
+            </div>
+            <p className="admin-hint">
+              Lost the setup code? The server administrator of this installation can hand the
+              workspace to the account above instead. It is the same handover: this PC publishes
+              what it is running now, and other machines never claim anything.
+            </p>
+            <div className="admin-form-actions admin-form-actions--start">
+              <button
+                type="button"
+                className="btn btn-ghost w-auto"
+                onClick={() =>
+                  void run(
+                    'claim-admin',
+                    () => api.workspace.claimAsAdmin(),
+                    'Workspace claimed. This account now owns it.'
+                  )
+                }
+                disabled={busy !== null}
+              >
+                {busy === 'claim-admin' && <span className="spinner" aria-hidden="true" />}
+                {busy === 'claim-admin' ? 'Claiming…' : 'Claim as administrator'}
+              </button>
+            </div>
           </form>
         )}
 
         {state?.signedIn && !state.claimable && !state.owner && (
-          <p className="admin-hint">
-            Signed in as <strong>{state.email}</strong>, which does not own this workspace. Every
-            installation still receives the settings; only the owning account can change them.
-          </p>
+          <>
+            <p className="admin-hint">
+              Signed in as <strong>{state.email}</strong>, which does not own this workspace. Every
+              installation still receives the settings; only the owning account can change them.
+              Nothing this PC changes is published while that is true.
+            </p>
+            {/*
+              Ownership is frozen once set, so a workspace claimed by an account
+              nobody can sign in to again would be just as stuck as an unclaimed
+              one. The server administrator may transfer it, and the transfer is
+              the same handover: this account becomes the owner and this PC
+              publishes what it is running.
+            */}
+            <div className="admin-form-actions admin-form-actions--start">
+              <button
+                type="button"
+                className="btn btn-ghost w-auto"
+                onClick={() =>
+                  void run(
+                    'claim-admin',
+                    () => api.workspace.claimAsAdmin(),
+                    'Workspace handed over. This account owns it now.'
+                  )
+                }
+                disabled={busy !== null}
+              >
+                {busy === 'claim-admin' && <span className="spinner" aria-hidden="true" />}
+                {busy === 'claim-admin' ? 'Taking ownership…' : 'Take ownership as administrator'}
+              </button>
+            </div>
+          </>
         )}
 
         {state?.signedIn && state.owner && (

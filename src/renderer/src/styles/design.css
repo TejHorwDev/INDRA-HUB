@@ -3279,3 +3279,26 @@ tbody td {
   color: var(--ink-3);
   text-align: center;
 }
+
+/*
+ * The divider between the two ways to claim a workspace: the setup code, and
+ * the administrator. One line, no fuss.
+ */
+.admin-claim-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.admin-claim-divider::before,
+.admin-claim-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}

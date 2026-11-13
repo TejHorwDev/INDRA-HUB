@@ -325,3 +325,37 @@ absent connection leaves the local picture exactly as it was, and the caption
 under the picture says which of the two copies exist.
 
 Apply with `supabase/portraits.sql` (tracked as migration `portraits_on_the_server`).
+
+## Who owns the workspace, and how it moves
+
+`public.indra_workspace` is one row, and only its owner may change it. Ownership
+is decided once and then frozen by `indra_workspace_touch`, which keeps the old
+`owner_uid` no matter what an update sends. That is deliberate: a signed-in
+account cannot hand the workspace to somebody else by editing the row, and a
+non-owner cannot write the row at all.
+
+There are two ways in:
+
+| Path | Who can use it | When |
+| --- | --- | --- |
+| `indra_claim_workspace(code)` | any signed-in account holding the one-time code | the code was seeded into `claim_hash` at setup |
+| `indra_claim_workspace_as_admin(owner)` | the server administrator (`indra_users.role = 'admin'`) | the code is lost, or the owner is an account nobody can sign in to |
+
+The second one exists because the first can dead-end. The setup code is stored
+only as a SHA-256; if it is lost, an unclaimed workspace can never be claimed,
+so every setting — the sign-in video included — silently stays on one PC. The
+administrator cannot forge its way in: the function checks the role, requires
+the appointed account to have a cloud profile, and turns on
+`indra.workspace_reassign` for exactly the length of its own update. With that
+setting off, ownership is as frozen as before.
+
+The administrator does not become the owner. It appoints one — the account the
+app is signed in to at that moment — and that account publishes what the machine
+is already running, which is exactly what claiming with the code does.
+
+**If a published video does not reach other machines,** check three things in
+this order: the row has an `owner_uid`; `background_path` is not null; and the
+object exists in `indra-media`. Nothing else is involved — `background_path` is
+null on every row that has never published a video, and a fresh install reads
+the video through the bucket's public object route, so it does not need a
+session of its own.

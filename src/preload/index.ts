@@ -498,6 +498,9 @@ const api = {
     signUp: (input: WorkspaceCredentialsInput): Promise<ApiResult<WorkspaceState>> =>
       ipcRenderer.invoke('admin:workspace:sign-up', input),
     signOut: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:sign-out'),
+    /** Hands an unclaimed workspace to the signed-in account, as this PC's administrator. */
+    claimAsAdmin: (): Promise<ApiResult<WorkspaceState>> =>
+      ipcRenderer.invoke('admin:workspace:claim-as-admin'),
     claim: (input: WorkspaceClaimInput): Promise<ApiResult<WorkspaceState>> =>
       ipcRenderer.invoke('admin:workspace:claim', input),
     sync: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:sync'),

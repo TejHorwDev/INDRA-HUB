@@ -17,6 +17,7 @@ import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
 import { sealSecret, unsealSecret } from '../lib/seal'
 import { adoptBackground, readLoginAppearance, readLoginBackgroundFile, removeLoginBackground, writeTreatment } from './appearance'
+import { adminCloudSession } from './cloud'
 import {
   adoptDeveloperPhoto,
   clearDeveloperPhotoNeedsClear,
@@ -282,9 +283,13 @@ async function uploadBackground(path: string, bytes: Buffer, mime: string): Prom
 }
 
 async function downloadBackground(path: string): Promise<Buffer> {
-  const response = await call(`/storage/v1/object/authenticated/${WORKSPACE_BUCKET}/${path}`, {
-    token: session?.accessToken ?? null
-  })
+  /*
+   * The public object route, not `/object/authenticated/`: a fresh install has
+   * no session yet, and the storage policy allows reading this bucket, so this
+   * is the one request that works signed out. A video the administrator
+   * published has to reach a machine nobody has signed in to.
+   */
+  const response = await call(`/storage/v1/object/${WORKSPACE_BUCKET}/${path}`)
   if (!response.ok) throw new Error(`The video could not be downloaded (${await readError(response)}).`)
   const buffer = Buffer.from(await response.arrayBuffer())
   if (buffer.length > WORKSPACE_MAX_VIDEO_BYTES) throw new Error('The shared video is larger than the app accepts.')
@@ -318,9 +323,7 @@ async function uploadDeveloperPhoto(path: string, bytes: Buffer, mime: string): 
 }
 
 async function downloadDeveloperPhoto(path: string): Promise<Buffer> {
-  const response = await call(`/storage/v1/object/authenticated/${WORKSPACE_BUCKET}/${path}`, {
-    token: session?.accessToken ?? null
-  })
+  const response = await call(`/storage/v1/object/${WORKSPACE_BUCKET}/${path}`)
   if (!response.ok) throw new Error(`The portrait could not be downloaded (${await readError(response)}).`)
   const buffer = Buffer.from(await response.arrayBuffer())
   if (buffer.length === 0) throw new Error('The shared portrait is empty, so it was not installed.')
@@ -887,6 +890,46 @@ export async function signInWorkspace(input: WorkspaceCredentialsInput): Promise
    * after the claim (a new revision), and leaving `pending` set means a failed
    * push is retried by the next reconcile instead of being forgotten.
    */
+  remote = null
+  pending = true
+  await push()
+  broadcastWorkspaceChange()
+  return workspaceState()
+}
+
+/**
+ * The way out of a workspace that can never be claimed.
+ *
+ * A claim normally needs the one-time setup code, whose SHA-256 was seeded into
+ * the row. The code itself exists nowhere else — not in the app, not in the
+ * database — so an administrator who loses it can otherwise never publish a
+ * setting or a video again, and every change quietly stays on one PC.
+ *
+ * This path asks a different authority: the server administrator, the identity
+ * `indra_claim_admin()` already trusts. It appoints the account this machine is
+ * signed in to as the workspace's owner. The server re-checks the role, refuses
+ * if the row already has an owner, and refuses a uid with no cloud profile.
+ *
+ * The local administrator never touches the workspace here; the account whose
+ * session is on screen becomes its owner, and this machine publishes what it is
+ * already running — exactly as claiming with the code does.
+ */
+export async function claimWorkspaceAsAdmin(adminId: string): Promise<WorkspaceState> {
+  if (!session) throw errors.validation('Sign in to the workspace account first.', 'code')
+
+  const admin = await adminCloudSession(adminId)
+  const response = await call('/rest/v1/rpc/indra_claim_workspace_as_admin', {
+    method: 'POST',
+    body: { p_owner: session.uid },
+    token: admin.token
+  })
+  if (!response.ok) throw new Error(await readError(response))
+
+  const result = (await response.json()) as { claimed: boolean; reason: string | null }
+  if (!result.claimed) {
+    throw new Error(result.reason ?? 'The workspace already has an owner.')
+  }
+
   remote = null
   pending = true
   await push()

@@ -136,6 +136,7 @@ import { publicStatus } from '../services/settings'
 import {
   broadcastAboutChange,
   claimWorkspace,
+  claimWorkspaceAsAdmin,
   discardPending,
   markWorkspaceOptOut,
   push,
@@ -1044,6 +1045,16 @@ export function registerIpcHandlers(): void {
       requireAdmin()
       return signOutWorkspace()
     })
+  )
+
+  /*
+   * The escape hatch for an unclaimed workspace whose setup code is lost: the
+   * server administrator appoints the signed-in workspace account as owner.
+   * requireAdmin() is the local half of that check; the function itself asks
+   * the server for the other half.
+   */
+  ipcMain.handle('admin:workspace:claim-as-admin', () =>
+    toResult(() => claimWorkspaceAsAdmin(tokenAdmin()))
   )
 
   ipcMain.handle('admin:workspace:claim', (_event, input: WorkspaceClaimInput) =>
