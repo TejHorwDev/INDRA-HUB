@@ -7564,3 +7564,300 @@ body {
     padding: 12px 20px;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Credits — one hero, one grid, and prices that always say their currency
+ *
+ * The first version stacked a big number over three cells over a bar and gave
+ * the plans half a screen of empty space. This one puts the balance and what it
+ * is worth in a single bordered block, keeps the two columns the same height,
+ * and makes the top-up a quote rather than a guess: the price is worked out by
+ * the same rule the server uses and shown before the request is sent.
+ * ------------------------------------------------------------------ */
+
+.credit-hero {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-5);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.credit-hero-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: 22px var(--space-6) 20px;
+}
+
+.credit-hero-figure {
+  min-width: 0;
+}
+
+.credit-hero-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.credit-hero .credits-figure strong {
+  font-size: clamp(2.6rem, 5.2vw, 3.6rem);
+}
+
+/* The split cells now live inside the hero, so they lose their own borders. */
+.credit-hero .credits-split {
+  border-bottom: 0;
+}
+
+/* The bar is a fourth cell of the split, so it has to span all three columns. */
+.credits-split .credits-bar {
+  grid-column: 1 / -1;
+}
+
+.credit-hero .credits-bar {
+  margin-top: 0;
+}
+
+/* ---------------- the top-up, as a quote ---------------- */
+
+.buy-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.buy-field {
+  min-width: 0;
+}
+
+.buy-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--line);
+}
+
+.buy-quote-label {
+  color: var(--ink-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.buy-quote-value {
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.buy-quote-note {
+  color: var(--ink-tertiary);
+  font-size: var(--fs-2xs);
+}
+
+.buy-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+
+.buy-preset {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  color: var(--ink-secondary);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.buy-preset:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.buy-preset--on {
+  border-color: var(--ink);
+  background-color: var(--surface-raised);
+  color: var(--ink);
+}
+
+.buy-preset-price {
+  color: var(--ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep the two columns of the body from looking like two different documents. */
+.credits-body > div {
+  min-width: 0;
+}
+
+/* Two panels side by side in one column should still line up at the top. */
+.credits-body > div:first-child > .credits-panel:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  .buy-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .buy-quote {
+    padding-left: 0;
+    padding-top: var(--space-3);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * The credit console's editors
+ *
+ * A price is edited next to its currency, and a tier is one row that can be
+ * read across: id, name, allowance, price, blurb, then the two things you can
+ * do to it. The old layout was a five-column strip that had nowhere to put a
+ * blurb, which is why a tier could not be created from the console at all.
+ * ------------------------------------------------------------------ */
+
+.admin-form-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.admin-field-hint {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-2xs);
+  line-height: 1.45;
+}
+
+.admin-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: var(--space-4) 0 0;
+}
+
+.buy-preset--select {
+  padding: 0 6px 0 10px;
+  cursor: default;
+}
+
+.buy-preset--select select {
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: var(--fs-xs);
+  outline: none;
+  cursor: pointer;
+}
+
+.buy-preset--select select option {
+  background-color: var(--bg);
+  color: var(--ink);
+}
+
+.admin-plan-new {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface-subtle);
+}
+
+.admin-plan-row {
+  display: grid;
+  grid-template-columns: 108px minmax(110px, 1fr) 106px 116px minmax(140px, 1.2fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-plan-row:last-of-type {
+  border-bottom: 0;
+}
+
+.admin-plan-row--off {
+  background-color: var(--surface-subtle);
+}
+
+.admin-plan-row .field-input {
+  height: 30px;
+  font-size: var(--fs-sm);
+}
+
+.admin-plan-row .field-label {
+  margin-bottom: 5px;
+}
+
+.admin-plan-id {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-self: center;
+}
+
+.admin-plan-actions {
+  align-self: end;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1080px) {
+  .admin-plan-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-plan-id {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .admin-plan-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-plan-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The console's pricing form stacks two grids; the second needs air above it. */
+.admin-card-body .admin-form-grid + .admin-form-grid,
+.admin-card-body .admin-preset-row + .admin-form-grid {
+  margin-top: var(--space-5);
+}
+
+.admin-plan-new .admin-form-actions {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}

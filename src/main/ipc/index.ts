@@ -65,6 +65,7 @@ import {
   adminGrant,
   adminLedger,
   adminSetPlan,
+  adminUpdateCreditSettings,
   adminUpdatePlan,
   ask as askAI,
   cancelPurchase,
@@ -1196,15 +1197,69 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     'admin:credits:updatePlan',
-    (_event, payload: { id?: unknown; name?: unknown; dailyCredits?: unknown; priceInr?: unknown; blurb?: unknown }) =>
+    (
+      _event,
+      payload: {
+        id?: unknown
+        name?: unknown
+        blurb?: unknown
+        dailyCredits?: unknown
+        priceMinor?: unknown
+        sort?: unknown
+        enabled?: unknown
+        create?: unknown
+      }
+    ) =>
       toResult(() => {
         requireAdmin()
         return adminUpdatePlan(actor(), {
           id: requireRecordId(payload?.id),
           name: typeof payload?.name === 'string' ? payload.name : undefined,
+          blurb: typeof payload?.blurb === 'string' ? payload.blurb : undefined,
           dailyCredits: payload?.dailyCredits === undefined ? undefined : Number(payload.dailyCredits),
-          priceInr: payload?.priceInr === undefined ? undefined : Number(payload.priceInr),
-          blurb: typeof payload?.blurb === 'string' ? payload.blurb : undefined
+          priceMinor: payload?.priceMinor === undefined ? undefined : Number(payload.priceMinor),
+          sort: payload?.sort === undefined ? undefined : Number(payload.sort),
+          enabled: typeof payload?.enabled === 'boolean' ? payload.enabled : undefined,
+          create: payload?.create === true
+        })
+      })
+  )
+
+  /*
+   * The pricing rules an administrator sets: currency, what a credit buys, the
+   * top-up pack and its price, the limits and the low-balance mark. The server
+   * validates every field again and returns the row it actually wrote.
+   */
+  ipcMain.handle(
+    'admin:credits:settings',
+    (
+      _event,
+      payload: {
+        currency?: unknown
+        symbol?: unknown
+        decimals?: unknown
+        tokensPerCredit?: unknown
+        topupCredits?: unknown
+        topupPriceMinor?: unknown
+        minTopup?: unknown
+        maxTopup?: unknown
+        lowBalance?: unknown
+      }
+    ) =>
+      toResult(() => {
+        requireAdmin()
+        const numeric = (value: unknown): number | undefined =>
+          value === undefined || value === null || value === '' ? undefined : Number(value)
+        return adminUpdateCreditSettings(actor(), {
+          currency: typeof payload?.currency === 'string' ? payload.currency : undefined,
+          symbol: typeof payload?.symbol === 'string' ? payload.symbol : undefined,
+          decimals: numeric(payload?.decimals),
+          tokensPerCredit: numeric(payload?.tokensPerCredit),
+          topupCredits: numeric(payload?.topupCredits),
+          topupPriceMinor: numeric(payload?.topupPriceMinor),
+          minTopup: numeric(payload?.minTopup),
+          maxTopup: numeric(payload?.maxTopup),
+          lowBalance: numeric(payload?.lowBalance)
         })
       })
   )

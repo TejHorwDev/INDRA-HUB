@@ -70,6 +70,8 @@ async function main() {
 
   const calls = []
   const balance = { daily: 20, purchased: 5, total: 25, spent: [] }
+  /* The pricing rules the workspace holds; a test can change them. */
+  const settings = { tokensPerCredit: 1000 }
   let geminiMode = 'normal'
 
   const gemini = (body) => {
@@ -155,7 +157,7 @@ async function main() {
     }
 
     if (url.includes('/rest/v1/rpc/indra_credit_state')) {
-      return new Response(JSON.stringify({ plan: 'free', planName: 'Free', daily: balance.daily, purchased: balance.purchased, total: balance.daily + balance.purchased, dailyAllowance: 100, spentToday: 0, requestsToday: 0, isAt: null, isAdmin: false }), { status: 200 })
+      return new Response(JSON.stringify({ plan: 'free', planName: 'Free', daily: balance.daily, purchased: balance.purchased, total: balance.daily + balance.purchased, dailyAllowance: 100, spentToday: 0, requestsToday: 0, isAdmin: false, settings }), { status: 200 })
     }
 
     if (url.includes('/rest/v1/rpc/indra_spend_ai')) {
@@ -272,6 +274,27 @@ async function main() {
   check(calls.every((entry) => !entry.url.includes('generativelanguage')), 'no credits: nothing is spent on a model')
 
   /* ---------------- a provider failure is reported as one ---------------- */
+
+  /* ---------------- what a credit buys is a setting ---------------- */
+
+  balance.daily = 60
+  balance.purchased = 0
+  balance.spent.length = 0
+  calls.length = 0
+  settings.tokensPerCredit = 2000
+
+  const cheap = await call({ mode: 'chat', prompt: 'Anything', document: '' })
+  check(
+    cheap.status === 200 && cheap.body.usage.cost === Math.max(1, Math.ceil(cheap.body.usage.total / 2000)),
+    'a credit worth 2,000 tokens halves the charge',
+    JSON.stringify({ tokens: cheap.body?.usage?.total, cost: cheap.body?.usage?.cost })
+  )
+  const cheapSpend = calls.filter((entry) => entry.url.includes('indra_spend_ai'))
+  check(
+    cheapSpend.length === 1 && cheapSpend[0].body.p_cost === cheap.body.usage.cost,
+    'the charge follows the setting, not a constant in the function'
+  )
+  settings.tokensPerCredit = 1000
 
   balance.daily = 30
   geminiMode = 'failure'

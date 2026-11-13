@@ -140,11 +140,29 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     isAdmin: false
   }
 
+  /*
+   * The workspace prices in dollars now, and a tier carries a currency-neutral
+   * `price_minor` plus an `enabled` switch. The stub says what the server says,
+   * so the app is exercised against the real shape.
+   */
   const plans = [
-    { id: 'free', name: 'Free', blurb: 'The daily habit.', daily_credits: 100, price_inr: 0, sort: 1 },
-    { id: 'basic', name: 'Basic', blurb: 'More room to research.', daily_credits: 600, price_inr: 299, sort: 2 },
-    { id: 'pro', name: 'Pro', blurb: 'Deep work, every day.', daily_credits: 2500, price_inr: 899, sort: 3 }
+    { id: 'free', name: 'Free', blurb: 'The daily habit.', daily_credits: 100, price_minor: 0, enabled: true, sort: 1 },
+    { id: 'basic', name: 'Basic', blurb: 'More room to research.', daily_credits: 600, price_minor: 399, enabled: true, sort: 2 },
+    { id: 'pro', name: 'Pro', blurb: 'Deep work, every day.', daily_credits: 2500, price_minor: 999, enabled: true, sort: 3 }
   ]
+
+  const creditSettings = {
+    currency: 'USD',
+    symbol: '$',
+    decimals: 2,
+    tokensPerCredit: 1000,
+    topupCredits: 100,
+    topupPriceMinor: 199,
+    minTopup: 100,
+    maxTopup: 100000,
+    lowBalance: 20,
+    updatedAt: new Date().toISOString()
+  }
 
   const ledger = []
   const purchases = [
@@ -153,7 +171,8 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
       kind: 'plan',
       plan_id: 'basic',
       credits: null,
-      amount_inr: 299,
+      amount_minor: 399,
+      currency: 'USD',
       status: 'pending',
       note: 'testing',
       created_at: new Date().toISOString(),
@@ -180,6 +199,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
       resetAt,
       planExpiresAt,
       isAdmin,
+      settings: creditSettings,
       total: daily + purchased
     }
   }
@@ -207,6 +227,8 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   globalThis.__aiServer = {
     state: () => stateBody(),
+    plans: () => plans.map((plan) => ({ ...plan })),
+    settings: () => ({ ...creditSettings }),
     setBalance: (patch) => Object.assign(balance, patch),
     setChargeScript: (script) => {
       chargeScript = script
@@ -247,6 +269,60 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
       if (path === '/rest/v1/rpc/indra_my_purchases') return json(200, purchases)
 
       if (path === '/rest/v1/indra_plans') return json(200, plans)
+
+      if (path === '/rest/v1/rpc/indra_request_purchase') {
+        /*
+         * The server prices a request; the stub does the same arithmetic from
+         * its own settings, so a client that invented a price would disagree
+         * with the receipt it gets back.
+         */
+        const kind = body?.p_kind
+        const amount =
+          kind === 'plan'
+            ? (plans.find((plan) => plan.id === body?.p_plan)?.price_minor ?? 0)
+            : Math.ceil(Number(body?.p_credits ?? 0) / creditSettings.topupCredits) *
+              creditSettings.topupPriceMinor
+        purchases.unshift({
+          id: `req-${++seq}`,
+          kind,
+          plan_id: kind === 'plan' ? body?.p_plan : null,
+          plan_name: kind === 'plan' ? (plans.find((plan) => plan.id === body?.p_plan)?.name ?? null) : null,
+          credits: kind === 'credits' ? Number(body?.p_credits ?? 0) : null,
+          amount_minor: amount,
+          currency: creditSettings.currency,
+          status: 'pending',
+          note: body?.p_note ?? '',
+          created_at: new Date().toISOString(),
+          decided_at: null
+        })
+        return json(200, `req-${seq}`)
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_update_credit_settings') {
+        Object.assign(creditSettings, {
+          currency: body?.p_currency ?? creditSettings.currency,
+          symbol: body?.p_symbol ?? creditSettings.symbol,
+          decimals: body?.p_decimals ?? creditSettings.decimals,
+          tokensPerCredit: body?.p_tokens_per_credit ?? creditSettings.tokensPerCredit,
+          topupCredits: body?.p_topup_credits ?? creditSettings.topupCredits,
+          topupPriceMinor: body?.p_topup_price_minor ?? creditSettings.topupPriceMinor,
+          minTopup: body?.p_min_topup ?? creditSettings.minTopup,
+          maxTopup: body?.p_max_topup ?? creditSettings.maxTopup,
+          lowBalance: body?.p_low_balance ?? creditSettings.lowBalance,
+          updatedAt: new Date().toISOString()
+        })
+        return json(200, creditSettings)
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_save_plan') {
+        const plan = plans.find((entry) => entry.id === body?.p_id)
+        if (!plan) return json(404, { message: 'That plan does not exist.' })
+        if (body?.p_name !== null && body?.p_name !== undefined) plan.name = body.p_name
+        if (body?.p_daily !== null && body?.p_daily !== undefined) plan.daily_credits = body.p_daily
+        if (body?.p_price_minor !== null && body?.p_price_minor !== undefined) plan.price_minor = body.p_price_minor
+        if (body?.p_enabled !== null && body?.p_enabled !== undefined) plan.enabled = body.p_enabled
+        return json(200, { id: plan.id, created: false })
+      }
 
       if (path === '/functions/v1/indra-ai') {
         lastAsk = { body, headers: init.headers ?? {} }
@@ -430,11 +506,65 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   check(history[0].amount < 0 && history[0].balanceAfter >= 0, 'a charge is negative and names the balance after it')
 
   const tiers = await api.creditPlans(user)
-  check(tiers.length === 3 && tiers[1].priceInr === 299, 'the tiers come from the plan table')
+  check(tiers.length === 3 && tiers[1].priceMinor === 399, 'the tiers come from the plan table')
   check(tiers.filter((plan) => plan.current).length === 1, 'exactly one tier is the current one')
+  check(
+    tiers.every((plan) => typeof plan.enabled === 'boolean'),
+    'a tier says whether it is offered'
+  )
+
+  /* ---------------- the pricing rules are the server's ---------------- */
+
+  const rules = live.settings
+  check(
+    rules?.currency === 'USD' && rules?.symbol === '$' && rules?.decimals === 2,
+    'the workspace currency arrives with the balance',
+    JSON.stringify(rules)
+  )
+  check(
+    rules?.tokensPerCredit === 1000 && rules?.topupCredits === 100 && rules?.topupPriceMinor === 199,
+    'what a credit buys, and what a pack costs, are the server settings'
+  )
+  check(
+    rules?.minTopup === 100 && rules?.maxTopup === 100000 && rules?.lowBalance === 20,
+    'the top-up limits and the low-balance mark are settings, not constants'
+  )
+
+  /* A request is priced by the server: 250 credits at 100 per $1.99 pack is three packs. */
+  const priced = await api.requestPurchase(user, { kind: 'credits', credits: 250, note: '' })
+  const pricedRequest = priced.find((request) => request.kind === 'credits')
+  check(
+    pricedRequest?.amountMinor === 597 && pricedRequest?.currency === 'USD',
+    'a top-up is priced in whole minor units by the server',
+    JSON.stringify({ amount: pricedRequest?.amountMinor, currency: pricedRequest?.currency })
+  )
+  check(
+    pricedRequest?.planName === null && pricedRequest?.credits === 250,
+    'a top-up request keeps the credits it is for'
+  )
+
+  /* A tier request carries the tier's price and its name, straight from the row. */
+  const planRequest = await api.requestPurchase(user, { kind: 'plan', planId: 'pro', note: '' })
+  const proRequest = planRequest.find((request) => request.planId === 'pro')
+  check(
+    proRequest?.amountMinor === 999 && proRequest?.currency === 'USD' && proRequest?.planName === 'Pro',
+    'a plan request carries the price and the name the server holds',
+    JSON.stringify({ amount: proRequest?.amountMinor, name: proRequest?.planName })
+  )
+
+  /* ---------------- nothing here can write a price ---------------- */
+
+  const pricedFromClient = globalThis.__aiCalls.filter(
+    (call) => call.method === 'PATCH' && call.url.includes('indra_plans')
+  )
+  check(pricedFromClient.length === 0, 'the app never writes a plan row directly')
 
   const requests = await api.purchaseRequests(user)
-  check(requests.length === 1 && requests[0].planName === 'Basic', 'a request carries the tier it is for', requests[0]?.planName)
+  check(
+    requests.some((request) => request.planName === 'Basic' && request.amountMinor === 399),
+    'a request carries the tier it is for, and what it was quoted',
+    JSON.stringify(requests.map((request) => [request.kind, request.planName, request.amountMinor]))
+  )
 
   /* ---------------- a member cannot administer credits ---------------- */
 
@@ -442,6 +572,10 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   check(snapshot.live === false, 'a normal account gets no credit console')
   check(snapshot.pending.length === 0 && snapshot.accounts.length === 0, 'and no other account’s numbers with it')
   check(/not an administrator/i.test(snapshot.message ?? ''), 'the refusal explains itself', snapshot.message)
+  check(
+    snapshot.accounts.length === 0 && snapshot.settings?.currency === 'USD',
+    'a member may read the prices but nothing about another account'
+  )
 
   /* ---------------- nothing was written to a balance from here ---------------- */
 

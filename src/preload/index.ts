@@ -48,12 +48,14 @@ import type {
   WorkspaceState,
   AdminCreditLedgerRow,
   AdminCreditSnapshot,
+  AdminCreditSettingsInput,
   AdminPlanInput,
   AiActivity,
   AiAnswer,
   AiAskInput,
   CreditLedgerEntry,
   CreditPlan,
+  CreditSettings,
   CreditsState,
   PurchaseRequest,
   PurchaseRequestInput,
@@ -382,6 +384,10 @@ const api = {
       ipcRenderer.invoke('admin:credits:grant', payload),
     updatePlan: (input: AdminPlanInput): Promise<ApiResult<CreditPlan[]>> =>
       ipcRenderer.invoke('admin:credits:updatePlan', input),
+    updateCreditSettings: (
+      input: AdminCreditSettingsInput
+    ): Promise<ApiResult<CreditSettings>> =>
+      ipcRenderer.invoke('admin:credits:settings', input),
     creditLedger: (payload: {
       userId: string
       limit?: number

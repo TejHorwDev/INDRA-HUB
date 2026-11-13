@@ -1,6 +1,13 @@
 -- ---------------------------------------------------------------------------
 -- INDRA HUB — AI plans, credits and purchases (server-enforced)
 --
+-- THIS FILE IS SUPERSEDED for anything that prices a credit: run
+-- credit-console.sql after it, which replaces the plan table's price column
+-- with a currency-neutral one, adds the pricing settings, and rewrites the
+-- functions that quote a price. What remains true here is the part this file
+-- was written for: the balance is Postgres's, the ledger is append-only, and
+-- only the service role may move a balance.
+--
 -- Run after schema.sql, auth.sql and sharing.sql.
 --
 -- The rule this file exists to enforce
