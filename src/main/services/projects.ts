@@ -23,18 +23,60 @@ interface ProjectRow {
   owner_username: string
   member_count: number
   is_member: number
+  is_team_member: number
 }
+
+/*
+ * Who can open a project.
+ *
+ * Three ways in, and only three:
+ *   1. you own it;
+ *   2. you accepted an invitation to it (a project_members row);
+ *   3. you are on the head developer's team.
+ *
+ * The third one is the whole point of a team. A team is "the people I work
+ * with"; making each new project a second, separate invitation would mean a
+ * colleague who joined the group still could not open the work, which is what
+ * the team was for. So a team is a standing yes for the projects its owner
+ * starts, and leaving the team — or being removed from it — takes that back the
+ * same moment. Anyone outside the team still needs an invitation, which is why
+ * the two mechanisms live together rather than replacing each other.
+ */
+const TEAM_ACCESS = `EXISTS (
+  SELECT 1 FROM teams t
+    JOIN team_members tm ON tm.team_id = t.id
+   WHERE t.owner_id = p.owner_id AND tm.user_id = ?
+)`
+
+/** Everyone with access, owner aside: invited people and the owner's team, once each. */
+const MEMBER_COUNT = `(
+  SELECT COUNT(*) FROM (
+    SELECT m.user_id FROM project_members m WHERE m.project_id = p.id
+    UNION
+    SELECT tm.user_id FROM team_members tm
+      JOIN teams t ON t.id = tm.team_id
+     WHERE t.owner_id = p.owner_id
+  )
+)`
 
 const PROJECT_COLUMNS = `
   p.id, p.name, p.description, p.owner_id, p.created_at, p.updated_at,
   u.display_name AS owner_name,
   u.username     AS owner_username,
-  (SELECT COUNT(*) FROM project_members m WHERE m.project_id = p.id) AS member_count,
-  EXISTS(SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.user_id = ?) AS is_member
+  ${MEMBER_COUNT} AS member_count,
+  CASE WHEN ${TEAM_ACCESS} THEN 1
+       WHEN EXISTS(SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.user_id = ?) THEN 1
+       ELSE 0 END AS is_member,
+  CASE WHEN ${TEAM_ACCESS} THEN 1 ELSE 0 END AS is_team_member
 `
 
 function roleOf(row: ProjectRow, viewerId: string): ProjectRole {
   return row.owner_id === viewerId ? 'owner' : 'member'
+}
+
+function viaOf(row: ProjectRow, viewerId: string): 'owner' | 'invite' | 'team' {
+  if (row.owner_id === viewerId) return 'owner'
+  return Number(row.is_team_member) === 1 ? 'team' : 'invite'
 }
 
 function toSummary(row: ProjectRow, viewerId: string): ProjectSummary {
@@ -47,11 +89,14 @@ function toSummary(row: ProjectRow, viewerId: string): ProjectSummary {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     memberCount: Number(row.member_count ?? 0),
-    role: roleOf(row, viewerId)
+    role: roleOf(row, viewerId),
+    via: viaOf(row, viewerId)
   }
 }
 
 function loadRow(projectId: string, viewerId: string): ProjectRow | undefined {
+  // Three placeholders inside the column list — the team check appears twice,
+  // and the explicit-membership check once — then the project id.
   return getDatabase()
     .prepare(
       `SELECT ${PROJECT_COLUMNS}
@@ -59,23 +104,36 @@ function loadRow(projectId: string, viewerId: string): ProjectRow | undefined {
          JOIN users u ON u.id = p.owner_id
         WHERE p.id = ?`
     )
-    .get(viewerId, projectId) as ProjectRow | undefined
+    .get(viewerId, viewerId, viewerId, projectId) as ProjectRow | undefined
 }
 
-function readMembers(projectId: string): ProjectMember[] {
+/**
+ * The people who can work here, with how they got in. Invited people first, in
+ * the order they joined; the team after them, because being on the team is a
+ * standing relationship rather than an arrival.
+ */
+function readMembers(projectId: string, ownerId: string): ProjectMember[] {
   const rows = getDatabase()
     .prepare(
-      `SELECT m.user_id, m.joined_at, u.username, u.display_name
+      `SELECT m.user_id, m.joined_at, u.username, u.display_name, 'invite' AS via
          FROM project_members m
          JOIN users u ON u.id = m.user_id
         WHERE m.project_id = ?
-        ORDER BY m.joined_at ASC`
+        UNION ALL
+       SELECT tm.user_id, tm.joined_at, u.username, u.display_name, 'team' AS via
+         FROM team_members tm
+         JOIN teams t ON t.id = tm.team_id
+         JOIN users u ON u.id = tm.user_id
+        WHERE t.owner_id = ?
+          AND tm.user_id NOT IN (SELECT user_id FROM project_members WHERE project_id = ?)
+        ORDER BY via ASC, joined_at ASC`
     )
-    .all(projectId) as Array<{
+    .all(projectId, ownerId, projectId) as Array<{
     user_id: string
     joined_at: string
     username: string
     display_name: string
+    via: 'invite' | 'team'
   }>
 
   return rows.map((row) => ({
@@ -83,8 +141,22 @@ function readMembers(projectId: string): ProjectMember[] {
     username: row.username,
     displayName: row.display_name,
     role: 'member',
+    via: row.via,
     joinedAt: row.joined_at
   }))
+}
+
+function teamOf(ownerId: string): ProjectDetail['team'] {
+  const row = getDatabase()
+    .prepare(
+      `SELECT t.id, t.name,
+              (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) AS members
+         FROM teams t
+        WHERE t.owner_id = ?`
+    )
+    .get(ownerId) as { id: string; name: string; members: number } | undefined
+  if (!row) return null
+  return { id: row.id, name: row.name, memberCount: Number(row.members) }
 }
 
 function detail(row: ProjectRow, viewerId: string): ProjectDetail {
@@ -95,13 +167,16 @@ function detail(row: ProjectRow, viewerId: string): ProjectDetail {
       username: row.owner_username,
       displayName: row.owner_name
     },
-    members: readMembers(row.id),
+    members: readMembers(row.id, row.owner_id),
+    // The head developer's team, so the screen can say out loud who else can
+    // already open this — an access rule that is invisible is a surprise later.
+    team: teamOf(row.owner_id),
     // Only the head developer is shown who has been asked and not answered.
     invitations: row.owner_id === viewerId ? pendingInvitations('project', row.id) : []
   }
 }
 
-/** Projects the viewer owns or belongs to. */
+/** Projects the viewer owns, was invited to, or can reach through their team. */
 export function listProjects(viewer: SessionUser): ProjectSummary[] {
   const rows = getDatabase()
     .prepare(
@@ -110,9 +185,10 @@ export function listProjects(viewer: SessionUser): ProjectSummary[] {
          JOIN users u ON u.id = p.owner_id
         WHERE p.owner_id = ?
            OR EXISTS(SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.user_id = ?)
+           OR ${TEAM_ACCESS}
         ORDER BY p.updated_at DESC`
     )
-    .all(viewer.id, viewer.id, viewer.id) as unknown as ProjectRow[]
+    .all(viewer.id, viewer.id, viewer.id, viewer.id, viewer.id, viewer.id) as unknown as ProjectRow[]
 
   return rows.map((row) => toSummary(row, viewer.id))
 }
@@ -223,6 +299,23 @@ export function removeMember(
 
   if (userId === project.owner_id) {
     throw errors.forbidden('Ownership cannot be removed or transferred.')
+  }
+
+  // Team access is not a row on this project, so it cannot be removed here.
+  // Saying that plainly is kinder than "not on this project", which would be
+  // true of the table and false of what the owner can see.
+  const standing = db
+    .prepare(
+      `SELECT 1 FROM projects p
+         JOIN teams t ON t.owner_id = p.owner_id
+         JOIN team_members tm ON tm.team_id = t.id
+        WHERE p.id = ? AND tm.user_id = ?`
+    )
+    .get(projectId, userId)
+  if (standing) {
+    throw errors.forbidden(
+      'They are on your team, so they can open every project you own. Remove them from the team instead.'
+    )
   }
 
   const existing = db

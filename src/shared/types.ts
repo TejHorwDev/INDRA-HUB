@@ -163,6 +163,13 @@ export interface ProjectMember {
   username: string
   displayName: string
   role: 'member'
+  /**
+   * How they can open this project: an invitation they accepted, or the head
+   * developer's team. The distinction is shown, because "on the team" and
+   * "invited to this project" are different promises and only one of them can
+   * be taken away row by row.
+   */
+  via: 'invite' | 'team'
   joinedAt: string
 }
 
@@ -270,14 +277,30 @@ export interface ProjectSummary {
   ownerName: string
   createdAt: string
   updatedAt: string
+  /** Everyone with access, the owner aside. */
   memberCount: number
   /** The signed-in user's relationship to this project. */
   role: ProjectRole
+  /** How this account reaches the project: owns it, invited, or on the team. */
+  via: 'owner' | 'invite' | 'team'
+}
+
+/** The head developer's team, and how many people are standing in it. */
+export interface ProjectTeam {
+  id: string
+  name: string
+  memberCount: number
 }
 
 export interface ProjectDetail extends ProjectSummary {
   owner: UserSummary
   members: ProjectMember[]
+  /**
+   * The head developer's team, when they have one. Everyone on it can already
+   * open this project, which the screen says out loud rather than leaving the
+   * access rule to be discovered.
+   */
+  team: ProjectTeam | null
   /** People asked and not yet answered. Only the head developer sees these. */
   invitations: InvitationSummary[]
 }

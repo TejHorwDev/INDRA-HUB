@@ -9,6 +9,8 @@ import { SearchIcon, XIcon } from './icons'
 interface AddMemberDialogProps {
   open: boolean
   projectId: string
+  /** The head developer's team, whose members can already work here. */
+  teamName?: string | null
   /** Questions already asked and not yet answered. */
   pending: InvitationSummary[]
   onClose: () => void
@@ -29,6 +31,7 @@ interface AddMemberDialogProps {
 export default function AddMemberDialog({
   open,
   projectId,
+  teamName,
   pending,
   onClose,
   onInvited,
@@ -257,7 +260,9 @@ export default function AddMemberDialog({
 
         <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] px-6 py-4">
           <span className="text-xs text-[var(--ink-tertiary)]">
-            Nothing is shared until they accept.
+            {teamName
+              ? `Your team (${teamName}) can already open this. Invite everyone else here.`
+              : 'Nothing opens until they accept.'}
           </span>
           <button type="button" className="btn btn-ghost w-auto" onClick={onClose}>
             Done

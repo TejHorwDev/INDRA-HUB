@@ -18,6 +18,8 @@ export default function ProjectCard({ project, onOpen }: ProjectCardProps) {
           <span className="flex items-center gap-2">
             <span className="project-row-name">{project.name}</span>
             {project.role === 'owner' && <span className="badge badge--accent">Head developer</span>}
+            {project.via === 'team' && <span className="badge">Team</span>}
+            {project.via === 'invite' && <span className="badge">Invited</span>}
           </span>
 
           {project.description && <span className="project-row-desc">{project.description}</span>}

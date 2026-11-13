@@ -69,7 +69,8 @@ export function projectGraph(viewer: SessionUser, projectId: string): ProjectGra
     detail: `@${member.username}`,
     meta: {
       Username: `@${member.username}`,
-      Role: 'Member',
+      Role: member.via === 'team' ? 'Team' : 'Member',
+      'How they joined': member.via === 'team' ? 'Through the head developer’s team' : 'Invited to this project',
       Joined: day(member.joinedAt)
     }
   }))

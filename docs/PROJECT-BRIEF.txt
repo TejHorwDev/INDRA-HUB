@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.3
-  Latest release:     v1.9.3 (GitHub, public)
+  Version:            1.9.4
+  Latest release:     v1.9.4 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -53,7 +53,8 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3.
+v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
+v1.9.4.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -368,14 +369,43 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Being a member of somebody else's team is read-only and shows under
     "Member of"; ownership is checked in the service on every write, not in
     the renderer.
-  - Teams are not projects: nothing in a project's data or permissions depends
-    on them, and deleting a team touches no account and no document.
+  - **A team is a standing yes for the projects its owner starts (1.9.4).**
+    This corrects 1.9.3, which made joining consensual but stopped one step
+    short: a colleague could accept the team invitation and still open nothing,
+    because membership and project access were two unrelated questions. The
+    team is the group of people you work with, so it now means what it says —
+    everyone on it can open every project its owner owns, read and write the
+    documents, convert them into decks and save the decks.
+  - The rule is derived, not stored: access is owner, OR an accepted project
+    invitation, OR a team membership of the project's owner. Nothing is copied
+    into a table, so removing somebody from the team closes their projects the
+    same moment, and a project created after they joined opens to them without
+    a second invitation.
+  - The screens say which way in a person used. The project's team card labels
+    a row "Team" or "Member", the overview says "through The studio" or
+    "invited", and the card in the Projects list carries the same badge. The
+    new-project dialog states who will be able to open it before it exists.
+  - Team access is taken away through the team, not through a project row:
+    removing a team member's individual project row is refused with that
+    sentence rather than silently doing nothing. Invited outsiders — people not
+    on the team — are still removed row by row.
+  - Accepting a project invitation opens the project; accepting a team
+    invitation says that the owner's projects are now on their Projects page.
+  - What a team does **not** grant: the head developer's account, their other
+    accounts' projects, or any admin reach. A member still cannot invite,
+    remove, rename or delete; the shape of the project stays the owner's.
+  - Teams and projects are still separate objects: deleting a team leaves every
+    project, document and account where it was — it only closes the door that
+    membership had opened.
   - Create, rename, delete projects; each has a description
-  - Owner/member model stored in project_members
+  - Owner/member model stored in project_members, plus team access derived at
+    read time
   - Invite members by exact email address; the matched account's name and
     address are shown so the choice is made by name, and the invitation is
     answered by them on their own Home screen (section 5.2)
-  - Membership checks on every read and write in the service layer
+  - Membership checks on every read and write in the service layer, and one
+    SQL definition of "can open this project" shared by the list, the detail,
+    the library and the graph
   - Project dashboard: overview, members, documents, presentations, activity
   - Project workspace: a combined view of the project's material
 

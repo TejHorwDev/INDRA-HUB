@@ -187,20 +187,37 @@ function ask(
 
   // Somebody who is already in gets no question, however they were reached —
   // by id from the search, or by an address typed straight into the box.
-  const member =
-    kind === 'team'
-      ? getDatabase()
-          .prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
-          .get(targetId, account.id)
-      : getDatabase()
-          .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
-          .get(targetId, account.id)
+  if (kind === 'team') {
+    const member = getDatabase()
+      .prepare('SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?')
+      .get(targetId, account.id)
+    if (member) {
+      throw errors.validation('That person is already on the team.', 'query')
+    }
+  } else {
+    const member = getDatabase()
+      .prepare('SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?')
+      .get(targetId, account.id)
+    if (member) {
+      throw errors.validation('That person is already on this project.', 'query')
+    }
 
-  if (member) {
-    throw errors.validation(
-      kind === 'team' ? 'That person is already on the team.' : 'That person is already on this project.',
-      'query'
-    )
+    // On the head developer's team already means already able to work here.
+    // Asking them would be a question whose only honest answer is "I know".
+    const standing = getDatabase()
+      .prepare(
+        `SELECT 1 FROM projects p
+           JOIN teams t ON t.owner_id = p.owner_id
+           JOIN team_members tm ON tm.team_id = t.id
+          WHERE p.id = ? AND tm.user_id = ?`
+      )
+      .get(targetId, account.id)
+    if (standing) {
+      throw errors.validation(
+        'They are on your team, so they can already work in this project.',
+        'query'
+      )
+    }
   }
 
   if (alreadyInvited(kind, targetId, account.id)) {
@@ -335,6 +352,23 @@ export function respond(
       db.prepare(
         'INSERT OR IGNORE INTO team_members (team_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)'
       ).run(targetId, viewer.id, 'member', now())
+
+      /*
+       * Joining the team answers, in advance, every project question the same
+       * owner had already asked this person: the team opens those projects, so
+       * asking again would be a question whose answer changes nothing. The
+       * questions are cancelled rather than deleted, so the record shows they
+       * were overtaken by joining the team.
+       */
+      db.prepare(
+        `UPDATE invitations
+            SET status = 'cancelled', responded_at = ?
+          WHERE kind = 'project' AND status = 'pending' AND user_id = ?
+            AND project_id IN (
+              SELECT p.id FROM projects p JOIN teams t ON t.owner_id = p.owner_id
+               WHERE t.id = ?
+            )`
+      ).run(now(), viewer.id, targetId)
     } else {
       db.prepare(
         `INSERT INTO project_members (project_id, user_id, role, joined_at)

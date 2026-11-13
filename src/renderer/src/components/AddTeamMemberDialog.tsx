@@ -138,7 +138,8 @@ export default function AddTeamMemberDialog({
               Invite to team
             </h2>
             <p className="mt-1 text-sm text-[var(--ink-tertiary)]">
-              You choose someone. They decide whether to join.
+              You choose someone. They decide whether to join — and joining means they can
+              work in the projects you own.
             </p>
           </div>
           <button
@@ -258,7 +259,7 @@ export default function AddTeamMemberDialog({
 
         <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] px-6 py-4">
           <span className="text-xs text-[var(--ink-tertiary)]">
-            Nothing is shared until they accept.
+            Nothing opens until they accept.
           </span>
           <button type="button" className="btn btn-ghost w-auto" onClick={onClose} disabled={Boolean(invitingId)}>
             Done

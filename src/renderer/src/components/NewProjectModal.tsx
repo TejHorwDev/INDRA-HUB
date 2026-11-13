@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { ProjectDetail } from '@shared/types'
+import type { ProjectDetail, TeamDetail } from '@shared/types'
 import { ApiError, api, errorMessage } from '../lib/api'
 import TextField from './TextField'
 import { XIcon } from './icons'
@@ -23,6 +23,7 @@ export default function NewProjectModal({ open, onClose, onCreated }: NewProject
   const [touched, setTouched] = useState(false)
   const [creating, setCreating] = useState(false)
   const [serverError, setServerError] = useState<{ field?: string; message: string } | null>(null)
+  const [team, setTeam] = useState<TeamDetail | null>(null)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -38,6 +39,12 @@ export default function NewProjectModal({ open, onClose, onCreated }: NewProject
     setTouched(false)
     setCreating(false)
     setServerError(null)
+    // Who will be able to open this is worth saying before it is created, not
+    // after somebody notices a colleague already inside.
+    api.team
+      .read()
+      .then((overview) => setTeam(overview.owned))
+      .catch(() => setTeam(null))
     const timer = window.setTimeout(() => nameRef.current?.focus(), 60)
     return () => window.clearTimeout(timer)
   }, [open])
@@ -143,6 +150,12 @@ export default function NewProjectModal({ open, onClose, onCreated }: NewProject
             />
           </div>
         </div>
+
+        <p className="member-hint px-6 pb-4">
+          {team && team.memberCount > 1
+            ? `Everyone on ${team.name} will be able to open it and work in it — ${team.memberCount - 1} ${team.memberCount - 1 === 1 ? 'person' : 'people'} right away.`
+            : 'Only you can open it until you invite someone, or start a team.'}
+        </p>
 
         {serverError && !serverError.field && (
           <p className="px-6 pb-4 text-sm text-[var(--danger)]" role="alert">
