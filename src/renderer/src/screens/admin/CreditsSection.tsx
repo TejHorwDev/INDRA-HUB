@@ -615,10 +615,9 @@ export default function CreditsSection(_props: SectionProps) {
               )}
             </div>
             <p className="admin-group-note">
-              The role belongs to the server, not to this PC. The button never takes it from an administrator who is
-              still using the console: if one is, the server refuses and says so. An installation that has been
-              abandoned for a day stops counting as in use, so a reinstalled PC can pick the role back up without
-              anybody editing the database.
+              The role belongs to the account, not to this PC. Once an account holds it, signing in with that account
+              opens this console on any machine, with nothing to press — and nothing about it is stored on a
+              computer. A device can never hold it, however many times it is reinstalled.
             </p>
           </div>
         </section>
