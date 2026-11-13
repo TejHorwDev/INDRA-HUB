@@ -391,6 +391,18 @@ export async function cloudSession(viewer: SessionUser): Promise<CloudSession> {
 
 /** Exposed to the sharing service so there is one transport, not two. */
 export const cloudRequest = request
+
+/**
+ * The two things the AI service needs from this file: the endpoint (so a call
+ * to the Edge Function goes to the same project as everything else) and the
+ * same "is there a route out" answer every other cloud call is refused by.
+ */
+export const cloudEndpoint = endpoint
+
+/** Throws the offline message when the machine has no route out. */
+export function assertCloudReachable(): void {
+  assertReachable()
+}
 export { parseJson as parseCloudJson }
 
 /* ---------------- local ids in the cloud ---------------- */

@@ -341,6 +341,37 @@ const MIGRATIONS: string[] = [
   );
 
   CREATE INDEX cloud_conflicts_project_idx ON cloud_conflicts (project_id, detected_at DESC);
+  `,
+
+  /* 11 — what this PC remembers about the credit balance, and the AI runs it
+     made. Both are copies of something the server owns: the balance table is
+     drawn on screen with the time it was true and is never consulted before a
+     request, and the run log records what was actually written into a document
+     so the person can find it again. */
+  `
+  CREATE TABLE ai_credit_cache (
+    user_id    TEXT PRIMARY KEY,
+    state      TEXT NOT NULL,
+    synced_at  TEXT NOT NULL
+  );
+
+  CREATE TABLE ai_activity (
+    id             TEXT PRIMARY KEY,
+    user_id        TEXT NOT NULL,
+    project_id     TEXT NOT NULL,
+    document_id    TEXT NOT NULL,
+    document_title TEXT NOT NULL,
+    mode           TEXT NOT NULL CHECK (mode IN ('chat', 'research')),
+    model          TEXT NOT NULL,
+    prompt         TEXT NOT NULL,
+    credits        INTEGER NOT NULL,
+    tokens         INTEGER NOT NULL,
+    citation_count INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT NOT NULL
+  );
+
+  CREATE INDEX ai_activity_user_idx ON ai_activity (user_id, created_at DESC);
+  CREATE INDEX ai_activity_document_idx ON ai_activity (document_id, created_at DESC);
   `
 ]
 

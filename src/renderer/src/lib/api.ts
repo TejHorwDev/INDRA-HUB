@@ -1,5 +1,16 @@
 import type {
   AdminAccount,
+  AdminCreditLedgerRow,
+  AdminCreditSnapshot,
+  AdminPlanInput,
+  AiActivity,
+  AiAnswer,
+  AiAskInput,
+  CreditLedgerEntry,
+  CreditPlan,
+  CreditsState,
+  PurchaseRequest,
+  PurchaseRequestInput,
   AdminIdentityInput,
   AdminLoginInput,
   AdminOverview,
@@ -264,6 +275,17 @@ export const api = {
     signIn: (input: AdminLoginInput): Promise<AdminAccount> => unwrap(bridge().admin.login(input)),
     signOut: (): Promise<null> => unwrap(bridge().admin.logout()),
     overview: (): Promise<AdminOverview> => unwrap(bridge().admin.overview()),
+    credits: (): Promise<AdminCreditSnapshot> => unwrap(bridge().admin.credits()),
+    decidePurchase: (id: string, approve: boolean, note = ''): Promise<AdminCreditSnapshot> =>
+      unwrap(bridge().admin.decidePurchase({ id, approve, note })),
+    setPlan: (userId: string, planId: string, days = 30): Promise<AdminCreditSnapshot> =>
+      unwrap(bridge().admin.setPlan({ userId, planId, days })),
+    grantCredits: (userId: string, amount: number, reason = ''): Promise<AdminCreditSnapshot> =>
+      unwrap(bridge().admin.grantCredits({ userId, amount, reason })),
+    updatePlan: (input: AdminPlanInput): Promise<CreditPlan[]> =>
+      unwrap(bridge().admin.updatePlan(input)),
+    creditLedger: (userId: string, limit = 40): Promise<AdminCreditLedgerRow[]> =>
+      unwrap(bridge().admin.creditLedger({ userId, limit })),
     suspendAccount: (userId: string, suspended: boolean): Promise<null> =>
       unwrap(bridge().admin.suspendAccount({ userId, suspended })),
     resetPassword: (userId: string, password: string): Promise<null> =>
@@ -318,6 +340,27 @@ export const api = {
     discard: (): Promise<WorkspaceState> => unwrap(bridge().workspace.discard()),
     onChange: (listener: (state: WorkspaceState) => void): (() => void) =>
       bridge().workspace.onChange(listener)
+  },
+
+  /*
+   * Credits and AI. `state` can be asked for the last copy this PC holds, which
+   * is what the screen draws while it waits for the live answer.
+   */
+  credits: {
+    state: (cached = false): Promise<CreditsState> => unwrap(bridge().credits.state({ cached })),
+    plans: (): Promise<CreditPlan[]> => unwrap(bridge().credits.plans()),
+    ledger: (limit = 40): Promise<CreditLedgerEntry[]> =>
+      unwrap(bridge().credits.ledger({ limit })),
+    purchases: (): Promise<PurchaseRequest[]> => unwrap(bridge().credits.purchases()),
+    request: (input: PurchaseRequestInput): Promise<PurchaseRequest[]> =>
+      unwrap(bridge().credits.request(input)),
+    cancel: (id: string): Promise<PurchaseRequest[]> => unwrap(bridge().credits.cancel(id))
+  },
+
+  ai: {
+    ask: (input: AiAskInput): Promise<AiAnswer> => unwrap(bridge().ai.ask(input)),
+    research: (input: AiAskInput): Promise<AiAnswer> => unwrap(bridge().ai.research(input)),
+    activity: (limit = 20): Promise<AiActivity[]> => unwrap(bridge().ai.activity({ limit }))
   }
 }
 

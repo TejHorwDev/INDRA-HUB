@@ -16,6 +16,7 @@ export type AdminSectionId =
   | 'projects'
   | 'content'
   | 'keys'
+  | 'credits'
   | 'access'
   | 'appearance'
   | 'backend'

@@ -45,6 +45,17 @@ import type {
   WorkspaceClaimInput,
   WorkspaceCredentialsInput,
   WorkspaceState,
+  AdminCreditLedgerRow,
+  AdminCreditSnapshot,
+  AdminPlanInput,
+  AiActivity,
+  AiAnswer,
+  AiAskInput,
+  CreditLedgerEntry,
+  CreditPlan,
+  CreditsState,
+  PurchaseRequest,
+  PurchaseRequestInput,
   BackendConfigInput,
   BackendStatus,
   SessionUser,
@@ -305,6 +316,34 @@ const api = {
     clear: (): Promise<ApiResult<BackendStatus>> => ipcRenderer.invoke('backend:clear')
   },
 
+  /*
+   * Credits and AI. Every one of these is answered by the main process; the
+   * renderer holds no token and cannot charge anything.
+   */
+  credits: {
+    state: (payload?: { cached?: boolean }): Promise<ApiResult<CreditsState>> =>
+      ipcRenderer.invoke('credits:state', payload ?? {}),
+    plans: (): Promise<ApiResult<CreditPlan[]>> => ipcRenderer.invoke('credits:plans'),
+    ledger: (payload?: { limit?: number }): Promise<ApiResult<CreditLedgerEntry[]>> =>
+      ipcRenderer.invoke('credits:ledger', payload ?? {}),
+    purchases: (): Promise<ApiResult<PurchaseRequest[]>> => ipcRenderer.invoke('credits:purchases'),
+    request: (input: PurchaseRequestInput): Promise<ApiResult<PurchaseRequest[]>> =>
+      ipcRenderer.invoke('credits:request', input),
+    cancel: (id: string): Promise<ApiResult<PurchaseRequest[]>> =>
+      ipcRenderer.invoke('credits:cancel', id)
+  },
+
+  ai: {
+    /** One turn inside a document: write, rewrite, answer. */
+    ask: (input: AiAskInput): Promise<ApiResult<AiAnswer>> => ipcRenderer.invoke('ai:ask', input),
+    /** Plan, search, read, and write a brief with the sources it used. */
+    research: (input: AiAskInput): Promise<ApiResult<AiAnswer>> =>
+      ipcRenderer.invoke('ai:research', input),
+    /** What this PC asked for, so a document can point at it later. */
+    activity: (payload?: { limit?: number }): Promise<ApiResult<AiActivity[]>> =>
+      ipcRenderer.invoke('ai:activity', payload ?? {})
+  },
+
   admin: {
     status: (): Promise<ApiResult<AdminStatus>> => ipcRenderer.invoke('admin:status'),
     setup: (input: AdminSetupInput): Promise<ApiResult<AdminAccount>> =>
@@ -313,6 +352,33 @@ const api = {
       ipcRenderer.invoke('admin:login', input),
     logout: (): Promise<ApiResult<null>> => ipcRenderer.invoke('admin:logout'),
     overview: (): Promise<ApiResult<AdminOverview>> => ipcRenderer.invoke('admin:overview'),
+    credits: (): Promise<ApiResult<AdminCreditSnapshot>> =>
+      ipcRenderer.invoke('admin:credits:snapshot'),
+    decidePurchase: (payload: {
+      id: string
+      approve: boolean
+      note?: string
+    }): Promise<ApiResult<AdminCreditSnapshot>> =>
+      ipcRenderer.invoke('admin:credits:decide', payload),
+    setPlan: (payload: {
+      userId: string
+      planId: string
+      days?: number
+    }): Promise<ApiResult<AdminCreditSnapshot>> =>
+      ipcRenderer.invoke('admin:credits:setPlan', payload),
+    grantCredits: (payload: {
+      userId: string
+      amount: number
+      reason?: string
+    }): Promise<ApiResult<AdminCreditSnapshot>> =>
+      ipcRenderer.invoke('admin:credits:grant', payload),
+    updatePlan: (input: AdminPlanInput): Promise<ApiResult<CreditPlan[]>> =>
+      ipcRenderer.invoke('admin:credits:updatePlan', input),
+    creditLedger: (payload: {
+      userId: string
+      limit?: number
+    }): Promise<ApiResult<AdminCreditLedgerRow[]>> =>
+      ipcRenderer.invoke('admin:credits:ledger', payload),
     suspendAccount: (payload: {
       userId: string
       suspended: boolean

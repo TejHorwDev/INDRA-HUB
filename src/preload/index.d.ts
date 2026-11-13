@@ -1,4 +1,15 @@
 import type {
+  AdminCreditLedgerRow,
+  AdminCreditSnapshot,
+  AdminPlanInput,
+  AiActivity,
+  AiAnswer,
+  AiAskInput,
+  CreditLedgerEntry,
+  CreditPlan,
+  CreditsState,
+  PurchaseRequest,
+  PurchaseRequestInput,
   WorkspaceClaimInput,
   WorkspaceCredentialsInput,
   WorkspaceState,
@@ -226,12 +237,48 @@ export interface IndraBridge {
     discard: () => Promise<ApiResult<WorkspaceState>>
     onChange: (listener: (state: WorkspaceState) => void) => () => void
   }
+  credits: {
+    state: (payload?: { cached?: boolean }) => Promise<ApiResult<CreditsState>>
+    plans: () => Promise<ApiResult<CreditPlan[]>>
+    ledger: (payload?: { limit?: number }) => Promise<ApiResult<CreditLedgerEntry[]>>
+    purchases: () => Promise<ApiResult<PurchaseRequest[]>>
+    request: (input: PurchaseRequestInput) => Promise<ApiResult<PurchaseRequest[]>>
+    cancel: (id: string) => Promise<ApiResult<PurchaseRequest[]>>
+  }
+
+  ai: {
+    ask: (input: AiAskInput) => Promise<ApiResult<AiAnswer>>
+    research: (input: AiAskInput) => Promise<ApiResult<AiAnswer>>
+    activity: (payload?: { limit?: number }) => Promise<ApiResult<AiActivity[]>>
+  }
+
   admin: {
     status: () => Promise<ApiResult<AdminStatus>>
     setup: (input: AdminSetupInput) => Promise<ApiResult<AdminAccount>>
     login: (input: AdminLoginInput) => Promise<ApiResult<AdminAccount>>
     logout: () => Promise<ApiResult<null>>
     overview: () => Promise<ApiResult<AdminOverview>>
+    credits: () => Promise<ApiResult<AdminCreditSnapshot>>
+    decidePurchase: (payload: {
+      id: string
+      approve: boolean
+      note?: string
+    }) => Promise<ApiResult<AdminCreditSnapshot>>
+    setPlan: (payload: {
+      userId: string
+      planId: string
+      days?: number
+    }) => Promise<ApiResult<AdminCreditSnapshot>>
+    grantCredits: (payload: {
+      userId: string
+      amount: number
+      reason?: string
+    }) => Promise<ApiResult<AdminCreditSnapshot>>
+    updatePlan: (input: AdminPlanInput) => Promise<ApiResult<CreditPlan[]>>
+    creditLedger: (payload: {
+      userId: string
+      limit?: number
+    }) => Promise<ApiResult<AdminCreditLedgerRow[]>>
     suspendAccount: (payload: {
       userId: string
       suspended: boolean

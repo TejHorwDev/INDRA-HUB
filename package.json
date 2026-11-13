@@ -1,8 +1,8 @@
 {
   "name": "indra-hub",
-  "version": "1.9.7",
+  "version": "2.0.0",
   "private": true,
-  "description": "INDRA HUB \u2014 desktop workspace",
+  "description": "INDRA HUB — desktop workspace",
   "author": "TejHorwDev",
   "main": "./out/main/bootstrap.js",
   "engines": {
@@ -25,7 +25,9 @@
     "sim:collab": "node scripts/collab-sim.mjs",
     "sim:offline": "node scripts/offline-sim.mjs",
     "sim:cloud": "node scripts/cloud-sim.mjs",
-    "sim:sharing": "node scripts/sharing-sim.mjs"
+    "sim:sharing": "node scripts/sharing-sim.mjs",
+    "sim:ai": "node scripts/ai-sim.mjs",
+    "sim:function": "node scripts/function-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

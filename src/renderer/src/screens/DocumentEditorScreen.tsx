@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type {
+  AiAnswer,
   DocBlock,
   DocBlockType,
   DocumentDetail,
   DocumentVersionSummary
 } from '@shared/types'
+import AiPanel, { markdownToHtml } from '../components/AiPanel'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DocumentToolbar from '../components/DocumentToolbar'
 import EmptyState from '../components/EmptyState'
 import PromptDialog from '../components/PromptDialog'
 import { useToast } from '../components/ToastProvider'
-import { AlertCircleIcon, ChevronLeftIcon, PlusIcon } from '../components/icons'
+import { AlertCircleIcon, ChevronLeftIcon, PlusIcon, SparkIcon } from '../components/icons'
 import { HistoryIcon, PresentationIcon } from '../components/DocIcons'
 import { api, errorCode, errorMessage } from '../lib/api'
 import { formatClock, formatRelative } from '../lib/format'
@@ -31,6 +33,81 @@ function blockText(html: string | undefined): string {
 
 function makeBlock(type: DocBlockType = 'paragraph', html = ''): DocBlock {
   return { id: crypto.randomUUID(), type, html }
+}
+
+/** Inline formatting for one line of a model's Markdown, escaped first. */
+function inlineMd(text: string): string {
+  return markdownToHtml(text)
+    .replace(/^<p>/, '')
+    .replace(/<\/p>$/, '')
+}
+
+/**
+ * A model's Markdown becomes ordinary blocks: headings keep the document's
+ * structure (and the presentation converter's), lists stay lists, and the
+ * sources become a numbered list of real links at the end. Nothing is inserted
+ * as one opaque wall of text.
+ */
+function blocksFromAnswer(answer: AiAnswer): DocBlock[] {
+  const blocks: DocBlock[] = []
+  const lines = answer.answer.replace(/\r/g, '').split('\n')
+  let paragraph: string[] = []
+
+  const flush = (): void => {
+    if (!paragraph.length) return
+    const html = paragraph.map((line) => inlineMd(line)).join('<br />').trim()
+    paragraph = []
+    if (html) blocks.push(makeBlock('paragraph', html))
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) {
+      flush()
+      continue
+    }
+    const heading = /^(#{1,3})\s+(.*)$/.exec(line)
+    if (heading) {
+      flush()
+      const level = heading[1].length
+      blocks.push(makeBlock(level === 1 ? 'heading1' : level === 2 ? 'heading2' : 'heading3', inlineMd(heading[2])))
+      continue
+    }
+    const bullet = /^[-*•]\s+(.*)$/.exec(line)
+    if (bullet) {
+      flush()
+      blocks.push(makeBlock('bulleted', inlineMd(bullet[1])))
+      continue
+    }
+    const ordered = /^\d{1,2}[.)]\s+(.*)$/.exec(line)
+    if (ordered) {
+      flush()
+      blocks.push(makeBlock('numbered', inlineMd(ordered[1])))
+      continue
+    }
+    if (line.startsWith('>')) {
+      flush()
+      blocks.push(makeBlock('quote', inlineMd(line.replace(/^>\s?/, ''))))
+      continue
+    }
+    paragraph.push(line)
+  }
+  flush()
+
+  if (answer.citations.length > 0) {
+    blocks.push(makeBlock('heading2', 'Sources'))
+    for (const [index, source] of answer.citations.entries()) {
+      const label = source.title.replace(/[<>&"]/g, ' ')
+      blocks.push(
+        makeBlock(
+          'numbered',
+          `[${index + 1}] <a href="${source.url}" target="_blank" rel="noreferrer">${label}</a>`
+        )
+      )
+    }
+  }
+
+  return blocks
 }
 
 export default function DocumentEditorScreen() {
@@ -58,6 +135,8 @@ export default function DocumentEditorScreen() {
   >(null)
   const [busy, setBusy] = useState(false)
   const [converting, setConverting] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiSelection, setAiSelection] = useState('')
 
   const refs = useRef(new Map<string, HTMLElement>())
   const activeBlockRef = useRef<string | null>(null)
@@ -86,6 +165,15 @@ export default function DocumentEditorScreen() {
       activeBlockRef.current
     if (!id) return
     setActiveType(latest.current.blocks.find((block) => block.id === id)?.type ?? null)
+    /* What is selected is what the assistant is asked to work on, so it is
+       captured from the page itself rather than guessed from the caret. */
+    try {
+      const range = window.getSelection()
+      const text = range && !range.isCollapsed ? range.toString().trim() : ''
+      setAiSelection(text.slice(0, 6000))
+    } catch {
+      setAiSelection('')
+    }
     try {
       setInlineState({
         bold: window.document.queryCommandState('bold'),
@@ -493,6 +581,16 @@ export default function DocumentEditorScreen() {
         <div className="doc-bar-actions">
           <button
             type="button"
+            className={`tool-icon${aiOpen ? ' tool-icon--active' : ''}`}
+            onClick={() => setAiOpen((open) => !open)}
+            title="Research assistant"
+            aria-label="Research assistant"
+            aria-pressed={aiOpen}
+          >
+            <SparkIcon size={15} />
+          </button>
+          <button
+            type="button"
             className="tool-icon"
             onClick={openVersions}
             title="Version history"
@@ -551,8 +649,9 @@ export default function DocumentEditorScreen() {
         </div>
       )}
 
-      <div className="doc-scroll">
-        <div className="doc-page">
+      <div className="doc-body">
+        <div className="doc-scroll">
+          <div className="doc-page">
           <input
             className="doc-title-input"
             value={title}
@@ -749,7 +848,24 @@ export default function DocumentEditorScreen() {
             <PlusIcon size={14} /> Add block
           </button>
 
+          </div>
         </div>
+
+        {aiOpen && (
+          <AiPanel
+            projectId={projectId}
+            documentId={documentId}
+            documentTitle={title.trim() || 'Untitled document'}
+            selection={aiSelection}
+            onInsert={(answer) => {
+              const added = blocksFromAnswer(answer)
+              if (added.length === 0) return
+              setBlocks((current) => [...current, ...added])
+              markDirty()
+              setAiOpen(false)
+            }}
+          />
+        )}
       </div>
 
       <div className="doc-statusbar">

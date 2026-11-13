@@ -59,6 +59,22 @@ import {
 } from '../services/projects'
 import { searchUsers } from '../services/users'
 import {
+  activity as aiActivity,
+  adminCreditSnapshot,
+  adminDecidePurchase,
+  adminGrant,
+  adminLedger,
+  adminSetPlan,
+  adminUpdatePlan,
+  ask as askAI,
+  cancelPurchase,
+  creditLedger,
+  creditPlans,
+  creditsState,
+  purchaseRequests,
+  requestPurchase
+} from '../services/ai'
+import {
   createDocument,
   deleteDocument,
   getDocument,
@@ -1017,5 +1033,185 @@ export function registerIpcHandlers(): void {
         assertCanManageTeam(viewer, projectId)
         return searchUsers(validateEmailQuery(payload?.query), projectId)
       })
+  )
+
+  /* ---------------- credits and AI ---------------- */
+
+  /*
+   * The balance is read here, in the main process, with the account's own cloud
+   * token. The renderer receives numbers and timestamps — never a credential,
+   * and never the authority to spend.
+   */
+  ipcMain.handle('credits:state', (_event, payload: { cached?: unknown }) =>
+    toResult(() => creditsState(actor(), payload?.cached === true))
+  )
+
+  ipcMain.handle('credits:plans', () => toResult(() => creditPlans(actor())))
+
+  ipcMain.handle('credits:ledger', (_event, payload: { limit?: unknown }) =>
+    toResult(() => creditLedger(actor(), Number(payload?.limit ?? 40)))
+  )
+
+  ipcMain.handle('credits:purchases', () => toResult(() => purchaseRequests(actor())))
+
+  ipcMain.handle(
+    'credits:request',
+    (_event, payload: { kind?: unknown; planId?: unknown; credits?: unknown; note?: unknown }) =>
+      toResult(() =>
+        requestPurchase(actor(), {
+          kind: payload?.kind === 'credits' ? 'credits' : 'plan',
+          planId: typeof payload?.planId === 'string' ? payload.planId : undefined,
+          credits: payload?.credits === undefined ? undefined : Number(payload.credits),
+          note: typeof payload?.note === 'string' ? payload.note : ''
+        })
+      )
+  )
+
+  ipcMain.handle('credits:cancel', (_event, id: unknown) =>
+    toResult(() => cancelPurchase(actor(), requireRecordId(id)))
+  )
+
+  ipcMain.handle('ai:activity', (_event, payload: { limit?: unknown }) =>
+    toResult(() => aiActivity(actor(), Number(payload?.limit ?? 20)))
+  )
+
+  ipcMain.handle(
+    'ai:ask',
+    (
+      _event,
+      payload: {
+        projectId?: unknown
+        documentId?: unknown
+        prompt?: unknown
+        selection?: unknown
+        language?: unknown
+        history?: unknown
+      }
+    ) =>
+      toResult(() =>
+        askAI(
+          actor(),
+          {
+            projectId: requireProjectId(payload?.projectId),
+            documentId: requireRecordId(payload?.documentId),
+            prompt: typeof payload?.prompt === 'string' ? payload.prompt : '',
+            selection: typeof payload?.selection === 'string' ? payload.selection : undefined,
+            language: typeof payload?.language === 'string' ? payload.language : undefined,
+            history: Array.isArray(payload?.history)
+              ? (payload.history as Array<{ role: 'user' | 'model'; text: string }>)
+              : undefined
+          },
+          'chat'
+        )
+      )
+  )
+
+  ipcMain.handle(
+    'ai:research',
+    (
+      _event,
+      payload: {
+        projectId?: unknown
+        documentId?: unknown
+        prompt?: unknown
+        selection?: unknown
+        language?: unknown
+        depth?: unknown
+        history?: unknown
+      }
+    ) =>
+      toResult(() =>
+        askAI(
+          actor(),
+          {
+            projectId: requireProjectId(payload?.projectId),
+            documentId: requireRecordId(payload?.documentId),
+            prompt: typeof payload?.prompt === 'string' ? payload.prompt : '',
+            selection: typeof payload?.selection === 'string' ? payload.selection : undefined,
+            language: typeof payload?.language === 'string' ? payload.language : undefined,
+            depth: payload?.depth === 'deep' ? 'deep' : 'standard',
+            history: Array.isArray(payload?.history)
+              ? (payload.history as Array<{ role: 'user' | 'model'; text: string }>)
+              : undefined
+          },
+          'research'
+        )
+      )
+  )
+
+  /*
+   * Credit administration. Two gates: the local administrator session, and —
+   * inside every one of these calls — the server's own check that the signed-in
+   * cloud account holds the administrator role. Either one alone is not enough.
+   */
+  ipcMain.handle('admin:credits:snapshot', () =>
+    toResult(() => {
+      requireAdmin()
+      return adminCreditSnapshot(actor())
+    })
+  )
+
+  ipcMain.handle(
+    'admin:credits:decide',
+    (_event, payload: { id?: unknown; approve?: unknown; note?: unknown }) =>
+      toResult(() => {
+        requireAdmin()
+        return adminDecidePurchase(
+          actor(),
+          requireRecordId(payload?.id),
+          payload?.approve === true,
+          typeof payload?.note === 'string' ? payload.note : ''
+        )
+      })
+  )
+
+  ipcMain.handle(
+    'admin:credits:setPlan',
+    (_event, payload: { userId?: unknown; planId?: unknown; days?: unknown }) =>
+      toResult(() => {
+        requireAdmin()
+        return adminSetPlan(
+          actor(),
+          requireRecordId(payload?.userId),
+          requireRecordId(payload?.planId),
+          Number(payload?.days ?? 30)
+        )
+      })
+  )
+
+  ipcMain.handle(
+    'admin:credits:grant',
+    (_event, payload: { userId?: unknown; amount?: unknown; reason?: unknown }) =>
+      toResult(() => {
+        requireAdmin()
+        return adminGrant(
+          actor(),
+          requireRecordId(payload?.userId),
+          Number(payload?.amount ?? 0),
+          typeof payload?.reason === 'string' ? payload.reason : ''
+        )
+      })
+  )
+
+  ipcMain.handle(
+    'admin:credits:updatePlan',
+    (_event, payload: { id?: unknown; name?: unknown; dailyCredits?: unknown; priceInr?: unknown; blurb?: unknown }) =>
+      toResult(() => {
+        requireAdmin()
+        return adminUpdatePlan(actor(), {
+          id: requireRecordId(payload?.id),
+          name: typeof payload?.name === 'string' ? payload.name : undefined,
+          dailyCredits: payload?.dailyCredits === undefined ? undefined : Number(payload.dailyCredits),
+          priceInr: payload?.priceInr === undefined ? undefined : Number(payload.priceInr),
+          blurb: typeof payload?.blurb === 'string' ? payload.blurb : undefined
+        })
+      })
+  )
+
+  ipcMain.handle('admin:credits:ledger', (_event, payload: { userId?: unknown; limit?: unknown }) =>
+    toResult(() => {
+      requireAdmin()
+      return adminLedger(actor(), requireRecordId(payload?.userId), Number(payload?.limit ?? 40))
+    })
   )
 }
