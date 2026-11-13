@@ -20,7 +20,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
-const { ensureAppFolder } = require('./ui/app-folder')
+const { ensureAppFolder, pathProblem } = require('./ui/app-folder')
 
 const APP_NAME = 'INDRA HUB'
 const EXE_NAME = 'INDRA HUB.exe'
@@ -78,21 +78,10 @@ function resolveTarget(scope, requested) {
     return { ok: false, message: 'No install folder was chosen.' }
   }
   const raw = requested.trim()
-  if (!raw) return { ok: false, message: 'No install folder was chosen.' }
-  if (!/^[a-zA-Z]:\\/.test(raw)) {
-    return { ok: false, message: 'The install folder must be a full Windows path, like C:\\Program Files\\INDRA HUB.' }
-  }
-  if (raw.length > 170) return { ok: false, message: 'That install folder path is too long.' }
-  if (INVALID_CHARS.test(raw.slice(2))) {
-    return { ok: false, message: 'The install folder cannot contain < > : " | ? *' }
-  }
+  const problem = pathProblem(raw)
+  if (problem) return { ok: false, message: problem }
 
   const chosen = path.resolve(raw.replace(/[\\/]+$/, ''))
-  if (chosen.length <= 3) return { ok: false, message: 'Choose a folder inside the drive, not the drive itself.' }
-  if (RESERVED.includes(chosen.toLowerCase())) {
-    return { ok: false, message: 'Choose a folder for the app, not a system folder.' }
-  }
-
   /* Its own folder inside whatever was chosen — never loose files in it. */
   const dir = ensureAppFolder(chosen)
   if (dir.length > 170) return { ok: false, message: 'That install folder path is too long.' }
