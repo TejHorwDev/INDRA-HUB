@@ -8,7 +8,7 @@
  *
  *   npm run sim:admin
  */
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
@@ -115,6 +115,56 @@ module.exports = { app, net: { fetch: () => { throw new Error('offline') } }, Br
   console.log('✓ not recognised for any other email')
 
   console.log('✓ one administrator, the documented credentials, no other way in')
+
+  /*
+   * The packaged app's content policy. Two things on screen are drawn from Blob
+   * URLs — the sign-in video and the About portrait — and a policy that omits
+   * `blob:` blocks them in the installed build while dev, which has no such
+   * header, shows them perfectly. That asymmetry is what made a shipped portrait
+   * invisible with every other test still green, so the header is asserted here.
+   */
+  const main = readFileSync(join(root, 'src/main/index.ts'), 'utf8')
+  // The directive list is a single string literal; comments sit above it.
+  const policy =
+    main
+      .match(/'Content-Security-Policy'\s*:\s*\[[\s\S]*?default-src[^"]*"/)?.[0]
+      ?.match(/"([^"]*default-src[^"]*)"/)?.[1] ?? ''
+  if (!policy) {
+    fail('the packaged app no longer sets a content security policy')
+    return
+  }
+  const directive = (name) =>
+    policy
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${name} `)) ?? ''
+
+  if (directive('img-src').includes('blob:')) {
+    console.log('✓ the packaged app may draw the portrait from a Blob URL')
+  } else {
+    fail(`img-src does not allow blob:, so the About portrait cannot be drawn — ${directive('img-src')}`)
+  }
+  if (directive('media-src').includes('blob:')) {
+    console.log('✓ and may play the sign-in video from one')
+  } else {
+    fail(`media-src does not allow blob: — ${directive('media-src')}`)
+  }
+  if (!/script-src 'self'(\s|;|")/.test(policy) || dispute(policy)) {
+    // Kept deliberately narrow: the point is that blob: was added, not that the
+    // policy was loosened anywhere that could run code.
+    fail(`script-src was loosened: ${directive('script-src')}`)
+  } else {
+    console.log('✓ without loosening script-src')
+  }
+}
+
+/** True when the policy allows script from anything but itself. */
+function dispute(policy) {
+  const script = policy
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('script-src '))
+  return Boolean(script && /https?:|\*|'unsafe-eval'|blob:/.test(script))
 }
 
 main().catch((error) => {

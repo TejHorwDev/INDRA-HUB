@@ -243,6 +243,7 @@ export interface IndraBridge {
   about: {
     read: () => Promise<ApiResult<AboutInfo>>
     photo: () => Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>>
+    onChange: (listener: (info: AboutInfo) => void) => () => void
   }
 
   credits: {

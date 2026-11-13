@@ -14,6 +14,12 @@ create table if not exists public.indra_workspace (
   background_path text,
   background_blur smallint not null default 18,
   background_dim smallint not null default 46,
+  developer_photo_asset_id text,
+  developer_photo_mime text,
+  developer_photo_bytes bigint not null default 0,
+  developer_photo_path text,
+  developer_photo_name text,
+  developer_photo_updated_at timestamptz,
   claim_hash text,
   updated_at timestamptz not null default now(),
   updated_by uuid,
@@ -29,8 +35,52 @@ create table if not exists public.indra_workspace (
       and background_mime in ('video/mp4', 'video/webm', 'video/x-m4v', 'video/ogg')
       and background_bytes between 1 and 100663296
     )
+  ),
+  -- The portrait is smaller than the video and has its own type list, so a row
+  -- can never describe an object the About card could not draw.
+  constraint indra_workspace_developer_photo check (
+    (developer_photo_asset_id is null and developer_photo_path is null and developer_photo_mime is null and developer_photo_bytes = 0)
+    or (
+      developer_photo_asset_id is not null
+      and developer_photo_path is not null
+      and developer_photo_path like 'avatar/%'
+      and developer_photo_mime in ('image/png', 'image/jpeg', 'image/webp')
+      and developer_photo_bytes between 1 and 8388608
+    )
   )
 );
+
+/*
+ * Upgrading an installation that already ran this file before portraits were
+ * shareable: the columns are added without touching the row's data. The view
+ * below has to be dropped rather than replaced, because Postgres matches a
+ * view's columns by position and refuses to rename one to another.
+ */
+alter table public.indra_workspace add column if not exists developer_photo_asset_id text;
+alter table public.indra_workspace add column if not exists developer_photo_mime text;
+alter table public.indra_workspace add column if not exists developer_photo_bytes bigint not null default 0;
+alter table public.indra_workspace add column if not exists developer_photo_path text;
+alter table public.indra_workspace add column if not exists developer_photo_name text;
+alter table public.indra_workspace add column if not exists developer_photo_updated_at timestamptz;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'indra_workspace_developer_photo'
+  ) then
+    alter table public.indra_workspace
+      add constraint indra_workspace_developer_photo check (
+        (developer_photo_asset_id is null and developer_photo_path is null and developer_photo_mime is null and developer_photo_bytes = 0)
+        or (
+          developer_photo_asset_id is not null
+          and developer_photo_path is not null
+          and developer_photo_path like 'avatar/%'
+          and developer_photo_mime in ('image/png', 'image/jpeg', 'image/webp')
+          and developer_photo_bytes between 1 and 8388608
+        )
+      );
+  end if;
+end;
+$$;
 
 alter table public.indra_workspace replica identity full;
 
@@ -121,7 +171,8 @@ grant execute on function public.indra_is_workspace_owner() to authenticated;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('indra-media', 'indra-media', false, 100663296,
-        array['video/mp4', 'video/webm', 'video/x-m4v', 'video/ogg'])
+        array['video/mp4', 'video/webm', 'video/x-m4v', 'video/ogg',
+              'image/png', 'image/jpeg', 'image/webp'])
 on conflict (id) do update
   set public = false,
       file_size_limit = excluded.file_size_limit,
@@ -181,7 +232,9 @@ on conflict (id) do nothing;
 -- instead of publishing the owner's uuid. `security_invoker` keeps RLS in
 -- force, so the view can never show more than the table would.
 -- ---------------------------------------------------------------------------
-create or replace view public.indra_workspace_state
+drop view if exists public.indra_workspace_state;
+
+create view public.indra_workspace_state
 with (security_invoker = true) as
 select
   w.id,
@@ -196,6 +249,12 @@ select
   w.background_path,
   w.background_blur,
   w.background_dim,
+  w.developer_photo_asset_id,
+  w.developer_photo_mime,
+  w.developer_photo_bytes,
+  w.developer_photo_path,
+  w.developer_photo_name,
+  w.developer_photo_updated_at,
   w.updated_at,
   (w.owner_uid is not null) as owned,
   (w.owner_uid is not null and w.owner_uid = auth.uid()) as owned_by_me,

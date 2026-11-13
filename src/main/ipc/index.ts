@@ -125,6 +125,7 @@ import {
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
 import {
+  broadcastAboutChange,
   claimWorkspace,
   discardPending,
   markWorkspaceOptOut,
@@ -787,6 +788,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('admin:logout', () =>
     toResult(() => {
       adminSignOut()
+      /*
+       * Every window that shows administrator-only controls has to hear about
+       * this. A Settings tab left open used to keep offering "Change photo" long
+       * after the session ended; the upload would then be refused by the IPC
+       * guard without the panel ever having looked out of date.
+       */
+      broadcastAboutChange()
       return null
     })
   )
@@ -1305,14 +1313,21 @@ export function registerIpcHandlers(): void {
         : await dialog.showOpenDialog(options)
       if (result.canceled || result.filePaths.length === 0) return null
       const filePath = result.filePaths[0]
-      return installDeveloperPhoto(filePath, basename(filePath))
+      const next = installDeveloperPhoto(filePath, basename(filePath))
+      // The bytes are published by the workspace client, which uploads them
+      // before it moves the row — so the panel can honestly say whether the
+      // portrait has reached other PCs yet.
+      queuePush()
+      return next
     })
   )
 
   ipcMain.handle('admin:about:photo:remove', () =>
     toResult(() => {
       requireAdmin()
-      return removeDeveloperPhoto()
+      const next = removeDeveloperPhoto()
+      queuePush()
+      return next
     })
   )
 }

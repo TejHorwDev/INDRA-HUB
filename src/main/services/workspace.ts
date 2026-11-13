@@ -2,7 +2,9 @@ import { BrowserWindow } from 'electron'
 import type { WorkspaceCredentialsInput, WorkspaceState, WorkspaceTransport } from '@shared/types'
 import {
   WORKSPACE_BUCKET,
+  WORKSPACE_IMAGE_TYPES,
   WORKSPACE_KEY,
+  WORKSPACE_MAX_IMAGE_BYTES,
   WORKSPACE_MAX_VIDEO_BYTES,
   WORKSPACE_ROW_ID,
   WORKSPACE_TABLE,
@@ -15,6 +17,16 @@ import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
 import { sealSecret, unsealSecret } from '../lib/seal'
 import { adoptBackground, readLoginAppearance, readLoginBackgroundFile, removeLoginBackground, writeTreatment } from './appearance'
+import {
+  adoptDeveloperPhoto,
+  clearDeveloperPhotoNeedsClear,
+  developerPhotoNeedsClear,
+  installedDeveloperPhotoId,
+  readAbout,
+  readDeveloperPhotoForUpload,
+  removeDeveloperPhoto,
+  setDeveloperPhotoCloud
+} from './about'
 import { ensureBackendConfig, readBackendCredentials } from './backend'
 import { readSettings, writeSettings } from './settings'
 
@@ -71,6 +83,12 @@ interface RemoteWorkspace {
   background_path: string | null
   background_blur: number
   background_dim: number
+  developer_photo_asset_id: string | null
+  developer_photo_mime: string | null
+  developer_photo_bytes: number
+  developer_photo_path: string | null
+  developer_photo_name: string | null
+  developer_photo_updated_at: string | null
   owned: boolean
   owned_by_me: boolean
   claimable: boolean
@@ -273,6 +291,54 @@ async function downloadBackground(path: string): Promise<Buffer> {
   return buffer
 }
 
+async function uploadDeveloperPhoto(path: string, bytes: Buffer, mime: string): Promise<void> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 60_000)
+  const credentials = readBackendCredentials()
+  if (!credentials) throw new Error('No workspace is configured on this machine.')
+  try {
+    const response = await fetch(`${credentials.url}/storage/v1/object/${WORKSPACE_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: {
+        apikey: credentials.key,
+        Authorization: `Bearer ${session?.accessToken ?? credentials.key}`,
+        'Content-Type': mime,
+        'x-upsert': 'true',
+        'cache-control': 'max-age=3600'
+      },
+      body: bytes,
+      signal: controller.signal
+    })
+    if (!response.ok) {
+      throw new Error(`The portrait could not be uploaded (${await readError(response)}).`)
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function downloadDeveloperPhoto(path: string): Promise<Buffer> {
+  const response = await call(`/storage/v1/object/authenticated/${WORKSPACE_BUCKET}/${path}`, {
+    token: session?.accessToken ?? null
+  })
+  if (!response.ok) throw new Error(`The portrait could not be downloaded (${await readError(response)}).`)
+  const buffer = Buffer.from(await response.arrayBuffer())
+  if (buffer.length === 0) throw new Error('The shared portrait is empty, so it was not installed.')
+  if (buffer.length > WORKSPACE_MAX_IMAGE_BYTES) throw new Error('The shared portrait is larger than the app accepts.')
+  return buffer
+}
+
+async function deleteDeveloperPhoto(path: string): Promise<void> {
+  try {
+    await call(`/storage/v1/object/${WORKSPACE_BUCKET}/${path}`, {
+      method: 'DELETE',
+      token: session?.accessToken ?? null
+    })
+  } catch {
+    // A leftover object is harmless; the row no longer points at it.
+  }
+}
+
 async function deleteBackground(path: string): Promise<void> {
   try {
     await call(`/storage/v1/object/${WORKSPACE_BUCKET}/${path}`, {
@@ -289,10 +355,74 @@ async function deleteBackground(path: string): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 function extensionFor(mime: string): string {
+  if (mime === 'image/png') return '.png'
+  if (mime === 'image/jpeg') return '.jpg'
+  if (mime === 'image/webp') return '.webp'
   if (mime === 'video/webm') return '.webm'
   if (mime === 'video/x-m4v') return '.m4v'
   if (mime === 'video/ogg') return '.ogv'
   return '.mp4'
+}
+
+/**
+ * Brings this installation's portrait in line with the shared row.
+ *
+ * Three outcomes matter. The row names a portrait this machine does not have →
+ * download and adopt. The row names no portrait but this machine shows one that
+ * it published → drop it here too. The ids already agree → nothing happens,
+ * which is the common case on every poll after the first.
+ */
+async function applyRemoteDeveloperPhoto(next: RemoteWorkspace): Promise<string | null> {
+  const local = readAbout().developer
+  const assetId = next.developer_photo_asset_id
+  const mime = String(next.developer_photo_mime ?? '')
+
+  if (developerPhotoNeedsClear()) {
+    /*
+     * A removal this machine has not published yet. While it *can* publish —
+     * the signed-in account owns the row — adopting the row now would put the
+     * old face back, so the mirror waits. A machine that cannot publish (not
+     * signed in, or signed in as somebody else) must not end up ignoring the
+     * shared portrait for ever, so there the owner's row wins and the panel is
+     * told why the photo came back.
+     */
+    if (next.owned_by_me) return null
+    clearDeveloperPhotoNeedsClear()
+    return 'That portrait is shared, and this PC is not the account that owns the workspace, so the shared copy was restored.'
+  }
+
+  if (!assetId) {
+    if (local.stored && local.cloud) {
+      removeDeveloperPhoto()
+      broadcastAboutChange()
+    }
+    return null
+  }
+  if (local.stored) {
+    const current = readDeveloperPhotoForUpload()
+    if (current?.id === assetId) {
+      // Already the published portrait. Re-reading it also repairs a row whose
+      // file went missing, because readDeveloperPhotoForUpload returns null then
+      // and the download below runs instead.
+      setDeveloperPhotoCloud(true)
+      return null
+    }
+  }
+
+  if (!WORKSPACE_IMAGE_TYPES.includes(mime) || !next.developer_photo_path) {
+    return 'The shared workspace describes a portrait the app cannot display, so it was not installed.'
+  }
+  const bytes = await downloadDeveloperPhoto(String(next.developer_photo_path))
+  adoptDeveloperPhoto({
+    id: assetId,
+    bytes,
+    mime,
+    originalName: next.developer_photo_name,
+    createdAt: next.developer_photo_updated_at
+  })
+  setDeveloperPhotoCloud(true)
+  broadcastAboutChange()
+  return null
 }
 
 /**
@@ -339,6 +469,18 @@ export async function applyRemote(next: RemoteWorkspace): Promise<string | null>
       warning = messageOf(error)
     }
 
+    /*
+     * The portrait follows the same rule as the video, and must not be able to
+     * take the switches down with it: a photo that fails to arrive leaves the
+     * previous face on screen and reports why.
+     */
+    try {
+      const photoWarning = await applyRemoteDeveloperPhoto(next)
+      if (photoWarning) warning = warning ?? photoWarning
+    } catch (error) {
+      warning = warning ?? messageOf(error)
+    }
+
     writeSettingValue(REVISION_KEY, String(next.revision))
     writeSettingValue(APPLIED_AT_KEY, new Date().toISOString())
     remote = next
@@ -378,6 +520,19 @@ export function broadcastWorkspaceChange(): void {
   const state = workspaceState()
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send('workspace:changed', state)
+  }
+}
+
+/**
+ * Tells every open window that the portrait changed — whether this machine set
+ * it, another machine published it, or a reconcile repaired a missing file.
+ * Without this the About card keeps showing the face it loaded at mount, which
+ * is exactly the bug the user would report as "it does not sync".
+ */
+export function broadcastAboutChange(): void {
+  const info = readAbout()
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send('about:changed', info)
   }
 }
 
@@ -439,8 +594,19 @@ async function reconcileOnce(): Promise<void> {
 
     const sameRevision = String(next.revision) === (readSettingValue(REVISION_KEY) ?? '')
     const sameAsset = (next.background_asset_id ?? null) === (readLoginAppearance().background?.id ?? null)
+    /*
+     * The portrait is checked on its own, not only when the revision moves: a
+     * file deleted from this disk (a cleanup tool, a half-finished copy) is not
+     * a row change, and waiting for one would leave the About card showing the
+     * fallback mark indefinitely. installedDeveloperPhotoId() is a stat, so this
+     * costs nothing on the polls where nothing is wrong.
+     */
+    const samePortrait =
+      !next.developer_photo_asset_id ||
+      next.developer_photo_asset_id === installedDeveloperPhotoId() ||
+      developerPhotoNeedsClear()
     let warning: string | null = null
-    if (!sameRevision || !sameAsset) warning = await applyRemote(next)
+    if (!sameRevision || !sameAsset || !samePortrait) warning = await applyRemote(next)
     else remote = next
 
     lastError = warning
@@ -511,6 +677,57 @@ export async function push(): Promise<WorkspaceState> {
       background_dim: appearance.dim
     }
 
+    /*
+     * The portrait publishes on the same push as everything else. A machine
+     * that never set one, and is not the one that published the current row's,
+     * leaves those columns exactly as they are: pushing nulls from a second
+     * installation would erase the administrator's photo everywhere.
+     */
+    const portrait = readAbout().developer
+    const portraitId = installedDeveloperPhotoId()
+    /*
+     * The bytes are only read when the row does not already describe this
+     * portrait. A push happens on every administrative change, and reading an
+     * 8 MB image to discover there is nothing to upload would be waste on a
+     * path that has nothing to do with the portrait.
+     */
+    const publishPortrait =
+      Boolean(portraitId) && (portraitId !== current.developer_photo_asset_id || !portrait.cloud)
+    const photo = publishPortrait ? readDeveloperPhotoForUpload() : null
+    let uploadedPhotoPath: string | null = null
+    if (photo) {
+      if (!WORKSPACE_IMAGE_TYPES.includes(photo.mime)) {
+        throw new Error('That portrait type cannot be shared with other PCs.')
+      }
+      if (photo.bytes.length > WORKSPACE_MAX_IMAGE_BYTES) {
+        throw new Error('That portrait is too large to share.')
+      }
+      const path = `avatar/${photo.id}${extensionFor(photo.mime)}`
+      await uploadDeveloperPhoto(path, photo.bytes, photo.mime)
+      uploadedPhotoPath = path
+      patch.developer_photo_asset_id = photo.id
+      patch.developer_photo_mime = photo.mime
+      patch.developer_photo_bytes = photo.bytes.length
+      patch.developer_photo_path = path
+      patch.developer_photo_name = photo.originalName
+      patch.developer_photo_updated_at = new Date().toISOString()
+    }
+
+    /*
+     * The clear is only forgotten once the row has actually accepted it. Doing
+     * it here — before the patch — meant an offline or losing push dropped the
+     * removal for good, and the next reconcile brought the old face back.
+     */
+    const clearingPhoto = developerPhotoNeedsClear()
+    if (clearingPhoto) {
+      patch.developer_photo_asset_id = null
+      patch.developer_photo_mime = null
+      patch.developer_photo_bytes = 0
+      patch.developer_photo_path = null
+      patch.developer_photo_name = null
+      patch.developer_photo_updated_at = new Date().toISOString()
+    }
+
     if (!background) {
       patch.background_asset_id = null
       patch.background_mime = null
@@ -532,7 +749,9 @@ export async function push(): Promise<WorkspaceState> {
     if (!updated) {
       // Someone else wrote first. Their row wins; this machine adopts it, and
       // the panel keeps the explanation even though the reconcile below is a
-      // success.
+      // success. The object this push had already uploaded is nobody's now, so
+      // it is removed rather than left to rot in the bucket.
+      if (uploadedPhotoPath) await deleteDeveloperPhoto(uploadedPhotoPath)
       pending = false
       // Direct, not through the reconcile chain: push can itself be called
       // from that chain, and awaiting it there would deadlock.
@@ -542,9 +761,21 @@ export async function push(): Promise<WorkspaceState> {
       return workspaceState()
     }
 
+    if (clearingPhoto) clearDeveloperPhotoNeedsClear()
+
     // The old object is no longer referenced by the row.
     if (background && current.background_path && current.background_asset_id !== background.id) {
       await deleteBackground(current.background_path)
+    }
+    if (
+      photo &&
+      current.developer_photo_path &&
+      current.developer_photo_asset_id !== photo.id
+    ) {
+      await deleteDeveloperPhoto(current.developer_photo_path)
+    }
+    if (clearingPhoto && current.developer_photo_path) {
+      await deleteDeveloperPhoto(current.developer_photo_path)
     }
 
     remote = updated
@@ -553,6 +784,10 @@ export async function push(): Promise<WorkspaceState> {
     lastError = null
     lastSyncAt = new Date().toISOString()
     if (background) lastError = (await applyRemote(updated)) ?? null
+    if (photo) {
+      setDeveloperPhotoCloud(true)
+      broadcastAboutChange()
+    }
     pending = false
     broadcastWorkspaceChange()
   } catch (error) {

@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 2.0.0 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.1.1 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            2.1.0
-  Latest release:     v2.1.0
+  Version:            2.1.1
+  Latest release:     v2.1.0 (v2.1.1 is on the branch, not yet released)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -532,6 +532,13 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     portrait from either place; the bytes are signature-checked (PNG/JPEG/WebP),
     copied into the app's media folder and served over IPC, never as a path.
 
+    Every portrait change is broadcast (`about:changed`), so a card already open
+    on another screen updates when a photo arrives from another PC.
+    An image that fails to draw falls back to the silhouette mark rather than
+    alt text, which is what a packaged build without `blob:` in img-src used to
+    paint across the circle. Next to the tools the panel says whether the photo
+    is "shared with every installation" or "on this PC only".
+
 5.8 Administration panel (behind Ctrl+Alt+A or #/admin)
   Separate identity, separate table (admin_users), separate session key, 12-hour
   session, rate-limited sign-in, and an audit row for every action.
@@ -732,7 +739,11 @@ that can be shared.
     Scripts, event handlers, javascript: URLs, iframes and inline styles are
     discarded, including in documents written before the allowlist existed.
   - The renderer has no filesystem or database access: sandbox, contextIsolation,
-    no nodeIntegration, typed IPC only, CSP in the packaged app.
+    no nodeIntegration, typed IPC only, CSP in the packaged app. The policy
+    allows `blob:` on img-src and media-src because the About portrait and the
+    sign-in video are drawn from Blob URLs — and nothing else was loosened to
+    accommodate them. sim:admin asserts that header, so a regression here fails
+    a test instead of shipping.
   - Every IPC handler re-validates its input and resolves the caller itself.
     Actor identity never comes from the renderer.
   - Administrator identity is a separate table and session; an admin session
@@ -820,7 +831,18 @@ Tests for this exist and must keep passing:
   npm run sim:workspace    proves the shared workspace against a faithful fake
                        of GoTrue, PostgREST, Storage and Realtime: fresh
                        install, live change, claim, publish, video transfer,
-                       stale write, hostile payload, offline, disconnect
+                       stale write, hostile payload, offline, disconnect — and
+                       the developer portrait: publish, arrival from another
+                       PC, repair of a file deleted from disk, refusal of a
+                       non-image row, removal mirrored, and a removal made
+                       offline that is published (not undone) when the network
+                       returns
+  npm run sim:about        validates the portrait itself: real signature
+                       checks, refusal of a lying file, empty, oversized and
+                       missing files, clean replacement, bytes over IPC with no
+                       path, adopt() re-checking bytes off the wire, and the
+                       difference between "no portrait" and "the file went
+                       missing"
 
 
 8.5 THE SHARED WORKSPACE (1.6.0)
@@ -837,8 +859,19 @@ Tests for this exist and must keep passing:
   Panel            Admin → Cloud & sync (components/WorkspacePanel.tsx)
 
   What is shared: allow_registration, maintenance (+ message),
-  require_activation_key, and the sign-in background (asset id, mime, bytes,
-  storage path, blur, dim).
+  require_activation_key, the sign-in background (asset id, mime, bytes, storage
+  path, blur, dim), and the developer portrait (asset id, mime, bytes, storage
+  path, name, timestamp).
+
+  The portrait is shared on purpose and is the answer to a specific report: an
+  administrator chose a photo and it appeared only on the machine that chose it.
+  It belongs to the app, not to a person's profile, so one administrator sets it
+  once and every installation mirrors it. It rides the same push as everything
+  else — uploaded under `avatar/` before the row is patched, downloaded and
+  adopted when the row names an id this machine does not have — and the storage
+  policies are what stop a non-owner from uploading one. A machine that is not
+  connected to a workspace can still set a portrait; it stays on that PC and the
+  panel says so instead of implying it travelled.
 
   Who is the source of truth:
     - Once the row has an owner, the row is the source of truth. Until it has
@@ -857,9 +890,15 @@ Tests for this exist and must keep passing:
       optimistic revision filter; if another machine got there first, the
       patch updates nothing, this machine adopts their row and says so.
     - Every row this machine receives is untrusted input: blur and dim are
-      clamped, the message is truncated, and only the four playable video types
-      are accepted. A background that cannot be fetched or played leaves the
-      previous one on screen and reports why; it never blocks the switches.
+      clamped, the message is truncated, only the four playable video types are
+      accepted, and a portrait has to be a PNG, JPEG or WebP by signature —
+      identical to the check the file picker's bytes go through. A background
+      that cannot be fetched or played leaves the previous one on screen and
+      reports why; so does a portrait. Neither ever blocks the switches.
+    - A removal is a publishable fact, not just a local absence. Removing a
+      shared portrait sets a marker that survives until the row has accepted the
+      clear, so a removal made offline is not undone by the next reconcile, and
+      the object it pointed at is deleted from storage afterwards.
     - The renderer never sees a token, a URL or a key. Sessions are sealed with
       the OS keystore; all writes go through an administrator session.
     - No connection means the local mirror answers. The app opens, signs in and
@@ -1000,6 +1039,10 @@ Honest list; none of these are hidden:
   - Cloud copies are per installation. A second PC reaches them only by
     adopting a transfer code from the first (Settings → Cloud); there is no
     person-level sign-in that would let two machines meet on their own.
+  - The developer portrait is shared through the workspace row, so it reaches
+    other PCs only while they are pointed at a workspace that has an owner. On a
+    machine that has never been connected the portrait is local, and the panel
+    says so rather than pretending otherwise.
   - Saving to the cloud mirrors the project: it replaces the cloud copy rather
     than merging two divergent versions, and every save rewrites it in full.
     At current project sizes that is a few requests; it is not a sync engine.

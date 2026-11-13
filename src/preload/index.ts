@@ -327,7 +327,17 @@ const api = {
     read: (): Promise<ApiResult<AboutInfo>> => ipcRenderer.invoke('about:read'),
     /** The portrait as bytes, turned into a Blob URL by the renderer. */
     photo: (): Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>> =>
-      ipcRenderer.invoke('about:photo')
+      ipcRenderer.invoke('about:photo'),
+    /*
+     * The portrait can arrive from another machine while this window is open.
+     * The main process re-reads it and pushes the result, so the card never
+     * needs to poll to notice.
+     */
+    onChange: (listener: (info: AboutInfo) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, info: AboutInfo): void => listener(info)
+      ipcRenderer.on('about:changed', handler)
+      return () => ipcRenderer.removeListener('about:changed', handler)
+    }
   },
 
   credits: {

@@ -371,18 +371,29 @@ function CloudSection() {
 function AboutSection() {
   const [isAdmin, setIsAdmin] = useState(false)
 
+  /*
+   * The session is checked again whenever the portrait changes, because that
+   * message is sent when an administrator signs out as well. Without it this
+   * panel kept offering "Change photo" to somebody who no longer had the right
+   * to use it, and the refusal only showed up after they tried.
+   */
   useEffect(() => {
     let active = true
-    api.admin
-      .status()
-      .then((status) => {
-        if (active) setIsAdmin(Boolean(status.configured && status.signedIn))
-      })
-      .catch(() => {
-        // No administrator session: the card stays read-only.
-      })
+    const read = (): void => {
+      api.admin
+        .status()
+        .then((status) => {
+          if (active) setIsAdmin(Boolean(status.configured && status.signedIn))
+        })
+        .catch(() => {
+          if (active) setIsAdmin(false)
+        })
+    }
+    read()
+    const off = api.about.onChange(read)
     return () => {
       active = false
+      off()
     }
   }, [])
 

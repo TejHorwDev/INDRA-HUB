@@ -7382,7 +7382,6 @@ body {
 
 .about-card--plain .about-main {
   padding: 4px 0 0;
-  min-height: 196px;
 }
 
 .about-main {
@@ -7391,7 +7390,13 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-6);
-  min-height: 188px;
+  /*
+   * The card is sized by what is actually inside it, not by a number somebody
+   * guessed. 188px was enough for the portrait and its caption but not for the
+   * two tool links under them, so in the admin panel the tools hung below the
+   * card's edge and were clipped away by its `overflow: hidden`.
+   */
+  min-height: 0;
   padding: 26px 30px;
 }
 
@@ -7434,6 +7439,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  /* Never narrower than the portrait, whatever the caption or tools say. */
+  min-width: 116px;
   margin: 0;
 }
 
@@ -7492,6 +7499,44 @@ body {
   cursor: default;
 }
 
+/*
+ * Whether the portrait has reached other PCs.
+ *
+ * It is a row of the card, not a caption of the figure: the portrait keeps
+ * exactly the column it had before, and a sentence that needs the full width
+ * gets it. Quiet, because "shared" is the normal state; the local-only case
+ * says what is true in the same grey.
+ */
+.about-dev-reach {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 30px 18px;
+  color: var(--ink-tertiary);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.about-dev-reach::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--ink-tertiary);
+  border-radius: 50%;
+}
+
+.about-dev-reach--shared::before {
+  border-color: var(--ink);
+  background-color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .about-dev-reach {
+    padding: 0 20px 16px;
+  }
+}
+
 .about-rail {
   display: flex;
   flex-wrap: wrap;
@@ -7545,10 +7590,6 @@ body {
   .about-main {
     min-height: 0;
     padding: 20px;
-  }
-
-  .about-card--plain .about-main {
-    min-height: 0;
   }
 
   .about-portrait {

@@ -5,6 +5,11 @@
  * refused when it is not, replaced without leaving the old file behind, and
  * served to the renderer as bytes — never as a path.
  *
+ * It also pins down the two states that made the card lie: a record whose file
+ * has disappeared is not reported as a portrait, and the record is still kept so
+ * the workspace can repair it. Publishing and mirroring are proven in
+ * workspace-sim, against the client that actually does them.
+ *
  * Runs the real `about` service against a throwaway database and a throwaway
  * media folder.
  *
@@ -148,6 +153,42 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   // A path that does not exist.
   check(refused(() => about.installDeveloperPhoto(join(work, 'ghost.png'))) === 'VALIDATION', 'a missing file is refused')
+
+  /*
+   * Bytes handed to adopt() are checked again: that function writes to disk, and
+   * it is reachable from the network path as well as the file picker.
+   */
+  const adoptedBad = refused(() =>
+    about.adoptDeveloperPhoto({
+      id: 'from-the-wire',
+      bytes: Buffer.from('MZ this is an executable, not a portrait'),
+      mime: 'image/png'
+    })
+  )
+  check(adoptedBad === 'VALIDATION', 'adopt() refuses bytes that are not an image, whatever the mime says')
+  check(about.readAbout().developer.mime === 'image/jpeg', 'and the portrait already installed is unchanged')
+
+  const adopted = about.adoptDeveloperPhoto({ id: 'from-the-wire', bytes: PNG, mime: 'image/png' })
+  check(adopted.developer.hasPhoto === true, 'adopt() installs real bytes under the id it is given')
+  check(adopted.developer.bytes === PNG.length, 'with the size read from the bytes')
+  check(
+    readdirSync(media).some((name) => name.startsWith('from-the-wire')),
+    'and the file is named for that id, so two machines agree on which portrait it is'
+  )
+
+  /* A record whose file is gone is not a portrait, but it is not forgotten. */
+  const beforeDelete = about.readAbout().developer
+  check(beforeDelete.stored === true, 'an installed portrait has a stored record')
+  const storedName = readdirSync(media)[0]
+  rmSync(join(media, storedName))
+  const missing = about.readAbout().developer
+  check(missing.hasPhoto === false, 'a record whose file is gone is not reported as a portrait')
+  check(missing.stored === true, 'but the record is kept so a sync can repair it')
+  check(about.readDeveloperPhotoFile() === null, 'and there are no bytes to serve')
+  check(
+    about.installedDeveloperPhotoId() === null,
+    'the reconcile is told to fetch it again, not to publish over it'
+  )
 
   const cleared = about.removeDeveloperPhoto()
   check(cleared.developer.hasPhoto === false, 'removing the portrait empties the circle')

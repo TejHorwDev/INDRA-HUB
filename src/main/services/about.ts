@@ -1,6 +1,5 @@
 import {
   closeSync,
-  existsSync,
   openSync,
   readFileSync,
   readSync,
@@ -27,6 +26,13 @@ import { mediaDirectory } from './appearance'
  * that has no business existing. The renderer receives bytes over IPC and makes
  * a Blob URL; it never sees where they came from.
  *
+ * It is not a per-machine preference. The portrait belongs to the shared
+ * workspace row, so the administrator sets it once and every installation
+ * mirrors it — see push() and applyRemote() in workspace.ts, which upload and
+ * adopt it exactly as they do the sign-in video. A machine that is not connected
+ * to a workspace can still set one; it simply stays on that machine, and the
+ * panel says so instead of implying it travelled.
+ *
  * The bytes are checked, not trusted: the first few bytes of the file have to
  * be the signature of the image type its extension claims. A `.png` that is
  * really something else is refused before it is copied anywhere.
@@ -34,6 +40,14 @@ import { mediaDirectory } from './appearance'
 
 const KIND = 'developer_photo'
 const SETTING = 'developer_photo_asset'
+/** '1' once the active portrait is known to be on the shared workspace too. */
+const CLOUD_SETTING = 'developer_photo_cloud'
+/**
+ * '1' when the administrator removed a portrait that had been published, and the
+ * row has not been cleared yet. Without it a removal made offline would be
+ * undone by the next reconcile, which sees a row still pointing at the photo.
+ */
+const CLEAR_SETTING = 'developer_photo_clear'
 const MAX_BYTES = 8 * 1024 * 1024
 
 interface MediaRow {
@@ -75,6 +89,13 @@ const SIGNATURES: Array<{ mime: string; extension: string; test: (head: Buffer) 
   }
 ]
 
+/** The same test, over bytes already in memory. */
+function signatureOfBytes(bytes: Buffer): { mime: string; extension: string } | null {
+  const head = bytes.subarray(0, 16)
+  const match = SIGNATURES.find((entry) => entry.test(head))
+  return match ? { mime: match.mime, extension: match.extension } : null
+}
+
 function signatureOf(path: string): { mime: string; extension: string } | null {
   const handle = openSync(path, 'r')
   try {
@@ -104,23 +125,47 @@ function writeSetting(key: string, value: string): void {
     .run(key, value, new Date().toISOString())
 }
 
-/** The active row, but only while the file behind it is still on disk. */
-function photoRow(): MediaRow | null {
+/** The active row, whether or not the file behind it survived. */
+function storedRow(): MediaRow | null {
   const assetId = readSetting(SETTING)
   if (!assetId) return null
-  const row = getDatabase()
-    .prepare('SELECT * FROM media_assets WHERE id = ? AND kind = ?')
-    .get(assetId, KIND) as MediaRow | undefined
-  if (!row) return null
-  return existsSync(join(mediaDirectory(), row.file_name)) ? row : null
+  return (
+    (getDatabase()
+      .prepare('SELECT * FROM media_assets WHERE id = ? AND kind = ?')
+      .get(assetId, KIND) as MediaRow | undefined) ?? null
+  )
 }
 
+function filePathOf(row: MediaRow): string {
+  return join(mediaDirectory(), row.file_name)
+}
+
+/** The active row, but only while the file behind it is still on disk. */
+function photoRow(): MediaRow | null {
+  const row = storedRow()
+  if (!row) return null
+  try {
+    return statSync(filePathOf(row)).size > 0 ? row : null
+  } catch {
+    return null
+  }
+}
+
+/*
+ * `hasPhoto` answers "can the card draw something", and `stored` answers "is
+ * there a record", and they are deliberately different questions. A record whose
+ * file has disappeared is still installed as far as the workspace is concerned:
+ * it must not be mistaken for "nobody ever chose a portrait", or a second PC
+ * would publish null over the administrator's photo.
+ */
 function toPhoto(row: MediaRow | null): DeveloperPhoto {
   return {
     hasPhoto: Boolean(row),
     mime: row?.mime ?? null,
     bytes: row?.bytes ?? 0,
-    updatedAt: row?.created_at ?? null
+    updatedAt: row?.created_at ?? null,
+    stored: Boolean(storedRow()),
+    cloud: readSetting(CLOUD_SETTING) === '1'
   }
 }
 
@@ -137,16 +182,137 @@ export function readDeveloperPhotoFile(): { bytes: Buffer; mime: string } | null
   const row = photoRow()
   if (!row) return null
   try {
-    return { bytes: readFileSync(join(mediaDirectory(), row.file_name)), mime: row.mime }
+    const bytes = readFileSync(filePathOf(row))
+    if (bytes.length === 0) return null
+    return { bytes, mime: row.mime }
   } catch {
     return null
   }
 }
 
 /**
+ * The active portrait as bytes, for the workspace to upload. Null when there is
+ * nothing installed or the file cannot be read back.
+ */
+export function readDeveloperPhotoForUpload(): {
+  id: string
+  bytes: Buffer
+  mime: string
+  extension: string
+  originalName: string
+} | null {
+  const row = photoRow()
+  if (!row) return null
+  try {
+    const bytes = readFileSync(filePathOf(row))
+    if (bytes.length === 0) return null
+    const extension = row.file_name.slice(row.file_name.lastIndexOf('.')) || '.png'
+    return { id: row.id, bytes, mime: row.mime, extension, originalName: row.original_name }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The id of the portrait that is actually on disk right now, or null.
+ *
+ * A stat, not a read: the reconcile asks this on every poll and must stay
+ * cheap. It is how a file that went missing gets noticed without waiting for
+ * the shared row to change.
+ */
+export function installedDeveloperPhotoId(): string | null {
+  return photoRow()?.id ?? null
+}
+
+/** Records whether this portrait also lives on the shared workspace. */
+export function setDeveloperPhotoCloud(on: boolean): void {
+  writeSetting(CLOUD_SETTING, on ? '1' : '0')
+}
+
+/** True while a published portrait still has to be cleared from the row. */
+export function developerPhotoNeedsClear(): boolean {
+  return readSetting(CLEAR_SETTING) === '1'
+}
+
+export function clearDeveloperPhotoNeedsClear(): void {
+  writeSetting(CLEAR_SETTING, '0')
+}
+
+/**
+ * Writes bytes that were already checked into the media folder under a given
+ * id. The id is the cloud asset id when the bytes came from the workspace, so
+ * the row, the object name and the local file all agree — which is what lets
+ * two machines recognise the same portrait as the same portrait.
+ */
+export function adoptDeveloperPhoto(input: {
+  id: string
+  bytes: Buffer
+  mime: string
+  originalName?: string | null
+  createdAt?: string | null
+}): AboutInfo {
+  /*
+   * Checked again here, not only by the caller. These bytes may have come off
+   * the wire, and a row is not a promise: whatever it claims the type is, the
+   * file has to actually start with that type's signature before it is written
+   * to disk or handed to the renderer.
+   */
+  const signature = signatureOfBytes(input.bytes)
+  if (!signature) throw errors.validation('That file is not a PNG, JPEG or WebP image.', 'photo')
+  if (input.bytes.length > MAX_BYTES) {
+    throw errors.validation('That image is larger than 8 MB.', 'photo')
+  }
+  const extension = signature.extension
+  const fileName = `${input.id}${extension}`
+  try {
+    writeFileSync(join(mediaDirectory(), fileName), input.bytes)
+  } catch {
+    throw errors.validation('That image could not be copied into the app.', 'photo')
+  }
+
+  const previous = storedRow()
+  getDatabase()
+    .prepare(
+      `INSERT INTO media_assets (id, kind, file_name, original_name, mime, bytes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         file_name = excluded.file_name,
+         original_name = excluded.original_name,
+         mime = excluded.mime,
+         bytes = excluded.bytes,
+         created_at = excluded.created_at`
+    )
+    .run(
+      input.id,
+      KIND,
+      fileName,
+      input.originalName || fileName,
+      signature.mime,
+      input.bytes.length,
+      input.createdAt || new Date().toISOString()
+    )
+  writeSetting(SETTING, input.id)
+
+  if (previous && previous.id !== input.id) {
+    try {
+      unlinkSync(filePathOf(previous))
+    } catch {
+      // Already gone is the good case.
+    }
+    getDatabase().prepare('DELETE FROM media_assets WHERE id = ?').run(previous.id)
+  }
+
+  return readAbout()
+}
+
+/**
  * Installs a photo the administrator chose. The previous one is removed only
  * after the new one is on disk and recorded, so a failed replacement leaves the
  * old portrait in place rather than an empty circle.
+ *
+ * The portrait starts out local. workspace.ts uploads it on the next push and
+ * flips the cloud flag once the row actually points at it; until then the panel
+ * says "this PC only", which is the truth.
  */
 export function installDeveloperPhoto(sourcePath: string, originalName?: string): AboutInfo {
   if (!sourcePath) throw errors.validation('Choose an image first.', 'photo')
@@ -174,7 +340,7 @@ export function installDeveloperPhoto(sourcePath: string, originalName?: string)
     throw errors.validation('That image could not be copied into the app.', 'photo')
   }
 
-  const previous = photoRow()
+  const previous = storedRow()
   const createdAt = new Date().toISOString()
   getDatabase()
     .prepare(
@@ -183,10 +349,12 @@ export function installDeveloperPhoto(sourcePath: string, originalName?: string)
     )
     .run(id, KIND, fileName, originalName || fileName, signature.mime, size, createdAt)
   writeSetting(SETTING, id)
+  writeSetting(CLOUD_SETTING, '0')
+  writeSetting(CLEAR_SETTING, '0')
 
   if (previous && previous.id !== id) {
     try {
-      unlinkSync(join(mediaDirectory(), previous.file_name))
+      unlinkSync(filePathOf(previous))
     } catch {
       // Already gone is the good case.
     }
@@ -196,12 +364,19 @@ export function installDeveloperPhoto(sourcePath: string, originalName?: string)
   return readAbout()
 }
 
+/**
+ * Removes the portrait from this machine. Whether that also clears it from the
+ * shared workspace is decided by workspace.ts — this only forgets it here.
+ */
 export function removeDeveloperPhoto(): AboutInfo {
-  const row = photoRow()
+  const row = storedRow()
+  const wasPublished = readSetting(CLOUD_SETTING) === '1'
   writeSetting(SETTING, '')
+  writeSetting(CLOUD_SETTING, '0')
+  if (wasPublished) writeSetting(CLEAR_SETTING, '1')
   if (row) {
     try {
-      unlinkSync(join(mediaDirectory(), row.file_name))
+      unlinkSync(filePathOf(row))
     } catch {
       // Already gone is the good case.
     }
