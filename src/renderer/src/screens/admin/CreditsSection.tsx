@@ -583,7 +583,17 @@ export default function CreditsSection(_props: SectionProps) {
               </p>
             )}
             <div className="admin-form-actions">
-              {snapshot.reachable ? (
+              {/*
+                * No account, no button. The server refuses to make a machine an
+                * administrator, so offering the press was offering a failure —
+                * and the refusal it produced was printed as raw JSON underneath.
+                */}
+              {snapshot.reachable && !snapshot.canClaim ? (
+                <p className="admin-group-note">
+                  This PC is not signed in to an account. Administration follows the account, so sign in with yours
+                  in <strong>Account &amp; cloud</strong> — the console then opens with nothing to press.
+                </p>
+              ) : snapshot.reachable ? (
                 <button
                   type="button"
                   className="btn btn-primary btn-sm w-auto"

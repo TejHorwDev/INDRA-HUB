@@ -372,6 +372,14 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
        * is. The sim flips `__aiRoleHeldElsewhere` to exercise both.
        */
       if (path === '/rest/v1/rpc/indra_admin_claim') {
+        if (globalThis.__aiClaimRawError) {
+          return json(400, {
+            code: 'P0001',
+            details: null,
+            hint: null,
+            message: 'A device cannot be an administrator. Sign in with the account that should run this console.'
+          })
+        }
         if (globalThis.__aiRoleHeldElsewhere) {
           return json(200, {
             claimed: false,
@@ -858,6 +866,24 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     'and the refusal is the server’s reason, not a guess',
     refusedClaim.message
   )
+
+  /*
+   * A refusal arrives as a PostgREST body. The panel used to print it verbatim —
+   * {"code":"P0001","details":null,...} — which tells a person nothing they can
+   * do. The server's own sentence is what has to survive.
+   */
+  globalThis.__aiClaimRawError = true
+  const rawRefusal = await api.adminClaimTokenRole(user)
+  check(
+    !/[{}"]/.test(rawRefusal.message ?? ''),
+    'a refusal is a sentence, not a JSON body',
+    rawRefusal.message
+  )
+  check(
+    /device cannot be an administrator/i.test(rawRefusal.message ?? ''),
+    'and it is the server\'s own words'
+  )
+  globalThis.__aiClaimRawError = false
 
   /* Once the other installation is gone, the same press succeeds. */
   globalThis.__aiRoleHeldElsewhere = false

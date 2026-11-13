@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { sessionForLocalUser } from '../lib/accountSession'
 import { net } from 'electron'
 import type {
   AdminTokenAccount,
@@ -695,6 +696,14 @@ async function adminPurchases(token: string): Promise<AdminPurchase[]> {
  * panel must not confuse them: whether the server granted this administrator the
  * token role, and whether it answered at all.
  */
+function accountSignedIn(adminId: string): boolean {
+  try {
+    return Boolean(sessionForLocalUser(adminId))
+  } catch {
+    return false
+  }
+}
+
 export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSnapshot> {
   try {
     const session = await adminCloudSession(adminId)
@@ -722,6 +731,7 @@ export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSna
         settings: asTokenSettings(state?.settings),
         reset: null,
         identity,
+        canClaim: accountSignedIn(adminId),
         live: false,
         claimed: false,
         reachable: true,
@@ -784,6 +794,7 @@ export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSna
       settings: asTokenSettings(state.settings),
       reset,
       identity,
+      canClaim: accountSignedIn(adminId),
       live: true,
       claimed: true,
       reachable: true,
@@ -798,6 +809,7 @@ export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSna
       settings: null,
       reset: null,
       identity: null,
+      canClaim: accountSignedIn(adminId),
       live: false,
       claimed: false,
       reachable: false,
@@ -1030,6 +1042,7 @@ export async function adminClaimTokenRole(adminId: string): Promise<AdminTokenSn
         settings: null,
         reset: null,
         identity: null,
+        canClaim: accountSignedIn(adminId),
         live: false,
         claimed: false,
         reachable: true,
@@ -1045,6 +1058,7 @@ export async function adminClaimTokenRole(adminId: string): Promise<AdminTokenSn
       settings: null,
       reset: null,
       identity: null,
+      canClaim: accountSignedIn(adminId),
       live: false,
       claimed: false,
       reachable: false,

@@ -1190,6 +1190,12 @@ export interface AdminTokenSnapshot {
    * identity and the old PC still has it".
    */
   identity: { email: string | null; uid: string | null } | null
+  /**
+   * Whether there is an account on this PC to claim the role *for*. A machine
+   * that was never signed in has nothing the server could make an
+   * administrator, so the panel must not offer a button that cannot work.
+   */
+  canClaim: boolean
   /** The server answered, and this installation's cloud account holds the admin role. */
   live: boolean
   /** The server answered at all. False means "unknown", never "empty". */
