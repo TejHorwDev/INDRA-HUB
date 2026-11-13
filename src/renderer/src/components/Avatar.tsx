@@ -5,12 +5,12 @@ import { usePortraitUrl } from '../lib/portraits'
 /**
  * A person's portrait.
  *
- * There is no image file anywhere in the app. A portrait is one of eight marks
- * drawn in the same monochrome system as every other icon, chosen once when
- * the account is made, and rendered from its id wherever the person appears.
- * That is why the same face can be 26px in a member row, 32px in the rail and
- * 96px on the chooser without a second copy existing, and why a shared project
- * never has to upload or download a picture to show who wrote something.
+ * A portrait is an id, never a picture: `photo:<media id>` for a picture the
+ * person chose, a mark id for the drawn ones older accounts still carry, and
+ * `initials` otherwise. The renderer turns a photo id into a cached Blob URL,
+ * so the same face can be 26px in a member row, 32px in the rail and full-bleed
+ * behind the account card without a second copy existing or a row ever holding
+ * image bytes.
  *
  * `initials` — and an account that has not chosen — falls back to the person's
  * initials, which is the honest default rather than a random picture.

@@ -1154,13 +1154,12 @@ body {
 
 .home {
   display: grid;
-  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
   gap: 14px;
   align-items: stretch;
   margin-top: 0;
 }
 
-.home-profile,
 .home-team,
 .home-memberof {
   padding: 24px;
@@ -1169,67 +1168,181 @@ body {
   background-color: var(--surface);
 }
 
-.home-profile,
 .home-team {
   display: flex;
   flex-direction: column;
-}
-
-.home-profile > .home-section-head {
-  margin-bottom: 18px;
 }
 
 .home-team > .home-section-head {
   margin-bottom: 14px;
 }
 
-.home-profile {
-  gap: 0;
+/* ---------------- account hero ---------------- */
+
+/*
+ * One card holds the picture and the identity, the way a profile does
+ * everywhere else: the photograph bleeds to every edge and settles into the
+ * page behind the name, so the text never sits on naked detail. A person
+ * without a picture gets their initials at watermark scale instead of an
+ * empty rectangle.
+ */
+.account-hero {
+  position: relative;
+  display: flex;
+  min-height: 368px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  isolation: isolate;
 }
 
-.home-profile-head {
-  gap: 14px;
+.account-hero-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 34%;
+  filter: none;
 }
 
-.home-profile-head .avatar--lg {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  font-size: 16px;
-}
-
-.home-name {
+.account-hero-watermark {
+  position: absolute;
+  top: -0.16em;
+  right: 20px;
   color: var(--ink);
   font-family: var(--font-display-stack);
-  font-size: 1.375rem;
+  font-size: 13rem;
   font-weight: 600;
-  letter-spacing: -0.028em;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  opacity: 0.05;
+  pointer-events: none;
+  user-select: none;
 }
 
-.home-handle {
-  margin-top: 3px;
-  color: var(--ink-tertiary);
-  font-size: 12.5px;
+/* Keeps the name readable on a bright photograph. */
+.account-hero-scrim {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      to top,
+      var(--bg) 0%,
+      var(--bg) 26%,
+      color-mix(in srgb, var(--bg) 86%, transparent) 40%,
+      color-mix(in srgb, var(--bg) 60%, transparent) 55%,
+      color-mix(in srgb, var(--bg) 28%, transparent) 72%,
+      transparent 90%
+    ),
+    linear-gradient(to bottom, color-mix(in srgb, var(--bg) 26%, transparent) 0%, transparent 30%);
+  pointer-events: none;
 }
 
-.home-email {
-  margin-top: 18px;
+.account-hero-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 16px;
+  width: 100%;
+  padding: 24px 26px 20px;
+}
+
+.account-hero-id {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.account-hero-avatar {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background-color: var(--surface);
+  font-size: 20px;
+}
+
+.account-hero-rule {
+  flex: none;
+  width: 1px;
+  height: 44px;
+  background-color: var(--line-strong);
+}
+
+.account-hero-names {
+  min-width: 0;
+}
+
+.account-hero-name {
   overflow: hidden;
-  color: var(--ink-secondary);
-  font-size: 13px;
+  color: var(--ink);
+  font-family: var(--font-display-stack);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1.08;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-profile-actions {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+.account-hero-handle {
+  margin-top: 4px;
+  color: var(--ink-secondary);
+  font-size: 13px;
 }
 
-.home-since {
+.account-hero-settings {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-left: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background-color: var(--surface);
+  color: var(--ink);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+.account-hero-settings:hover {
+  border-color: var(--ink-secondary);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.account-hero-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--ink-secondary);
+  font-size: 13px;
+}
+
+.account-hero-line > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-hero-line > svg {
+  flex: none;
   color: var(--ink-tertiary);
-  font-size: 11px;
+}
+
+.account-hero-foot {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-strong);
+  color: var(--ink-tertiary);
+  font-size: 11.5px;
 }
 
 .home-team-name {
@@ -2287,6 +2400,14 @@ tbody td {
 
   .home {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .account-hero {
+    min-height: 300px;
+  }
+
+  .account-hero-watermark {
+    font-size: 9rem;
   }
 
   .stat-strip {

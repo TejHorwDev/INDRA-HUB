@@ -289,6 +289,15 @@ export function SettingsIcon({ size = 16, className }: IconProps) {
   )
 }
 
+export function CalendarIcon({ size = 15, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.6" />
+      <path d="M3.5 9.6h17M8.2 3.4v3.2M15.8 3.4v3.2" />
+    </svg>
+  )
+}
+
 export function ChevronRightIcon({ size = 15, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className} {...base}>

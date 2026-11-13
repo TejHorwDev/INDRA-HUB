@@ -14,8 +14,17 @@ import Page from '../components/Page'
 import ProjectCard from '../components/ProjectCard'
 import TeamNameDialog from '../components/TeamNameDialog'
 import { useToast } from '../components/ToastProvider'
-import { FolderIcon, MailIcon, UsersIcon, XIcon } from '../components/icons'
+import {
+  CalendarIcon,
+  FolderIcon,
+  MailIcon,
+  SettingsIcon,
+  UsersIcon,
+  XIcon
+} from '../components/icons'
 import { api, errorMessage } from '../lib/api'
+import { initialsOf } from '../lib/format'
+import { usePortraitUrl } from '../lib/portraits'
 import {
   acceptInvitation,
   cancelInvitation,
@@ -49,6 +58,7 @@ function memberSince(value: string): string {
 
 export default function HomeScreen() {
   const { user } = useSession()
+  const portrait = usePortraitUrl(user?.avatar)
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -371,34 +381,62 @@ export default function HomeScreen() {
       )}
 
       <div className="home">
-        <section className="home-profile">
-          <div className="home-section-head">
-            <h2 className="home-section-title">Account</h2>
-          </div>
-
-          {/*
-            * Identity reads as one block: the monogram and the two lines that
-            * name the account sit together in a header, the address is a row
-            * of its own, and the footer carries the only two facts left.
-            */}
-          <div className="home-profile-head">
-            <Avatar name={user?.displayName ?? ''} avatar={user?.avatar} size="lg" />
-
-            <div className="home-profile-text">
-              <h2 className="home-name">{user?.displayName}</h2>
-              <p className="home-handle">@{user?.username}</p>
-            </div>
-          </div>
-
-          <p className="home-email">{user?.email}</p>
-
-          <div className="home-profile-actions">
-            <span className="home-since">
-              {user ? `Since ${memberSince(user.createdAt)}` : ''}
+        {/*
+          * The account is the one place that holds a picture, so the picture
+          * gets the card: full-bleed behind the facts, cropped to the face, and
+          * sunk into the page at the bottom so the name stays readable on any
+          * photo. Without one, the initials stand in at watermark scale.
+          */}
+        <section
+          className={`account-hero${portrait ? ' account-hero--photo' : ''}`}
+          aria-labelledby="home-account-name"
+        >
+          {portrait ? (
+            <img className="account-hero-photo" src={portrait} alt="" draggable={false} />
+          ) : (
+            <span className="account-hero-watermark" aria-hidden="true">
+              {initialsOf(user?.displayName ?? '')}
             </span>
-            <Link to="/settings" className="link home-link">
-              Account settings
-            </Link>
+          )}
+          <span className="account-hero-scrim" aria-hidden="true" />
+
+          <div className="account-hero-body">
+            <div className="account-hero-id">
+              <Avatar
+                name={user?.displayName ?? ''}
+                avatar={user?.avatar}
+                size="lg"
+                className="account-hero-avatar"
+              />
+
+              <span className="account-hero-rule" aria-hidden="true" />
+
+              <div className="account-hero-names">
+                <h2 id="home-account-name" className="account-hero-name">
+                  {user?.displayName}
+                </h2>
+                <p className="account-hero-handle">@{user?.username}</p>
+              </div>
+
+              <Link
+                to="/settings"
+                className="account-hero-settings"
+                aria-label="Account settings"
+                title="Account settings"
+              >
+                <SettingsIcon size={18} />
+              </Link>
+            </div>
+
+            <p className="account-hero-line">
+              <MailIcon size={15} />
+              <span>{user?.email}</span>
+            </p>
+
+            <p className="account-hero-line account-hero-foot">
+              <CalendarIcon size={15} />
+              <span>{user ? `Since ${memberSince(user.createdAt)}` : ''}</span>
+            </p>
           </div>
         </section>
 
