@@ -36,6 +36,7 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  CloudSyncState,
   SharedInvitation,
   SharedSyncResult,
   InvitationAnswer,
@@ -200,6 +201,12 @@ export const api = {
    * offline; everything else is refused by the main process with no route out,
    * so a screen never has to guess whether the cloud is reachable.
    */
+  /** Automatic saving: what it is doing, and a way to hurry it along. */
+  sync: {
+    state: (): Promise<CloudSyncState> => unwrap(bridge().sync.state()),
+    now: (): Promise<CloudSyncState> => unwrap(bridge().sync.now())
+  },
+
   cloud: {
     state: (): Promise<CloudState> => unwrap(bridge().cloud.state()),
     project: (projectId: string): Promise<CloudProjectState> =>

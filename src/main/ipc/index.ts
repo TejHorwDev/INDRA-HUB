@@ -59,6 +59,7 @@ import {
   updateProfile
 } from '../services/auth'
 import { readPickedPortrait, readPortraitFile } from '../services/portrait'
+import { syncNow, syncState } from '../services/sync'
 import { claimOfflineWork, offlineWork } from '../services/offline'
 import { myInvitations, respond, revoke } from '../services/invitations'
 import {
@@ -318,6 +319,14 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('cloud:project', (_event, projectId: unknown) =>
     toResult(() => cloudProjectState(actor(), requireProjectId(projectId)))
   )
+
+  /*
+   * Automatic saving, made visible. The main process saves after every edit
+   * without being asked; these two exist so the window can say when it last
+   * happened, and so a person can ask for it immediately.
+   */
+  ipcMain.handle('sync:state', () => toResult(async () => syncState()))
+  ipcMain.handle('sync:now', () => toResult(() => syncNow()))
 
   ipcMain.handle('cloud:list', () => toResult(() => listCloudProjects(accountActor())))
 

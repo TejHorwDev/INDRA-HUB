@@ -28,6 +28,7 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  CloudSyncState,
   SharedInvitation,
   SharedSyncResult,
   InvitationAnswer,
@@ -196,6 +197,13 @@ const api = {
     start: (): Promise<ApiResult<SessionUser>> => ipcRenderer.invoke('offline:start'),
     summary: (): Promise<ApiResult<OfflineWorkSummary>> => ipcRenderer.invoke('offline:summary'),
     claim: (): Promise<ApiResult<OfflineWorkSummary>> => ipcRenderer.invoke('offline:claim')
+  },
+
+  sync: {
+    /** How automatic saving is doing, read from the main process. */
+    state: (): Promise<ApiResult<CloudSyncState>> => ipcRenderer.invoke('sync:state'),
+    /** Save everything pending now, rather than waiting for the debounce. */
+    now: (): Promise<ApiResult<CloudSyncState>> => ipcRenderer.invoke('sync:now')
   },
 
   cloud: {

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from
 import { join } from 'node:path'
 import { closeDatabase, getDatabase } from './db/database'
 import { registerIpcHandlers } from './ipc'
+import { syncOnStart } from './services/sync'
 import { markHealthy, runningVersion } from './lib/payload'
 import { ensureBuiltInAdmin, resetAdminIdentity } from './services/admin'
 import { dropStaleOfflineSession } from './services/auth'
@@ -179,6 +180,11 @@ app.whenReady().then(() => {
   ensureBuiltInAdmin()
 
   registerIpcHandlers()
+
+  /* One catch-up per launch, for a PC that was already signed in. */
+  setTimeout(() => {
+    void syncOnStart().catch(() => undefined)
+  }, 4000)
 
   /*
    * Offline recovery: `INDRA HUB --reset-admin`.
