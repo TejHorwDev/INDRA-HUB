@@ -235,7 +235,7 @@ export default function AboutCard({
                */
               <img src={photoUrl} alt="" draggable={false} onError={() => setBroken(true)} />
             ) : (
-              <UserIcon size={34} className="about-portrait-mark" />
+              <UserIcon size={52} className="about-portrait-mark" />
             )}
           </div>
           <figcaption>Developer</figcaption>
