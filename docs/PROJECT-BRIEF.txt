@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.6
-  Latest release:     v1.9.6 (GitHub, public)
+  Version:            1.9.7
+  Latest release:     v1.9.7 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -54,7 +54,7 @@ Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
 v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
-v1.9.4, v1.9.5, v1.9.6.
+v1.9.4, v1.9.5, v1.9.6, v1.9.7.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -450,6 +450,21 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
   - Nothing was removed, re-routed, renamed or re-wired: 1.9.6 changes tokens,
     spacing, typography and the project card's markup only. All ten
     simulations and the typecheck/build pass unchanged.
+  - **The interface is monochrome (1.9.7).** Black, greys and white; no hue
+    anywhere. Emphasis is contrast, weight and space: the primary action is a
+    white pane on charcoal (black on paper in light mode), selection is a 2px
+    white mark on the active row, chips are outlines rather than fills, and
+    avatars are neutral greys instead of tinted circles. Destructive actions are
+    marked by weight and an underline; the confirmation dialog carries the
+    warning. Errors keep their icon and copy rather than a colour.
+  - Canvas \`#08090a\`, panels \`#0f1012\`, raised \`#1b1c20\`, one hairline at
+    \`#202126\`. The window's own background matches the canvas, so resizing
+    never flashes a different black.
+  - **Home is a dashboard, not a sign-in card.** The identity block and the team
+    are one band of equal height across the page, and a "Recent projects" strip
+    below carries the three most recently touched projects — the same rows the
+    Projects page shows, in the order it already receives them, with no invented
+    statistics. Choosing one opens it.
   - Create, rename, delete projects; each has a description
   - Owner/member model stored in project_members, plus team access derived at
     read time
