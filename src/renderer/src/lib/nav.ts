@@ -26,7 +26,7 @@ const PROJECTS: NavEntry = { to: '/dashboard', label: 'Projects' }
 const DOCUMENTS: NavEntry = { to: '/documents', label: 'Documents' }
 const PRESENTATIONS: NavEntry = { to: '/presentations', label: 'Presentations' }
 const DEVELOPERS: NavEntry = { to: '/developers', label: 'Developers' }
-const CREDITS: NavEntry = { to: '/credits', label: 'Credits' }
+const TOKENS: NavEntry = { to: '/credits', label: 'Tokens' }
 const SETTINGS: NavEntry = { to: '/settings', label: 'Settings' }
 
 /** Screens that exist only for the offline workspace. */
@@ -47,7 +47,7 @@ export function navGroups(offline: boolean): NavGroup[] {
 
   return [
     { label: 'Workspace', items: [HOME, PROJECTS, DEVELOPERS] },
-    { label: 'Account', items: [CREDITS, SETTINGS] }
+    { label: 'Account', items: [TOKENS, SETTINGS] }
   ]
 }
 

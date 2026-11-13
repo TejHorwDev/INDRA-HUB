@@ -85,7 +85,7 @@ function viewLabel(pathname: string): string {
   if (pathname === '/documents') return 'Documents'
   if (pathname === '/presentations') return 'Presentations'
   if (pathname.startsWith('/developers')) return 'Developers'
-  if (pathname.startsWith('/credits')) return 'Credits'
+  if (pathname.startsWith('/credits')) return 'Tokens'
   if (pathname.startsWith('/settings')) return 'Settings'
   if (pathname.startsWith('/admin')) return 'Administration'
   if (pathname.startsWith('/register')) return 'Create account'

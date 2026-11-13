@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 2.1.6 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.1.7 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            2.1.6
-  Latest release:     v2.1.6
+  Version:            2.1.7
+  Latest release:     v2.1.7
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -55,7 +55,7 @@ v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
 v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
 v1.9.4, v1.9.5, v1.9.6, v1.9.7, v2.0.0, v2.0.1, v2.1.0, v2.1.1, v2.1.3,
-v2.1.4, v2.1.5, v2.1.6.
+v2.1.4, v2.1.5, v2.1.6, v2.1.7.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -654,6 +654,16 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     installed build keeps working while a newer one sends the new name.
   - **A low balance is a setting too.** Below `low_balance` the Tokens screen
     says so and points at a top-up; the number is not hardcoded.
+  - **The Tokens screen is one column (2.1.7).** Balance, plans, top-up,
+    requests and history read top to bottom at up to 920px; a plan is one row —
+    name, allowance, price, one button — with fixed columns so the numbers line
+    up down the page and no button can sit on a price. Below 720px a plan row
+    becomes two lines rather than four squeezed columns. **The screen's prices
+    come from `indra_credit_state()`, which must return a `settings` object**
+    (currency, symbol, decimals, pack size, top-up price, min/max, low balance);
+    before 2.1.7 it did not, so every price printed without a currency and the
+    top-up card sat on "reading the price" forever. A missing `settings` now
+    says so instead of pretending to load.
   - **Daily reset on the server's clock.** `pg_cron` runs
     `indra_reset_all_daily()` at 00:05 UTC. `indra_ensure_credit_day()` is the
     safety net: a balance is topped to its allowance the first time it is read

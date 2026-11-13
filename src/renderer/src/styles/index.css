@@ -6891,18 +6891,6 @@ body {
   margin-top: auto;
 }
 
-.tier-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-@media (max-width: 940px) {
-  .tier-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .credit-row {
   display: flex;
   align-items: center;
@@ -8260,10 +8248,21 @@ body {
   background-color: var(--ink);
 }
 
+/*
+ * One column, full width.
+ *
+ * This was two columns — plans and top-up on the left, requests and history on
+ * the right. On a laptop that squeezed the plan rows into about 600px, where a
+ * name, a price and a button cannot sit on one line without colliding; and it
+ * split one story (what is left, what it buys, what I have done) across two
+ * unrelated-looking halves. A single column reads top to bottom and gives every
+ * row the width it needs.
+ */
 .token-body {
   display: grid;
   gap: var(--space-6);
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 920px;
   align-items: start;
 }
 
@@ -8374,9 +8373,19 @@ body {
 }
 
 /* Plans: one line each, the allowance in ink and the rest in grey. */
+.plan-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * A plan is one row: name, what it grants, what it costs, and the one action.
+ * The columns are sized so the numbers stay in a line down the page and the
+ * button never overlaps the price beside it.
+ */
 .plan-row {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(96px, 140px) minmax(0, 1fr) minmax(84px, auto) auto;
   gap: var(--space-4);
   align-items: center;
   padding: var(--space-4) 0;
@@ -8447,13 +8456,40 @@ body {
   font-weight: 400;
 }
 
-@media (max-width: 840px) {
+@media (max-width: 720px) {
+  /* Narrow: the row becomes two lines rather than four squeezed columns. */
   .plan-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 6px;
+    row-gap: var(--space-3);
+  }
+
+  .plan-row-allowance {
+    grid-column: 1 / -1;
   }
 
   .plan-row-price {
     text-align: left;
   }
+}
+
+/* A row's fourth column can be a status word or a small action. */
+.token-row-status {
+  justify-self: end;
+  color: var(--ink);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* A decision already made is context, not news: it recedes. */
+.token-row-status--decided {
+  color: var(--ink-tertiary);
+  font-weight: 500;
+}
+
+.token-row-action {
+  justify-self: end;
+  font-size: 0.6875rem;
 }
