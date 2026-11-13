@@ -15,6 +15,11 @@ files:
   - package.json
   - ui/**/*
   - "!ui/background.source.*"
+  # Shipped beside the app instead (see extraResources): media cannot be
+  # streamed out of an asar archive, and packing it here is what made the
+  # background stay black.
+  - "!ui/background.mp4"
+  - "!ui/background.webm"
 
 compression: maximum
 asar: true
@@ -29,6 +34,8 @@ win:
 extraResources:
   - from: payload/inder-setup.exe
     to: inder-setup.exe
+  - from: ui/background.mp4
+    to: background.mp4
 
 # Portable, not an installed app: the window is a step on the way to the app,
 # not something to leave in Program Files. The splash covers the few seconds

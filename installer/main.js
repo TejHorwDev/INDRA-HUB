@@ -14,11 +14,12 @@
  * one that has already been tested on Windows a dozen times.
  */
 
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain } = require('electron')
 const { spawn } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const { pathToFileURL } = require('node:url')
 
 const APP_NAME = 'INDRA HUB'
 const EXE_NAME = 'INDRA HUB.exe'
@@ -28,6 +29,21 @@ const VERSION = app.getVersion()
 function innerInstaller() {
   const packaged = path.join(process.resourcesPath, 'inder-setup.exe')
   return fs.existsSync(packaged) ? packaged : path.join(__dirname, 'payload', 'inder-setup.exe')
+}
+
+/**
+ * The film behind the window, if this build was given one.
+ *
+ * It is shipped as a resource rather than inside `ui/`, because Chromium cannot
+ * stream a video out of an asar archive — the first build put it there and the
+ * background silently stayed black. Packaged builds look beside the app;
+ * `npm start` in this folder looks in `ui/`.
+ */
+function backgroundFilm() {
+  const packaged = path.join(process.resourcesPath, 'background.mp4')
+  if (fs.existsSync(packaged)) return packaged
+  const local = path.join(__dirname, 'ui', 'background.mp4')
+  return fs.existsSync(local) ? local : null
 }
 
 /** Where NSIS will put the app, given the choice made in the window. */
@@ -68,13 +84,13 @@ let installedExe = null
 
 function createWindow() {
   window = new BrowserWindow({
-    width: 1180,
-    height: 800,
+    width: 1120,
+    height: 720,
     minWidth: 1000,
-    minHeight: 720,
+    minHeight: 660,
     frame: false,
     show: false,
-    backgroundColor: '#050506',
+    backgroundColor: '#08080a',
     title: `${APP_NAME} Setup`,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -91,6 +107,11 @@ function createWindow() {
   })
 }
 
+/* A frameless installer has no menu; Alt would otherwise still open one. */
+Menu.setApplicationMenu(null)
+/* Muted autoplay is allowed anyway; this keeps it true if the policy changes. */
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 app.whenReady().then(() => {
   createWindow()
   app.on('activate', () => {
@@ -105,6 +126,11 @@ app.on('window-all-closed', () => app.quit())
 /* ------------------------------------------------------------------ */
 
 ipcMain.handle('setup:version', () => VERSION)
+
+ipcMain.handle('setup:background', () => {
+  const film = backgroundFilm()
+  return film ? pathToFileURL(film).toString() : null
+})
 ipcMain.handle('setup:minimise', () => window?.minimize())
 ipcMain.handle('setup:close', () => app.quit())
 
