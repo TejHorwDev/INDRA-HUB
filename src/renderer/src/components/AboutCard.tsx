@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AboutInfo, UpdateState } from '@shared/types'
 import { useToast } from './ToastProvider'
-import { RefreshIcon } from './icons'
+import { RefreshIcon, UserIcon } from './icons'
 import { api, errorMessage } from '../lib/api'
-import { formatRelative } from '../lib/format'
 
 /*
  * About.
@@ -29,11 +28,21 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 interface AboutCardProps {
   /** True when a local administrator session can replace the portrait. */
   canEditDeveloper?: boolean
+  /**
+   * `card` draws its own surface (the admin panel). `plain` has none, because
+   * it is already sitting inside one (Settings) — two boxes around four facts
+   * is what made the first version look cramped.
+   */
+  variant?: 'card' | 'plain'
   /** Called after a change, so a parent panel can refresh its own snapshot. */
   onDeveloperChange?: (next: AboutInfo) => void
 }
 
-export default function AboutCard({ canEditDeveloper = false, onDeveloperChange }: AboutCardProps) {
+export default function AboutCard({
+  canEditDeveloper = false,
+  variant = 'card',
+  onDeveloperChange
+}: AboutCardProps) {
   const toast = useToast()
   const [info, setInfo] = useState<AboutInfo | null>(null)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
@@ -112,18 +121,6 @@ export default function AboutCard({ canEditDeveloper = false, onDeveloperChange 
     toast.success(`Version ${update.version} is ready — restart to apply it.`)
   }, [update, toast])
 
-  const check = useCallback(async () => {
-    setChecking(true)
-    setFailure(null)
-    try {
-      setUpdate(await api.updates.check())
-    } catch (error) {
-      setFailure(errorMessage(error))
-    } finally {
-      setChecking(false)
-    }
-  }, [])
-
   const install = useCallback(async () => {
     setChecking(true)
     setFailure(null)
@@ -168,14 +165,14 @@ export default function AboutCard({ canEditDeveloper = false, onDeveloperChange 
 
   const phase = update?.phase ?? 'idle'
   const version = info?.version ?? '—'
-  const initial = (info?.appName ?? 'INDRA HUB').trim().charAt(0) || 'I'
 
-  const status = useMemo((): { text: string; action: string; disabled: boolean } => {
+  /*
+   * There is no "you are up to date" line and no check button here: Settings →
+   * Updates already says both, and repeating it on a card that is meant to be
+   * quiet was noise. The rail appears only when there is an update to apply.
+   */
+  const rail = useMemo((): { text: string; action: string; disabled: boolean } | null => {
     switch (phase) {
-      case 'unsupported':
-        return { text: 'Updates are handled by the installer.', action: 'Install to update', disabled: true }
-      case 'checking':
-        return { text: 'Looking for a newer build…', action: 'Checking…', disabled: true }
       case 'available':
       case 'downloading':
         return {
@@ -191,29 +188,16 @@ export default function AboutCard({ canEditDeveloper = false, onDeveloperChange 
           action: 'Restart to update',
           disabled: false
         }
-      case 'up-to-date':
-        return {
-          text: update?.checkedAt
-            ? `Newest version — checked ${formatRelative(update.checkedAt)}.`
-            : 'This is the newest version.',
-          action: 'Check again',
-          disabled: false
-        }
-      case 'error':
-        return { text: 'The last check failed.', action: 'Try again', disabled: false }
       default:
-        return {
-          text: update?.checkedAt
-            ? `Up to date as of ${formatRelative(update.checkedAt)}.`
-            : 'Check for a newer build when you want one.',
-          action: 'Check for updates',
-          disabled: false
-        }
+        return null
     }
   }, [phase, update])
 
   return (
-    <section className="about-card" aria-label="About INDRA HUB">
+    <section
+      className={variant === 'plain' ? 'about-card about-card--plain' : 'about-card'}
+      aria-label="About INDRA HUB"
+    >
       <div className="about-main">
         <div className="about-ident">
           <p className="about-eyebrow">About</p>
@@ -228,7 +212,7 @@ export default function AboutCard({ canEditDeveloper = false, onDeveloperChange 
             {photoUrl ? (
               <img src={photoUrl} alt="Developer" draggable={false} />
             ) : (
-              <span aria-hidden="true">{initial}</span>
+              <UserIcon size={34} className="about-portrait-mark" />
             )}
           </div>
           <figcaption>Developer</figcaption>
@@ -247,21 +231,23 @@ export default function AboutCard({ canEditDeveloper = false, onDeveloperChange 
         </figure>
       </div>
 
-      <div className="about-rail">
-        <span className={`about-status about-status--${phase}`}>
-          <span className="about-status-dot" aria-hidden="true" />
-          {status.text}
-        </span>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm w-auto"
-          onClick={() => (phase === 'ready' ? void install() : void check())}
-          disabled={status.disabled || checking}
-        >
-          {phase === 'ready' && <RefreshIcon size={13} />}
-          {status.action}
-        </button>
-      </div>
+      {rail && (
+        <div className="about-rail">
+          <span className={`about-status about-status--${phase}`}>
+            <span className="about-status-dot" aria-hidden="true" />
+            {rail.text}
+          </span>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm w-auto"
+            onClick={() => (phase === 'ready' ? void install() : undefined)}
+            disabled={rail.disabled || checking}
+          >
+            {phase === 'ready' && <RefreshIcon size={13} />}
+            {rail.action}
+          </button>
+        </div>
+      )}
 
       {failure && <p className="about-error">{failure}</p>}
     </section>
