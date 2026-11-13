@@ -116,7 +116,7 @@ export default function RegisterScreen() {
         password,
         activationKey: activationKey.trim() || undefined
       })
-      navigate('/dashboard', { replace: true })
+      navigate('/home', { replace: true })
     } catch (error) {
       setServerIssue({
         field: error instanceof ApiError ? error.field : undefined,

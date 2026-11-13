@@ -31,6 +31,8 @@ import type {
   BackendConfigInput,
   BackendStatus,
   SessionUser,
+  TeamDetail,
+  TeamOverview,
   UpdateDiagnostics,
   UpdateState,
   UserSummary,
@@ -70,6 +72,17 @@ async function unwrap<T>(promise: Promise<ApiResult<T>>): Promise<T> {
 }
 
 export const api = {
+  team: {
+    read: (): Promise<TeamOverview> => unwrap(bridge().team.read()),
+    create: (input: { name?: string }): Promise<TeamDetail> => unwrap(bridge().team.create(input)),
+    rename: (input: { name?: string }): Promise<TeamDetail> => unwrap(bridge().team.rename(input)),
+    remove: (): Promise<TeamOverview> => unwrap(bridge().team.remove()),
+    addMember: (userId: string): Promise<TeamDetail> => unwrap(bridge().team.addMember(userId)),
+    removeMember: (userId: string): Promise<TeamDetail> =>
+      unwrap(bridge().team.removeMember(userId)),
+    search: (query: string): Promise<UserSummary[]> => unwrap(bridge().team.search(query))
+  },
+
   auth: {
     current: (): Promise<SessionUser | null> => unwrap(bridge().auth.current()),
     signIn: (input: LoginInput): Promise<SessionUser> => unwrap(bridge().auth.login(input)),

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { MaximizeIcon, MinusIcon, RestoreIcon, SearchIcon, XIcon } from './icons'
 
 interface TitleBarProps {
@@ -33,8 +34,18 @@ export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarP
     }
   }, [bridge])
 
+  /*
+   * The bar is the window's caption: double-clicking anywhere on it maximises
+   * or restores, which is what every Windows title bar does. Clicks that
+   * started on a control are left alone.
+   */
+  function handleDoubleClick(event: MouseEvent<HTMLElement>): void {
+    if ((event.target as HTMLElement).closest('button, a, input')) return
+    void bridge?.window.toggleMaximize()
+  }
+
   return (
-    <header className="titlebar">
+    <header className="titlebar" onDoubleClick={handleDoubleClick}>
       <div className="brand">
         <span className="brand-name">Indra Hub</span>
         <span className="brand-sep" aria-hidden="true" />
@@ -67,7 +78,7 @@ export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarP
             aria-label="Minimize window"
             title="Minimize"
           >
-            <MinusIcon size={12} />
+            <MinusIcon size={10} />
           </button>
           <button
             type="button"
@@ -76,7 +87,7 @@ export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarP
             aria-label={maximized ? 'Restore window' : 'Maximize window'}
             title={maximized ? 'Restore' : 'Maximize'}
           >
-            {maximized ? <RestoreIcon size={12} /> : <MaximizeIcon size={12} />}
+            {maximized ? <RestoreIcon size={10} /> : <MaximizeIcon size={10} />}
           </button>
           <button
             type="button"
@@ -85,7 +96,7 @@ export default function TitleBar({ label, showSearch, onOpenPalette }: TitleBarP
             aria-label="Close window"
             title="Close"
           >
-            <XIcon size={13} />
+            <XIcon size={11} />
           </button>
         </div>
       </div>

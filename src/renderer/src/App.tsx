@@ -8,6 +8,7 @@ import TitleBar from './components/TitleBar'
 import {
   CodeIcon,
   DashboardIcon,
+  HomeIcon,
   MoonIcon,
   SettingsIcon,
   SignOutIcon,
@@ -21,6 +22,7 @@ import { useTheme } from './lib/theme'
 import AdminScreen from './screens/AdminScreen'
 import CreditsScreen from './screens/CreditsScreen'
 import DashboardScreen from './screens/DashboardScreen'
+import HomeScreen from './screens/HomeScreen'
 import DevelopersScreen from './screens/DevelopersScreen'
 import DocumentEditorScreen from './screens/DocumentEditorScreen'
 import DocumentsScreen from './screens/DocumentsScreen'
@@ -34,7 +36,7 @@ import ProjectWorkspaceScreen from './screens/ProjectWorkspaceScreen'
 import RegisterScreen from './screens/RegisterScreen'
 import SettingsScreen from './screens/SettingsScreen'
 
-const SHELL_PATHS = ['/dashboard', '/developers', '/credits', '/settings', '/project']
+const SHELL_PATHS = ['/home', '/dashboard', '/developers', '/credits', '/settings', '/project']
 
 /** Screens stay mounted behind the guard so a reload restores the session. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -57,6 +59,7 @@ function viewLabel(pathname: string): string {
     if (pathname.endsWith('/intelligence')) return 'Intelligence'
     return pathname.endsWith('/workspace') ? 'Workspace' : 'Project'
   }
+  if (pathname.startsWith('/home')) return 'Home'
   if (pathname.startsWith('/dashboard')) return 'Projects'
   if (pathname.startsWith('/developers')) return 'Developers'
   if (pathname.startsWith('/credits')) return 'Credits'
@@ -122,6 +125,7 @@ export default function App() {
 
   const commands = useMemo<Command[]>(() => {
     const destinations = [
+      { to: '/home', label: 'Go to Home', icon: <HomeIcon size={15} /> },
       { to: '/dashboard', label: 'Go to Projects', icon: <DashboardIcon size={15} /> },
       { to: '/developers', label: 'Go to Developers', icon: <CodeIcon size={15} /> },
       { to: '/credits', label: 'Go to Credits', icon: <SparkIcon size={15} /> },
@@ -186,11 +190,11 @@ export default function App() {
         <Routes>
           <Route
             path="/login"
-            element={signedIn ? <Navigate to="/dashboard" replace /> : <LoginScreen />}
+            element={signedIn ? <Navigate to="/home" replace /> : <LoginScreen />}
           />
           <Route
             path="/register"
-            element={signedIn ? <Navigate to="/dashboard" replace /> : <RegisterScreen />}
+            element={signedIn ? <Navigate to="/home" replace /> : <RegisterScreen />}
           />
 
           <Route
@@ -200,6 +204,7 @@ export default function App() {
               </RequireAuth>
             }
           >
+            <Route path="/home" element={<HomeScreen />} />
             <Route path="/dashboard" element={<DashboardScreen />} />
             <Route path="/developers" element={<DevelopersScreen />} />
             <Route path="/credits" element={<CreditsScreen />} />
@@ -246,7 +251,7 @@ export default function App() {
             }
           />
 
-          <Route path="*" element={<Navigate to={signedIn ? '/dashboard' : '/login'} replace />} />
+          <Route path="*" element={<Navigate to={signedIn ? '/home' : '/login'} replace />} />
         </Routes>
         )}
       </div>

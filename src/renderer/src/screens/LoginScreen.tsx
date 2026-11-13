@@ -49,7 +49,7 @@ export default function LoginScreen() {
     setPending(true)
     try {
       await signIn({ identifier: identifier.trim(), password })
-      navigate('/dashboard', { replace: true })
+      navigate('/home', { replace: true })
     } catch (error) {
       /*
        * One screen, two identities. If these are the administrator's
