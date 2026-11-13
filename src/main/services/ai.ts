@@ -3,6 +3,7 @@ import { net } from 'electron'
 import type {
   AdminCreditAccount,
   AdminCreditLedgerRow,
+  AdminCreditSettingsInput,
   AdminCreditSnapshot,
   AdminPlanInput,
   AiActivity,
@@ -14,6 +15,7 @@ import type {
   AiUsage,
   CreditLedgerEntry,
   CreditPlan,
+  CreditSettings,
   CreditsState,
   PurchaseRequest,
   PurchaseRequestInput,
@@ -62,6 +64,37 @@ interface WireState {
   resetAt?: string | null
   planExpiresAt?: string | null
   isAdmin?: boolean
+  settings?: unknown
+}
+
+/**
+ * The pricing rules, read defensively.
+ *
+ * These numbers decide what a person is quoted, so a missing field must never
+ * become zero: every fallback is the same default the database ships with.
+ */
+export function asCreditSettings(value: unknown): CreditSettings | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  const num = (key: string, fallback: number): number => {
+    const parsed = Number(row[key])
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+  const currency = typeof row.currency === 'string' && /^[A-Za-z]{3}$/.test(row.currency)
+    ? row.currency.toUpperCase()
+    : 'USD'
+  return {
+    currency,
+    symbol: typeof row.symbol === 'string' && row.symbol ? row.symbol : '$',
+    decimals: Math.min(Math.max(Math.round(num('decimals', 2)), 0), 3),
+    tokensPerCredit: Math.max(1, Math.round(num('tokensPerCredit', 1000))),
+    topupCredits: Math.max(1, Math.round(num('topupCredits', 100))),
+    topupPriceMinor: Math.max(0, Math.round(num('topupPriceMinor', 199))),
+    minTopup: Math.max(1, Math.round(num('minTopup', 100))),
+    maxTopup: Math.max(1, Math.round(num('maxTopup', 100_000))),
+    lowBalance: Math.max(0, Math.round(num('lowBalance', 20))),
+    updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : null
+  }
 }
 
 function nowIso(): string {
@@ -82,6 +115,7 @@ function disconnected(message: string): CreditsState {
     resetAt: null,
     planExpiresAt: null,
     isAdmin: false,
+    settings: null,
     syncedAt: null,
     cached: false,
     message
@@ -104,6 +138,7 @@ function fromWire(state: WireState, syncedAt: string, cached: boolean): CreditsS
     resetAt: state.resetAt ?? null,
     planExpiresAt: state.planExpiresAt ?? null,
     isAdmin: state.isAdmin === true,
+    settings: asCreditSettings(state.settings),
     syncedAt,
     cached,
     message: null
@@ -445,14 +480,15 @@ interface WirePlan {
   name?: string
   blurb?: string
   daily_credits?: number
-  price_inr?: number
+  price_minor?: number
   sort?: number
+  enabled?: boolean
 }
 
 async function fetchPlans(token: string, currentPlan: string): Promise<CreditPlan[]> {
   const rows = await restCall<WirePlan[]>(
     token,
-    '/rest/v1/indra_plans?select=id,name,blurb,daily_credits,price_inr,sort&order=sort.asc'
+    '/rest/v1/indra_plans?select=id,name,blurb,daily_credits,price_minor,sort,enabled&order=sort.asc'
   )
   const plans = (rows ?? [])
     .filter((row) => typeof row.id === 'string')
@@ -461,8 +497,9 @@ async function fetchPlans(token: string, currentPlan: string): Promise<CreditPla
       name: typeof row.name === 'string' ? row.name : (row.id as string),
       blurb: typeof row.blurb === 'string' ? row.blurb : '',
       dailyCredits: Number(row.daily_credits ?? 0),
-      priceInr: Number(row.price_inr ?? 0),
+      priceMinor: Number(row.price_minor ?? 0),
       sort: Number(row.sort ?? 0),
+      enabled: row.enabled !== false,
       current: row.id === currentPlan,
       expiresAt: null as string | null
     }))
@@ -532,7 +569,8 @@ interface WirePurchase {
   plan_id?: string | null
   plan_name?: string | null
   credits?: number | null
-  amount_inr?: number | null
+  amount_minor?: number | null
+  currency?: string | null
   note?: string | null
   status?: string
   created_at?: string
@@ -546,7 +584,9 @@ function mapPurchase(row: WirePurchase): PurchaseRequest {
     planId: row.plan_id ?? null,
     planName: row.plan_name ?? null,
     credits: row.credits === null || row.credits === undefined ? null : Number(row.credits),
-    amountInr: row.amount_inr === null || row.amount_inr === undefined ? null : Number(row.amount_inr),
+    amountMinor:
+      row.amount_minor === null || row.amount_minor === undefined ? null : Number(row.amount_minor),
+    currency: typeof row.currency === 'string' ? row.currency : null,
     note: typeof row.note === 'string' ? row.note : '',
     status: (row.status as PurchaseRequest['status']) ?? 'pending',
     createdAt: String(row.created_at ?? nowIso()),
@@ -557,10 +597,15 @@ function mapPurchase(row: WirePurchase): PurchaseRequest {
 export async function purchaseRequests(viewer: SessionUser): Promise<PurchaseRequest[]> {
   const session = await cloudSession(viewer)
   const rows = await rpcCall<WirePurchase[]>(session.token, 'indra_my_purchases', {})
+  // The server now joins the tier name in; the cache is only a fallback for an
+  // older database that has not had the console migration yet.
   const names = new Map(cachedPlans().map((plan) => [plan.id, plan.name]))
   return (rows ?? []).map((row) => {
     const request = mapPurchase(row)
-    return { ...request, planName: request.planId ? (names.get(request.planId) ?? null) : null }
+    return {
+      ...request,
+      planName: request.planName ?? (request.planId ? (names.get(request.planId) ?? null) : null)
+    }
   })
 }
 
@@ -575,8 +620,16 @@ export async function requestPurchase(
   }
   const credits = kind === 'credits' ? Number(input.credits ?? 0) : null
   if (kind === 'credits') {
-    if (!Number.isFinite(credits) || credits === null || credits < 100 || credits > 100_000) {
-      throw errors.validation('Top-ups start at 100 credits.', 'credits')
+    /*
+     * Only the shape is checked here. What a top-up may be, and what it costs,
+     * are settings the administrator owns: the server applies them, and its
+     * refusal names the real limits, so this must not keep a stale copy of them.
+     */
+    if (!Number.isFinite(credits) || credits === null || !Number.isInteger(credits) || credits < 1) {
+      throw errors.validation('Give a whole number of credits.', 'credits')
+    }
+    if (credits > 1_000_000) {
+      throw errors.validation('The largest single top-up is 1,000,000 credits.', 'credits')
     }
   }
 
@@ -623,7 +676,15 @@ async function adminPurchases(token: string): Promise<AdminPurchase[]> {
 
 export async function adminCreditSnapshot(viewer: SessionUser): Promise<AdminCreditSnapshot> {
   if (viewer.mode === 'offline') {
-    return { pending: [], decided: [], plans: cachedPlans(), accounts: [], live: false, message: 'The offline workspace is not an administrator in the cloud.' }
+    return {
+      pending: [],
+      decided: [],
+      plans: cachedPlans(),
+      accounts: [],
+      settings: null,
+      live: false,
+      message: 'The offline workspace is not an administrator in the cloud.'
+    }
   }
   try {
     const session = await cloudSession(viewer)
@@ -634,6 +695,7 @@ export async function adminCreditSnapshot(viewer: SessionUser): Promise<AdminCre
         decided: [],
         plans: await creditPlans(viewer),
         accounts: [],
+        settings: asCreditSettings(state?.settings),
         live: false,
         message: 'This cloud account is not an administrator. Credits can only be managed by an account with that role on the server.'
       }
@@ -661,13 +723,22 @@ export async function adminCreditSnapshot(viewer: SessionUser): Promise<AdminCre
       suspended: Boolean(row.suspended_at)
     }))
     const plans = await fetchPlans(session.token, typeof state.plan === 'string' ? state.plan : 'free')
-    return { pending, decided, plans, accounts, live: true, message: null }
+    return {
+      pending,
+      decided,
+      plans,
+      accounts,
+      settings: asCreditSettings(state.settings),
+      live: true,
+      message: null
+    }
   } catch (error) {
     return {
       pending: [],
       decided: [],
       plans: cachedPlans(),
       accounts: [],
+      settings: null,
       live: false,
       message: messageFor(error)
     }
@@ -732,14 +803,46 @@ export async function adminUpdatePlan(
 ): Promise<CreditPlan[]> {
   if (!input.id) throw errors.validation('Choose a plan.', 'id')
   const session = await cloudSession(viewer)
-  await rpcCall(session.token, 'indra_admin_update_plan', {
+  await rpcCall(session.token, 'indra_admin_save_plan', {
     p_id: input.id,
     p_name: input.name ?? null,
+    p_blurb: input.blurb ?? null,
     p_daily: input.dailyCredits === undefined ? null : Math.round(input.dailyCredits),
-    p_price: input.priceInr === undefined ? null : Math.round(input.priceInr),
-    p_blurb: input.blurb ?? null
+    p_price_minor: input.priceMinor === undefined ? null : Math.round(input.priceMinor),
+    p_sort: input.sort === undefined ? null : Math.round(input.sort),
+    p_enabled: input.enabled === undefined ? null : input.enabled,
+    p_create: input.create === true
   })
   return fetchPlans(session.token, input.id)
+}
+
+/**
+ * The pricing rules: currency, what a credit buys, the top-up pack, the limits.
+ *
+ * Written whole so two fields can never disagree, and read back from the
+ * server's own row — the console shows what was saved, not what was typed.
+ */
+export async function adminUpdateCreditSettings(
+  viewer: SessionUser,
+  input: AdminCreditSettingsInput
+): Promise<CreditSettings> {
+  const session = await cloudSession(viewer)
+  const row = await rpcCall<unknown>(session.token, 'indra_admin_update_credit_settings', {
+    p_currency: input.currency ?? null,
+    p_symbol: input.symbol ?? null,
+    p_decimals: input.decimals === undefined ? null : Math.round(input.decimals),
+    p_tokens_per_credit:
+      input.tokensPerCredit === undefined ? null : Math.round(input.tokensPerCredit),
+    p_topup_credits: input.topupCredits === undefined ? null : Math.round(input.topupCredits),
+    p_topup_price_minor:
+      input.topupPriceMinor === undefined ? null : Math.round(input.topupPriceMinor),
+    p_min_topup: input.minTopup === undefined ? null : Math.round(input.minTopup),
+    p_max_topup: input.maxTopup === undefined ? null : Math.round(input.maxTopup),
+    p_low_balance: input.lowBalance === undefined ? null : Math.round(input.lowBalance)
+  })
+  const settings = asCreditSettings(row)
+  if (!settings) throw errors.validation('The server did not return the new settings.')
+  return settings
 }
 
 export async function adminLedger(

@@ -97,17 +97,22 @@ export default function OverviewSection({ overview, onOpenSection }: OverviewPro
               <SparkIcon size={14} />
               AI provider
             </h2>
-            <span className="admin-status">Not configured</span>
+            <button type="button" className="admin-link" onClick={() => onOpenSection('credits')}>
+              Credit console
+            </button>
           </div>
           <div className="admin-card-body">
             <div className="admin-key-slot">
-              <span className="micro-label">API key</span>
-              <span className="admin-key-placeholder">Placeholder — no key set</span>
+              <span className="micro-label">Pricing</span>
+              <span className="admin-key-placeholder">
+                Currency and prices are set in the credit console
+              </span>
             </div>
             <p className="admin-hint">
-              AI-assisted conversion and credit accounting are not connected in this build. The API
-              key will be added here later; until then every document-to-presentation conversion uses
-              the offline engine and spends nothing.
+              What a credit buys, what a tier grants and what a top-up costs are all settings on the
+              server — never in a build. The model key that spends them is still held by the cloud
+              project, not by this app; until it is added there, AI runs answer that they are not
+              switched on and no credit is spent.
             </p>
           </div>
         </section>

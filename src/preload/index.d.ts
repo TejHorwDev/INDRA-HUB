@@ -2,12 +2,14 @@ import type {
   AboutInfo,
   AdminCreditLedgerRow,
   AdminCreditSnapshot,
+  AdminCreditSettingsInput,
   AdminPlanInput,
   AiActivity,
   AiAnswer,
   AiAskInput,
   CreditLedgerEntry,
   CreditPlan,
+  CreditSettings,
   CreditsState,
   PurchaseRequest,
   PurchaseRequestInput,
@@ -281,6 +283,9 @@ export interface IndraBridge {
       reason?: string
     }) => Promise<ApiResult<AdminCreditSnapshot>>
     updatePlan: (input: AdminPlanInput) => Promise<ApiResult<CreditPlan[]>>
+    updateCreditSettings: (
+      input: AdminCreditSettingsInput
+    ) => Promise<ApiResult<CreditSettings>>
     creditLedger: (payload: {
       userId: string
       limit?: number

@@ -2,6 +2,7 @@ import type {
   AboutInfo,
   AdminAccount,
   AdminCreditLedgerRow,
+  AdminCreditSettingsInput,
   AdminCreditSnapshot,
   AdminPlanInput,
   AiActivity,
@@ -9,6 +10,7 @@ import type {
   AiAskInput,
   CreditLedgerEntry,
   CreditPlan,
+  CreditSettings,
   CreditsState,
   PurchaseRequest,
   PurchaseRequestInput,
@@ -285,6 +287,8 @@ export const api = {
       unwrap(bridge().admin.grantCredits({ userId, amount, reason })),
     updatePlan: (input: AdminPlanInput): Promise<CreditPlan[]> =>
       unwrap(bridge().admin.updatePlan(input)),
+    updateCreditSettings: (input: AdminCreditSettingsInput): Promise<CreditSettings> =>
+      unwrap(bridge().admin.updateCreditSettings(input)),
     creditLedger: (userId: string, limit = 40): Promise<AdminCreditLedgerRow[]> =>
       unwrap(bridge().admin.creditLedger({ userId, limit })),
     suspendAccount: (userId: string, suspended: boolean): Promise<null> =>

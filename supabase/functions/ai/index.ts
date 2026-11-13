@@ -82,9 +82,17 @@ function fail(status: number, code: string, message: string, extra: Record<strin
   return reply({ error: code, message, ...extra }, status)
 }
 
-/** One credit is a thousand tokens, in and out, rounded up. Never zero. */
-function costOf(tokens: number): number {
-  return Math.max(1, Math.ceil(tokens / 1000))
+/**
+ * What a run costs, in credits.
+ *
+ * One credit buys `tokensPerCredit` tokens, in and out, rounded up and never
+ * zero. That number is a setting the administrator owns — it travels with the
+ * balance read at the start of the request — so a workspace can decide a credit
+ * is worth 1,000 tokens or 250 without anyone shipping a build.
+ */
+function costOf(tokens: number, tokensPerCredit = 1000): number {
+  const per = Number.isFinite(tokensPerCredit) && tokensPerCredit > 0 ? tokensPerCredit : 1000
+  return Math.max(1, Math.ceil(tokens / per))
 }
 
 /** A short, honest ceiling on how much of the document is worth sending. */
@@ -185,6 +193,8 @@ interface TurnInput {
   maxOutputTokens: number
   json: boolean
   timeoutMs: number
+  /** Tokens one credit buys, as the workspace's settings say. */
+  perCredit?: number
 }
 
 async function turn(input: TurnInput): Promise<TurnResult> {
@@ -242,7 +252,7 @@ async function turn(input: TurnInput): Promise<TurnResult> {
       text,
       citations,
       queries: candidate?.groundingMetadata?.webSearchQueries ?? [],
-      usage: { prompt: promptTokens, output: outputTokens, total, cost: costOf(total) }
+      usage: { prompt: promptTokens, output: outputTokens, total, cost: costOf(total, input.perCredit) }
     }
   } finally {
     clearTimeout(timer)
@@ -395,6 +405,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
       { balance })
   }
 
+  /*
+   * What one credit buys comes from the same settings row the app reads, so a
+   * charge and the price shown on the Credits page can never disagree. A
+   * workspace that has not configured it falls back to a thousand tokens.
+   */
+  const rawSettings = (balance.settings ?? {}) as Record<string, unknown>
+  const perCredit = Number(rawSettings.tokensPerCredit)
+  const tokensPerCredit =
+    Number.isFinite(perCredit) && perCredit > 0 ? Math.floor(perCredit) : 1000
+
   const charge = chargeFrom(supa, profile)
   const trace: TraceEntry[] = []
   const usage: Usage = { prompt: 0, output: 0, total: 0, cost: 0 }
@@ -444,7 +464,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
         temperature: 0.7,
         maxOutputTokens: 2400,
         json: false,
-        timeoutMs: 60_000
+        timeoutMs: 60_000,
+        perCredit: tokensPerCredit
       }))
 
       const state = await rpc<Record<string, unknown>>(supa, 'indra_credit_state', {}, token).catch(() => balance)
@@ -479,7 +500,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
       temperature: 0.4,
       maxOutputTokens: 700,
       json: true,
-      timeoutMs: 30_000
+      timeoutMs: 30_000,
+      perCredit: tokensPerCredit
     }))
 
     let questions: string[] = []
@@ -507,7 +529,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
       temperature: 0.3,
       maxOutputTokens: 1200,
       json: false,
-      timeoutMs: SEARCH_TIMEOUT_MS
+      timeoutMs: SEARCH_TIMEOUT_MS,
+      perCredit: tokensPerCredit
     }))))
 
     const sources: Citation[] = []
@@ -551,7 +574,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
       temperature: 0.5,
       maxOutputTokens: deep ? 4000 : 2400,
       json: false,
-      timeoutMs: deep ? 80_000 : 55_000
+      timeoutMs: deep ? 80_000 : 55_000,
+      perCredit: tokensPerCredit
     }))
 
     const state = await rpc<Record<string, unknown>>(supa, 'indra_credit_state', {}, token).catch(() => balance)

@@ -1,6 +1,6 @@
 {
   "name": "indra-hub",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "private": true,
   "description": "INDRA HUB — desktop workspace",
   "author": "TejHorwDev",
@@ -28,7 +28,8 @@
     "sim:sharing": "node scripts/sharing-sim.mjs",
     "sim:ai": "node scripts/ai-sim.mjs",
     "sim:function": "node scripts/function-sim.mjs",
-    "sim:about": "node scripts/about-sim.mjs"
+    "sim:about": "node scripts/about-sim.mjs",
+    "sim:credits": "node scripts/credits-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

@@ -891,6 +891,8 @@ export interface CreditsState {
   resetAt: string | null
   planExpiresAt: string | null
   isAdmin: boolean
+  /** The pricing rules the server currently enforces. */
+  settings: CreditSettings | null
   /** When the server last confirmed these numbers. */
   syncedAt: string | null
   /** True when drawn from the local copy because the cloud could not be read. */
@@ -899,14 +901,40 @@ export interface CreditsState {
   message: string | null
 }
 
-/** One tier, as configured on the server. Price is in whole rupees. */
+/**
+ * The pricing rules, exactly as the server holds them.
+ *
+ * Money is in minor units of `currency` — cents for USD, paisa for NPR — and
+ * never a float, so nothing is rounded somewhere the administrator cannot see.
+ * `tokensPerCredit` is what one credit buys, which is also what the Edge
+ * Function divides a provider's token count by before it charges.
+ */
+export interface CreditSettings {
+  currency: string
+  symbol: string
+  /** Digits after the decimal point for this currency. */
+  decimals: number
+  tokensPerCredit: number
+  /** A top-up pack: this many credits for `topupPriceMinor`. */
+  topupCredits: number
+  topupPriceMinor: number
+  minTopup: number
+  maxTopup: number
+  /** The balance at which the app suggests a top-up. */
+  lowBalance: number
+  updatedAt: string | null
+}
+
+/** One tier, as configured on the server. Money is in minor units. */
 export interface CreditPlan {
   id: string
   name: string
   blurb: string
   dailyCredits: number
-  priceInr: number
+  priceMinor: number
   sort: number
+  /** False when the administrator has retired the tier. */
+  enabled: boolean
   current: boolean
   /** True when this is the tier the account's plan_expires_at refers to. */
   expiresAt: string | null
@@ -933,7 +961,10 @@ export interface PurchaseRequest {
   planId: string | null
   planName: string | null
   credits: number | null
-  amountInr: number | null
+  /** What it was quoted at, in the minor unit of `currency`. */
+  amountMinor: number | null
+  /** The currency of the quote; a receipt never changes currency later. */
+  currency: string | null
   note: string
   status: PurchaseStatus
   createdAt: string
@@ -1002,6 +1033,13 @@ export interface AiAskInput {
   history?: { role: 'user' | 'model'; text: string }[]
 }
 
+/** One credit price, formatted by the rules the server holds. */
+export interface MoneyFormat {
+  symbol: string
+  decimals: number
+  currency: string
+}
+
 /** One run this PC made, kept so the document can show what was written into it. */
 export interface AiActivity {
   id: string
@@ -1049,6 +1087,8 @@ export interface AdminCreditSnapshot {
   decided: Array<PurchaseRequest & { accountId: string; accountName: string; accountEmail: string | null }>
   plans: CreditPlan[]
   accounts: AdminCreditAccount[]
+  /** The pricing rules, as the server holds them. */
+  settings: CreditSettings | null
   /** The signed-in app account is an administrator in the cloud, not just here. */
   live: boolean
   message: string | null
@@ -1057,7 +1097,24 @@ export interface AdminCreditSnapshot {
 export interface AdminPlanInput {
   id: string
   name?: string
-  dailyCredits?: number
-  priceInr?: number
   blurb?: string
+  dailyCredits?: number
+  /** In the minor unit of the workspace currency. */
+  priceMinor?: number
+  sort?: number
+  enabled?: boolean
+  /** True when a missing id should be created rather than refused. */
+  create?: boolean
+}
+
+export interface AdminCreditSettingsInput {
+  currency?: string
+  symbol?: string
+  decimals?: number
+  tokensPerCredit?: number
+  topupCredits?: number
+  topupPriceMinor?: number
+  minTopup?: number
+  maxTopup?: number
+  lowBalance?: number
 }
