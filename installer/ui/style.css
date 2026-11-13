@@ -86,8 +86,11 @@ body {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(100deg, rgba(4, 4, 5, 0.92) 0%, rgba(4, 4, 5, 0.7) 44%, rgba(4, 4, 5, 0.34) 100%),
-    linear-gradient(180deg, rgba(4, 4, 5, 0.5) 0%, rgba(4, 4, 5, 0.12) 32%, rgba(4, 4, 5, 0.62) 100%);
+    /* The film is already dark (mean luminance ~17/255), so this scrim is only
+     * there to seat the type: heavy behind the headline, nearly clear on the
+     * right where the motion is meant to be seen. */
+    linear-gradient(100deg, rgba(4, 4, 5, 0.88) 0%, rgba(4, 4, 5, 0.55) 46%, rgba(4, 4, 5, 0.12) 100%),
+    linear-gradient(180deg, rgba(4, 4, 5, 0.44) 0%, rgba(4, 4, 5, 0.06) 34%, rgba(4, 4, 5, 0.5) 100%);
 }
 
 /* ---------------- window ---------------- */
