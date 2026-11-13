@@ -4144,6 +4144,44 @@
     word-break: break-word;
   }
 
+  /* A transfer code is long and has to survive a copy-paste intact. */
+  .cloud-code {
+    display: block;
+    max-width: 100%;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-subtle);
+    color: var(--ink-secondary);
+    font-family: var(--font-mono-stack, ui-monospace, monospace);
+    font-size: var(--fs-xs);
+    line-height: 1.55;
+    word-break: break-all;
+    user-select: all;
+  }
+
+  .cloud-adopt {
+    max-width: 640px;
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--line);
+  }
+
+  .cloud-adopt-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .cloud-adopt-row .field-input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono-stack, ui-monospace, monospace);
+    font-size: var(--fs-xs);
+  }
+
   .account-note {
     max-width: 62ch;
     color: var(--ink-tertiary);
@@ -4661,6 +4699,19 @@
 
   .library-search {
     margin-bottom: 14px;
+  }
+
+  /* The cloud copies sit below the local list, visually a second shelf. */
+  .library-cloud {
+    margin-top: 30px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    animation: rise-in var(--dur-base) var(--ease) both;
+  }
+
+  .library-cloud .home-section-head {
+    margin-bottom: 12px;
+    padding-inline: 2px;
   }
 
   .library-icon {

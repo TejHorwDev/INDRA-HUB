@@ -146,6 +146,54 @@ export interface LibrarySnapshot {
   presentations: LibraryItem[]
 }
 
+/* ---------------- the cloud copy ---------------- */
+
+/**
+ * What this installation knows about its cloud identity. The address is a
+ * generated one owned by this machine — the app never asks for, or shows, a
+ * password — and it is only ever masked here.
+ */
+export interface CloudState {
+  /** False when no cloud endpoint is configured in the build. */
+  available: boolean
+  /** True once this machine has an identity in the cloud. */
+  linked: boolean
+  /** Masked address, for recognising the copy; never a credential. */
+  account: string | null
+  /** Online is decided by the main process, not by the renderer. */
+  online: boolean
+  /** Why the cloud is not usable, in plain words, when it is not. */
+  message: string | null
+}
+
+/** A project that exists in this installation's own cloud copy. */
+export interface CloudProjectSummary {
+  cloudId: string
+  name: string
+  description: string
+  updatedAt: string
+  /** The local project this copy came from or was pushed to, when known. */
+  localProjectId: string | null
+}
+
+/** How one local project relates to the cloud. Read from disk, never the network. */
+export interface CloudProjectState {
+  projectId: string
+  cloudId: string | null
+  pushedAt: string | null
+  documents: number
+  presentations: number
+  /** True when local work has changed since the last push. */
+  stale: boolean
+}
+
+export interface CloudPushResult {
+  cloudId: string
+  pushedAt: string
+  documents: number
+  presentations: number
+}
+
 /** What a saved project file contains. Written by the app, read by it. */
 export interface ProjectArchive {
   format: 'indrahub.project'

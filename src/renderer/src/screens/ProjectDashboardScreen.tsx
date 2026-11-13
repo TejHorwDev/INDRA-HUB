@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { ProjectDetail, ProjectMember } from '@shared/types'
+import type { CloudProjectState, ProjectDetail, ProjectMember } from '@shared/types'
 import AddMemberDialog from '../components/AddMemberDialog'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
 import ProjectTabs from '../components/ProjectTabs'
 import RemoveMemberDialog from '../components/RemoveMemberDialog'
 import { useToast } from '../components/ToastProvider'
-import { AlertCircleIcon, FolderIcon, PlusIcon, SaveIcon } from '../components/icons'
+import { AlertCircleIcon, CloudIcon, FolderIcon, PlusIcon, SaveIcon } from '../components/icons'
 import { api, errorCode, errorMessage } from '../lib/api'
+import { useConnectivity } from '../lib/connectivity'
 import { formatDate, formatRelative, initialsOf } from '../lib/format'
 import { Skeleton } from '../components/Skeleton'
 
@@ -17,12 +18,15 @@ type LoadState = 'loading' | 'ready' | 'missing' | 'error'
 export default function ProjectDashboardScreen() {
   const { projectId = '' } = useParams()
   const toast = useToast()
+  const { offline } = useConnectivity()
 
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [state, setState] = useState<LoadState>('loading')
   const [error, setError] = useState<string | null>(null)
 
   const [saving, setSaving] = useState(false)
+  const [cloud, setCloud] = useState<CloudProjectState | null>(null)
+  const [pushing, setPushing] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ProjectMember | null>(null)
   const [removing, setRemoving] = useState(false)
@@ -34,6 +38,28 @@ export default function ProjectDashboardScreen() {
    * that never sees the internet. The dialog is the system's own, so the user
    * picks the place and owns the result.
    */
+  /**
+   * The other copy: the same project in this installation's own cloud
+   * database, reachable from any PC that installation signs in on. Offline the
+   * button is inert — the cloud is not something this app pretends to reach.
+   */
+  async function saveToCloud(): Promise<void> {
+    if (pushing || offline) return
+    setPushing(true)
+    try {
+      const result = await api.cloud.push(projectId)
+      setCloud(await api.cloud.project(projectId))
+      const total = result.documents + result.presentations
+      toast.success(
+        total === 0 ? 'Project saved to the cloud.' : `Saved to the cloud — ${total} items.`
+      )
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setPushing(false)
+    }
+  }
+
   async function saveCopy(): Promise<void> {
     if (saving) return
     setSaving(true)
@@ -56,6 +82,8 @@ export default function ProjectDashboardScreen() {
     try {
       const detail = await api.projects.get(projectId)
       setProject(detail)
+      // Read from disk, so this works with no connection at all.
+      setCloud(await api.cloud.project(projectId).catch(() => null))
       setState('ready')
     } catch (failure) {
       if (errorCode(failure) === 'NOT_FOUND') {
@@ -157,12 +185,28 @@ export default function ProjectDashboardScreen() {
             <button
               type="button"
               className="btn btn-ghost w-auto"
+              onClick={() => void saveToCloud()}
+              disabled={pushing || offline || !isOwner}
+              title={
+                offline
+                  ? 'The cloud copy is unavailable while this PC is offline'
+                  : isOwner
+                    ? 'Save this project to its cloud copy'
+                    : 'Only the head developer can save this project to the cloud'
+              }
+            >
+              {pushing ? <span className="spinner" aria-hidden="true" /> : <CloudIcon size={14} />}
+              Save to cloud
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost w-auto"
               onClick={() => void saveCopy()}
               disabled={saving}
               title="Write this project to a file on this PC"
             >
               {saving ? <span className="spinner" aria-hidden="true" /> : <SaveIcon size={14} />}
-              Save a copy
+              Save to PC
             </button>
             <Link to={`/project/${project.id}/workspace`} className="btn btn-ghost w-auto">
               Open workspace
@@ -210,8 +254,20 @@ export default function ProjectDashboardScreen() {
                 <dd>{isOwner ? 'Head developer' : 'Member'}</dd>
               </div>
               <div className="info-row">
-                <dt>Saved on</dt>
-                <dd>This PC</dd>
+                <dt>On this PC</dt>
+                <dd>Yes — opens offline</dd>
+              </div>
+              <div className="info-row">
+                <dt>Cloud copy</dt>
+                <dd>
+                  {!cloud?.pushedAt
+                    ? isOwner
+                      ? 'Not saved yet'
+                      : 'Saved by the head developer'
+                    : cloud.stale
+                      ? `Saved ${formatRelative(cloud.pushedAt)} · newer work here`
+                      : `Saved ${formatRelative(cloud.pushedAt)}`}
+                </dd>
               </div>
             </dl>
 

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { LibraryItem } from '@shared/types'
+import type { CloudProjectSummary, LibraryItem } from '@shared/types'
 import EmptyState from '../components/EmptyState'
 import Page from '../components/Page'
 import { useToast } from '../components/ToastProvider'
 import {
   ChevronRightIcon,
+  CloudIcon,
   FileIcon,
   PlusIcon,
   PresentationIcon,
@@ -40,6 +41,14 @@ export default function LibraryScreen({ kind }: LibraryScreenProps) {
   const [query, setQuery] = useState('')
   const [creating, setCreating] = useState(false)
 
+  /*
+   * The cloud copies. They are a separate list on purpose: they live in the
+   * account's own database, not on this disk, and the moment the machine has
+   * no route out they are neither fetched nor shown. Offline is this PC only.
+   */
+  const [cloudItems, setCloudItems] = useState<CloudProjectSummary[] | null>(null)
+  const [pulling, setPulling] = useState<string | null>(null)
+
   const isDocument = kind === 'documents'
 
   const load = useCallback(async () => {
@@ -56,6 +65,32 @@ export default function LibraryScreen({ kind }: LibraryScreenProps) {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (offline) {
+      setCloudItems(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const state = await api.cloud.state()
+        if (cancelled || !state.linked) {
+          if (!cancelled) setCloudItems([])
+          return
+        }
+        const list = await api.cloud.list()
+        if (!cancelled) setCloudItems(list)
+      } catch {
+        // A cloud that cannot answer is not an error the library should shout
+        // about: the work on this PC is unaffected.
+        if (!cancelled) setCloudItems([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [offline])
 
   const visible = useMemo(() => {
     if (!items) return null
@@ -87,6 +122,34 @@ export default function LibraryScreen({ kind }: LibraryScreenProps) {
     } catch (failure) {
       toast.error(errorMessage(failure))
       setCreating(false)
+    }
+  }
+
+  /**
+   * A cloud row opens the local copy when this PC already has one; otherwise it
+   * is brought down first. Either way the user lands in the same place: a
+   * project they can work on.
+   */
+  async function openCloud(entry: CloudProjectSummary): Promise<void> {
+    if (pulling) return
+    if (entry.localProjectId) {
+      navigate(`/project/${entry.localProjectId}`)
+      return
+    }
+    setPulling(entry.cloudId)
+    try {
+      const project = await api.cloud.pull(entry.cloudId)
+      setCloudItems((current) =>
+        (current ?? []).map((item) =>
+          item.cloudId === entry.cloudId ? { ...item, localProjectId: project.id } : item
+        )
+      )
+      toast.success(`Opened ${project.name} on this PC.`)
+      navigate(`/project/${project.id}`)
+    } catch (failure) {
+      toast.error(errorMessage(failure))
+    } finally {
+      setPulling(null)
     }
   }
 
@@ -198,6 +261,50 @@ export default function LibraryScreen({ kind }: LibraryScreenProps) {
             </li>
           ))}
         </ul>
+      )}
+
+      {!offline && cloudItems && cloudItems.length > 0 && (
+        <section className="library-cloud" aria-label="In the cloud">
+          <div className="home-section-head">
+            <span className="home-section-title">In the cloud</span>
+            <span className="home-count">{cloudItems.length}</span>
+          </div>
+          <ul className="project-list">
+            {cloudItems.map((entry) => (
+              <li key={entry.cloudId}>
+                <button
+                  type="button"
+                  className="project-row"
+                  onClick={() => void openCloud(entry)}
+                  disabled={pulling !== null}
+                >
+                  <span className="library-icon" aria-hidden="true">
+                    {pulling === entry.cloudId ? (
+                      <span className="spinner" />
+                    ) : (
+                      <CloudIcon size={16} />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="project-row-name">{entry.name}</span>
+                    <span className="project-row-meta">
+                      <span>Cloud</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatRelative(entry.updatedAt)}</span>
+                      {!entry.localProjectId && (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span>Not on this PC</span>
+                        </>
+                      )}
+                    </span>
+                  </span>
+                  <ChevronRightIcon size={15} className="project-row-chevron" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </Page>
   )

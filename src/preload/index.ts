@@ -15,6 +15,10 @@ import type {
   AppPublicStatus,
   AppearanceTreatment,
   ConnectivityState,
+  CloudProjectState,
+  CloudProjectSummary,
+  CloudPushResult,
+  CloudState,
   LibrarySnapshot,
   ProjectArchive,
   ChangePasswordInput,
@@ -126,6 +130,25 @@ const api = {
 
   library: {
     snapshot: (): Promise<ApiResult<LibrarySnapshot>> => ipcRenderer.invoke('library:snapshot')
+  },
+
+  cloud: {
+    /** Whether this PC has a cloud identity, and whether it can be used now. */
+    state: (): Promise<ApiResult<CloudState>> => ipcRenderer.invoke('cloud:state'),
+    /** Where one project stands, read from disk — works offline. */
+    project: (projectId: string): Promise<ApiResult<CloudProjectState>> =>
+      ipcRenderer.invoke('cloud:project', projectId),
+    /** This PC's own cloud copies. Refused while offline. */
+    list: (): Promise<ApiResult<CloudProjectSummary[]>> => ipcRenderer.invoke('cloud:list'),
+    push: (projectId: string): Promise<ApiResult<CloudPushResult>> =>
+      ipcRenderer.invoke('cloud:push', projectId),
+    pull: (cloudId: string): Promise<ApiResult<ProjectDetail>> =>
+      ipcRenderer.invoke('cloud:pull', cloudId),
+    /** This PC's identity, encoded for another machine. Treat as a password. */
+    key: (): Promise<ApiResult<{ code: string }>> => ipcRenderer.invoke('cloud:key'),
+    adopt: (code: string): Promise<ApiResult<CloudState>> =>
+      ipcRenderer.invoke('cloud:adopt', code),
+    forget: (): Promise<ApiResult<null>> => ipcRenderer.invoke('cloud:forget')
   },
 
   documents: {

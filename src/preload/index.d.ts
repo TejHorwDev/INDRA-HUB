@@ -18,6 +18,10 @@ import type {
   AppPublicStatus,
   ChangePasswordInput,
   ConnectivityState,
+  CloudProjectState,
+  CloudProjectSummary,
+  CloudPushResult,
+  CloudState,
   LibrarySnapshot,
   ProjectArchive,
   CreateActivationKeyInput,
@@ -94,6 +98,16 @@ export interface IndraBridge {
   }
   library: {
     snapshot: () => Promise<ApiResult<LibrarySnapshot>>
+  }
+  cloud: {
+    state: () => Promise<ApiResult<CloudState>>
+    project: (projectId: string) => Promise<ApiResult<CloudProjectState>>
+    list: () => Promise<ApiResult<CloudProjectSummary[]>>
+    push: (projectId: string) => Promise<ApiResult<CloudPushResult>>
+    pull: (cloudId: string) => Promise<ApiResult<ProjectDetail>>
+    key: () => Promise<ApiResult<{ code: string }>>
+    adopt: (code: string) => Promise<ApiResult<CloudState>>
+    forget: () => Promise<ApiResult<null>>
   }
   documents: {
     list: (projectId: string) => Promise<ApiResult<DocumentSummary[]>>

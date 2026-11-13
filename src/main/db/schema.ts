@@ -225,6 +225,25 @@ const MIGRATIONS: string[] = [
   BEGIN
     SELECT RAISE(ABORT, 'owner_cannot_be_member');
   END;
+  `,
+
+  /* 8 — which projects have a copy in the cloud, and when it was written */ `
+  /*
+   * One row per local project that has a cloud copy. cloud_project_id is not
+   * unique on purpose: a project pulled back down is a second local project
+   * pointing at the same copy, and saving either of them should update that
+   * copy rather than quietly create another one.
+   */
+  CREATE TABLE cloud_saves (
+    project_id         TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    cloud_project_id   TEXT NOT NULL,
+    pushed_at          TEXT NOT NULL,
+    document_count     INTEGER NOT NULL DEFAULT 0,
+    presentation_count INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE INDEX cloud_saves_pushed_idx ON cloud_saves(pushed_at DESC);
+  CREATE INDEX cloud_saves_cloud_idx ON cloud_saves(cloud_project_id);
   `
 ]
 

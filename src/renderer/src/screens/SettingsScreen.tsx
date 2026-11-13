@@ -4,13 +4,16 @@ import AccountPanel from '../components/AccountPanel'
 import UpdatesPanel from '../components/UpdatesPanel'
 import Page from '../components/Page'
 import { CheckIcon } from '../components/icons'
+import { api, errorMessage } from '../lib/api'
+import { useConnectivity } from '../lib/connectivity'
 import { useSession } from '../lib/session'
 import { useTheme } from '../lib/theme'
-import type { ThemeMode } from '@shared/types'
+import type { CloudState, ThemeMode } from '@shared/types'
 
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'account', label: 'Account' },
+  { id: 'cloud', label: 'Cloud' },
   { id: 'updates', label: 'Updates' },
   { id: 'about', label: 'About' }
 ] as const
@@ -40,6 +43,7 @@ export default function SettingsScreen() {
         <section className="settings-panel">
           {section === 'appearance' && <AppearanceSection />}
           {section === 'account' && <AccountSection />}
+          {section === 'cloud' && <CloudSection />}
           {section === 'updates' && <UpdatesPanel />}
           {section === 'about' && <AboutSection />}
         </section>
@@ -132,6 +136,183 @@ function AccountSection() {
           >
             Sign out
           </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/**
+ * The cloud copy, as this PC sees it.
+ *
+ * The address shown is a generated one that belongs to this installation, and
+ * the button forgets it. Nothing on this PC is deleted: the working copy is
+ * still here, and the copies in the cloud still belong to the account.
+ */
+function CloudSection() {
+  const { offline } = useConnectivity()
+  const [state, setState] = useState<CloudState | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(null)
+  const [adopting, setAdopting] = useState(false)
+  const [entered, setEntered] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    void api.cloud
+      .state()
+      .then((next) => {
+        if (!cancelled) setState(next)
+      })
+      .catch(() => {
+        if (!cancelled) setState(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function reveal(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await api.cloud.key()
+      setCode(result.code)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function adopt(): Promise<void> {
+    if (adopting || entered.trim().length === 0) return
+    setAdopting(true)
+    setError(null)
+    try {
+      setState(await api.cloud.adopt(entered.trim()))
+      setEntered('')
+      setCode(null)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setAdopting(false)
+    }
+  }
+
+  async function forget(): Promise<void> {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.cloud.forget()
+      setState(await api.cloud.state())
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <SectionHeading title="Cloud" />
+
+      <div className="account-section">
+        <dl className="mt-4 max-w-[440px] text-sm">
+          <InfoRow
+            label="Status"
+            value={
+              !state
+                ? '—'
+                : !state.available
+                  ? 'Not configured'
+                  : state.linked
+                    ? offline
+                      ? 'Saved, unavailable offline'
+                      : 'Linked'
+                    : 'Nothing saved yet'
+            }
+          />
+          {state?.account && <InfoRow label="This PC" value={state.account} />}
+        </dl>
+
+        <p className="account-note mt-4">
+          Saving a project to the cloud writes a copy to this installation’s own space in the
+          project database. It is a backup and a way to bring work to another PC — never the working
+          copy. Offline, the cloud is not shown and not used; everything on this PC keeps working.
+        </p>
+
+        {error && (
+          <p className="home-error mt-3" role="alert">
+            {error}
+          </p>
+        )}
+
+        {state?.linked && (
+          <div className="account-actions mt-4">
+            <button type="button" className="btn btn-ghost w-auto" onClick={() => void reveal()} disabled={busy}>
+              {busy ? <span className="spinner" aria-hidden="true" /> : null}
+              {code ? 'Hide transfer code' : 'Move to another PC'}
+            </button>
+            <button type="button" className="btn btn-ghost w-auto" onClick={() => void forget()} disabled={busy}>
+              Sign this PC out of the cloud
+            </button>
+          </div>
+        )}
+
+        {code && (
+          <>
+            <p className="account-note mt-4">
+              Enter this on the other PC under Cloud → Use a code. It is a credential: anyone holding
+              it can save to this cloud copy, so treat it like a password.
+            </p>
+            <code className="cloud-code">{code}</code>
+            <div className="account-actions mt-3">
+              <button
+                type="button"
+                className="btn btn-ghost w-auto"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(code)
+                    .then(() => setCode(null))
+                    .catch(() => undefined)
+                }}
+              >
+                Copy and hide
+              </button>
+            </div>
+          </>
+        )}
+
+        <div className="cloud-adopt">
+          <h3 className="account-subhead">Use a code from another PC</h3>
+          <p className="account-note">
+            Adopting a code replaces this PC’s cloud identity with the other machine’s. Nothing on
+            this PC is deleted; the local cloud badges are cleared.
+          </p>
+          <div className="cloud-adopt-row">
+            <input
+              className="field-input"
+              value={entered}
+              onChange={(event) => setEntered(event.target.value)}
+              placeholder="indrahub-cloud-1.…"
+              aria-label="Cloud transfer code"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="btn btn-ghost w-auto"
+              onClick={() => void adopt()}
+              disabled={adopting || entered.trim().length === 0 || offline}
+              title={offline ? 'Joining another PC’s cloud copy needs a connection' : undefined}
+            >
+              {adopting ? <span className="spinner" aria-hidden="true" /> : null}
+              Use code
+            </button>
+          </div>
         </div>
       </div>
     </>
