@@ -539,6 +539,29 @@ export async function portraitOnServer(viewer: SessionUser): Promise<CloudPortra
  */
 export async function adminCloudSession(adminId: string): Promise<CloudSession> {
   assertReachable()
+
+  /*
+   * An account decides who administers, never a machine.
+   *
+   * When this PC is signed in to an INDRA account, the console speaks as that
+   * person, so `indra_is_admin()` is answering about them — the same answer on
+   * every PC they sign in to. The per-installation identity is only the
+   * fallback for a PC that has never been signed in, where there is no account
+   * to ask about and the console would otherwise be unreachable.
+   */
+  try {
+    const human = sessionForLocalUser(adminId)
+    if (human) {
+      const live = await liveAccount()
+      if (live?.accessToken) {
+        return { token: live.accessToken, profile: human.profileId ?? '', uid: live.uid }
+      }
+    }
+  } catch {
+    // No usable account session — the installation identity below is the
+    // fallback, and the server still answers about that identity truthfully.
+  }
+
   const actor = await identityForKey(`admin:${adminId}`)
   return { token: actor.accessToken, profile: '', uid: actor.uid }
 }
@@ -581,14 +604,21 @@ export async function adminCloudRole(
   let refused: string | null = null
 
   if (state?.isAdmin !== true && take) {
-    const result = await adminCloudRequest<{ claimed?: boolean; reason?: string | null }>(
+    type Claim = { claimed?: boolean; adminEmail?: string | null; reason?: string | null }
+    const result: Claim = await adminCloudRequest<Claim>(
       adminId,
-      '/rest/v1/rpc/indra_claim_credit_admin',
+      '/rest/v1/rpc/indra_admin_claim',
       { method: 'POST', body: {} }
-    ).catch((error: unknown) =>
-      // The server's refusal is the useful part of a failure here.
-      ({ claimed: false, reason: error instanceof Error ? error.message : 'The server refused.' })
+    ).catch(
+      (error: unknown): { claimed: boolean; reason: string } => ({
+        // The server's refusal is the useful part of a failure here.
+        claimed: false,
+        reason: error instanceof Error ? error.message : 'The server refused.'
+      })
     )
+    if (result?.claimed !== true && !result?.reason && result?.adminEmail) {
+      refused = `${result.adminEmail} already administers this installation.`
+    }
     if (result?.claimed !== true) refused = result?.reason ?? 'The server did not grant the role.'
   }
 
@@ -624,6 +654,15 @@ export async function adminCloudIdentity(
 
 /** The account address the cloud issued to this administrator's identity. */
 async function identityEmail(adminId: string): Promise<string | null> {
+  /* The account when there is one — the device address is an implementation
+     detail and naming it in the panel is what made this undiagnosable. */
+  try {
+    const human = sessionForLocalUser(adminId)
+    if (human?.email) return human.email
+  } catch {
+    // Looking up whose account this is must never break the console itself.
+  }
+
   const stored = readSetting(`${IDENTITY_PREFIX}:admin:${adminId}`)
   if (!stored) return null
   try {

@@ -591,7 +591,7 @@ export default function CreditsSection(_props: SectionProps) {
                   disabled={busy !== null}
                 >
                   {busy === 'claim' ? <span className="spinner" aria-hidden="true" /> : null}
-                  Take token administration
+                  Make this account the administrator
                 </button>
               ) : (
                 <button

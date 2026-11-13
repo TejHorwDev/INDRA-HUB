@@ -706,6 +706,14 @@ export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSna
      */
     const identity = await adminCloudIdentity(adminId).catch(() => null)
     if (state?.isAdmin !== true) {
+      /*
+       * Who administers is the first question an administrator actually has
+       * here, and until now the panel answered it with the address of a machine.
+       */
+      const who = await rpcCall<{ email?: string } | null>(session.token, 'indra_admin_who', {}).catch(
+        () => null
+      )
+      const adminEmail = typeof who?.email === 'string' ? who.email : null
       return {
         pending: [],
         decided: [],
@@ -725,8 +733,9 @@ export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSna
          * needs — which account this PC is, and what the button will do — and
          * the server's own refusal replaces the guess below when it refuses.
          */
-        message:
-          'This PC is not an administrator on the server yet, so it does not hold token administration. Take the role below: the server grants it at once when no other administrator is live, and if one is, it will say so and release it once that installation has been idle for a day.'
+        message: adminEmail
+          ? `This console is run by ${adminEmail}. Administration belongs to an account, not to an installation — sign in with that account and this screen opens with nothing to press.`
+          : 'No account administers this installation yet. Sign in with your own account in Account & cloud; the server then records that account as the administrator, permanently and on every PC you sign in to.'
       }
     }
 
