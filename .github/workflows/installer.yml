@@ -1,0 +1,80 @@
+name: Build custom installer
+
+# Deliberately separate from the release workflow.
+#
+# The custom installer wraps the stock one, and that wrapper has never been run
+# on Windows. Until it has been installed, uninstalled and reinstalled once by a
+# person, it must not be able to replace the download everyone else gets. This
+# workflow produces it as an artifact; `release.yml` keeps shipping the proven
+# installer until someone flips that switch on purpose.
+#
+#   • push a branch called `installer`  → builds and uploads the artifact
+#   • "Run workflow"                    → the same, by hand
+
+on:
+  push:
+    branches:
+      - installer
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Custom installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Read the version being wrapped
+        id: version
+        shell: bash
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Install the app's dependencies
+        run: npm ci
+
+      - name: Compile the app
+        run: npm run build
+
+      # The payload inside the custom installer is the installer that already
+      # works: shortcuts, uninstall entry, per-user and per-machine folders and
+      # the updater are all NSIS's, not ours.
+      - name: Package the stock installer
+        run: npx electron-builder --win --publish never
+
+      - name: Put that installer inside the custom one
+        shell: bash
+        run: |
+          mkdir -p installer/payload
+          cp "release/INDRA-HUB-Setup-${{ steps.version.outputs.value }}.exe" installer/payload/inder-setup.exe
+          ls -l installer/payload
+
+      - name: Match the window's version to the app's
+        run: npm pkg set "version=${{ steps.version.outputs.value }}" --prefix installer
+
+      - name: Install the installer's own dependencies
+        working-directory: installer
+        run: npm install --no-audit --no-fund
+
+      - name: Build the custom installer
+        working-directory: installer
+        run: npx electron-builder --win --publish never
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: INDRA-HUB-Setup-custom-${{ steps.version.outputs.value }}
+          path: installer/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14

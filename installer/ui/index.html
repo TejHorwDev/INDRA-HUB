@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>INDRA HUB Setup</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!--
+      The video, when one is supplied, is the whole background: full bleed,
+      muted, looping, behind a dark scrim so text stays readable on any frame.
+      Without it the page is still the same design — the fallback layer is a
+      slow monochrome gradient, not a blank rectangle.
+    -->
+    <div class="backdrop">
+      <video class="backdrop__video" id="video" autoplay muted loop playsinline preload="auto"></video>
+      <div class="backdrop__fallback" aria-hidden="true"></div>
+      <div class="backdrop__scrim" aria-hidden="true"></div>
+    </div>
+
+    <main class="shell" role="main">
+      <header class="titlebar">
+        <div class="titlebar__left">
+          <svg class="bolt" viewBox="0 0 256 256" aria-hidden="true">
+            <polygon points="163,12 79,146 124,146 93,244 181,104 133,104" />
+          </svg>
+          <span class="titlebar__name">INDRA HUB Setup</span>
+        </div>
+        <div class="titlebar__buttons">
+          <button class="winbtn" data-win="minimise" aria-label="Minimise">
+            <svg viewBox="0 0 12 12"><path d="M2 6h8" /></svg>
+          </button>
+          <button class="winbtn" data-win="close" aria-label="Close">
+            <svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="body">
+        <nav class="rail" aria-label="Installation progress">
+          <ol class="steps">
+            <li class="step is-active" data-step="options">
+              <span class="step__dot" aria-hidden="true"></span>
+              <span class="step__copy">
+                <span class="step__title">Installation Options</span>
+                <span class="step__hint">Choose how you want to install</span>
+              </span>
+            </li>
+            <li class="step" data-step="ready">
+              <span class="step__dot" aria-hidden="true"></span>
+              <span class="step__copy">
+                <span class="step__title">Ready to Install</span>
+                <span class="step__hint">Review your choices</span>
+              </span>
+            </li>
+            <li class="step" data-step="installing">
+              <span class="step__dot" aria-hidden="true"></span>
+              <span class="step__copy">
+                <span class="step__title">Installing</span>
+                <span class="step__hint">Please wait</span>
+              </span>
+            </li>
+            <li class="step" data-step="completed">
+              <span class="step__dot" aria-hidden="true"></span>
+              <span class="step__copy">
+                <span class="step__title">Completed</span>
+                <span class="step__hint">Enjoy INDRA HUB</span>
+              </span>
+            </li>
+          </ol>
+        </nav>
+
+        <section class="pane">
+          <!-- ---------------- options ---------------- -->
+          <div class="screen is-current" data-screen="options">
+            <h1 class="headline">Choose Installation<br /><span>Options</span></h1>
+            <p class="lede">
+              Install INDRA HUB for everyone on this PC, or only for your own account.
+              Both are the same app; only the folder and the shortcut differ.
+            </p>
+
+            <div class="choices" role="radiogroup" aria-label="Who to install for">
+              <button class="choice" role="radio" aria-checked="false" data-scope="machine">
+                <span class="choice__mark" aria-hidden="true"></span>
+                <span class="choice__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="9" cy="8" r="3" />
+                    <circle cx="16.5" cy="9.5" r="2.4" />
+                    <path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
+                    <path d="M15 19c0-2.6 1.9-4.4 4.5-4.4S24 16.4 24 19" />
+                  </svg>
+                </span>
+                <span class="choice__copy">
+                  <span class="choice__title">Anyone who uses this computer</span>
+                  <span class="choice__hint">Installs for all users · needs administrator</span>
+                </span>
+              </button>
+
+              <button class="choice is-selected" role="radio" aria-checked="true" data-scope="user">
+                <span class="choice__mark" aria-hidden="true"></span>
+                <span class="choice__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="8" r="3.6" />
+                    <path d="M4.5 20c0-4 3.4-6.6 7.5-6.6S19.5 16 19.5 20" />
+                  </svg>
+                </span>
+                <span class="choice__copy">
+                  <span class="choice__title">Only for me</span>
+                  <span class="choice__hint">Installs for your account only · no password needed</span>
+                </span>
+              </button>
+            </div>
+
+            <p class="footnote">
+              Your projects, accounts and pictures live in your own folder, so changing
+              the install location never moves your work.
+            </p>
+          </div>
+
+          <!-- ---------------- ready ---------------- -->
+          <div class="screen" data-screen="ready">
+            <h1 class="headline">Ready to<br /><span>install</span></h1>
+            <p class="lede">One last look. Nothing here changes what the app does.</p>
+
+            <dl class="review">
+              <div class="review__row">
+                <dt>Install for</dt>
+                <dd id="review-scope">Only me</dd>
+              </div>
+              <div class="review__row">
+                <dt>Location</dt>
+                <dd id="review-path">%LOCALAPPDATA%\Programs\INDRA HUB</dd>
+              </div>
+              <div class="review__row">
+                <dt>Adds</dt>
+                <dd>Desktop and Start menu shortcuts</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- ---------------- installing ---------------- -->
+          <div class="screen" data-screen="installing">
+            <h1 class="headline">Installing<br /><span>INDRA HUB</span></h1>
+            <p class="lede" id="install-stage">Unpacking the app…</p>
+
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar">
+              <span class="progress__fill" id="fill"></span>
+            </div>
+            <p class="footnote" id="install-note">This takes a few seconds. Do not close the window.</p>
+          </div>
+
+          <!-- ---------------- completed ---------------- -->
+          <div class="screen" data-screen="completed">
+            <h1 class="headline">You’re<br /><span>in.</span></h1>
+            <p class="lede">
+              INDRA HUB is installed. Updates are checked every time it opens, so this copy
+              keeps itself current.
+            </p>
+            <label class="checkbox">
+              <input type="checkbox" id="launch" checked />
+              <span class="checkbox__box" aria-hidden="true"></span>
+              <span>Open INDRA HUB now</span>
+            </label>
+          </div>
+        </section>
+      </div>
+
+      <footer class="footer">
+        <div class="footer__brand">
+          <span class="footer__name">INDRA HUB</span>
+          <span class="footer__version" id="version">v2.9.2</span>
+        </div>
+        <div class="footer__actions">
+          <button class="btn btn--ghost" id="cancel">Cancel</button>
+          <button class="btn btn--primary" id="next">Next <span class="btn__arrow" aria-hidden="true">→</span></button>
+        </div>
+      </footer>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

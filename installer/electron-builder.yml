@@ -1,0 +1,38 @@
+appId: com.indra.hub.setup
+productName: INDRA HUB Setup
+copyright: Copyright © 2026 TejHorwDev
+
+# This is the window people see. It carries one thing: the real installer, as a
+# resource, so the machine is changed by code that has already been tested on
+# Windows rather than by anything new here.
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - main.js
+  - preload.js
+  - package.json
+  - ui/**/*
+  - "!ui/background.source.*"
+
+compression: maximum
+asar: true
+
+win:
+  icon: ../build/icon.ico
+  target:
+    - target: portable
+      arch:
+        - x64
+
+extraResources:
+  - from: payload/inder-setup.exe
+    to: inder-setup.exe
+
+# Portable, not an installed app: the window is a step on the way to the app,
+# not something to leave in Program Files. The splash covers the few seconds
+# while the archive unpacks, so the first thing anyone sees is our own frame.
+portable:
+  artifactName: INDRA-HUB-Setup-${version}.${ext}
+  splashImage: build/splash.bmp

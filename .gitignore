@@ -14,3 +14,8 @@ dist/
 
 # packaging output
 release/
+
+# the custom installer: built output and the payload it wraps
+installer/node_modules/
+installer/dist/
+installer/payload/
