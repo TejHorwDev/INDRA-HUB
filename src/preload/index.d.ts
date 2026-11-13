@@ -22,6 +22,8 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  InvitationAnswer,
+  InvitationSummary,
   LibrarySnapshot,
   OfflineWorkSummary,
   ProjectArchive,
@@ -78,16 +80,22 @@ export interface IndraBridge {
     create: (input: { name?: string }) => Promise<ApiResult<TeamDetail>>
     rename: (input: { name?: string }) => Promise<ApiResult<TeamDetail>>
     remove: () => Promise<ApiResult<TeamOverview>>
-    addMember: (userId: string) => Promise<ApiResult<TeamDetail>>
+    invite: (ref: string) => Promise<ApiResult<TeamDetail>>
     removeMember: (userId: string) => Promise<ApiResult<TeamDetail>>
     search: (query: string) => Promise<ApiResult<UserSummary[]>>
   }
 
+  invitations: {
+    list: () => Promise<ApiResult<InvitationSummary[]>>
+    accept: (invitationId: string) => Promise<ApiResult<InvitationAnswer>>
+    decline: (invitationId: string) => Promise<ApiResult<InvitationAnswer>>
+    cancel: (invitationId: string) => Promise<ApiResult<null>>
+  }
   projects: {
     list: () => Promise<ApiResult<ProjectSummary[]>>
     create: (input: CreateProjectInput) => Promise<ApiResult<ProjectDetail>>
     get: (projectId: string) => Promise<ApiResult<ProjectDetail>>
-    addMember: (input: { projectId: string; userId: string }) => Promise<ApiResult<ProjectDetail>>
+    invite: (input: { projectId: string; userId: string }) => Promise<ApiResult<ProjectDetail>>
     removeMember: (input: {
       projectId: string
       userId: string

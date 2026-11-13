@@ -19,6 +19,8 @@ import type {
   CloudProjectSummary,
   CloudPushResult,
   CloudState,
+  InvitationAnswer,
+  InvitationSummary,
   LibrarySnapshot,
   OfflineWorkSummary,
   ProjectArchive,
@@ -97,12 +99,24 @@ const api = {
     rename: (input: { name?: string }): Promise<ApiResult<TeamDetail>> =>
       ipcRenderer.invoke('team:rename', input),
     remove: (): Promise<ApiResult<TeamOverview>> => ipcRenderer.invoke('team:delete'),
-    addMember: (userId: string): Promise<ApiResult<TeamDetail>> =>
-      ipcRenderer.invoke('team:add-member', userId),
+    /** Invites one account. Joining happens when they accept. */
+    invite: (ref: string): Promise<ApiResult<TeamDetail>> =>
+      ipcRenderer.invoke('team:invite', ref),
     removeMember: (userId: string): Promise<ApiResult<TeamDetail>> =>
       ipcRenderer.invoke('team:remove-member', userId),
     search: (query: string): Promise<ApiResult<UserSummary[]>> =>
       ipcRenderer.invoke('team:search', query)
+  },
+
+  invitations: {
+    list: (): Promise<ApiResult<InvitationSummary[]>> => ipcRenderer.invoke('invitations:list'),
+    accept: (invitationId: string): Promise<ApiResult<InvitationAnswer>> =>
+      ipcRenderer.invoke('invitations:accept', invitationId),
+    decline: (invitationId: string): Promise<ApiResult<InvitationAnswer>> =>
+      ipcRenderer.invoke('invitations:decline', invitationId),
+    /** The owner takes back a question nobody has answered. */
+    cancel: (invitationId: string): Promise<ApiResult<null>> =>
+      ipcRenderer.invoke('invitations:cancel', invitationId)
   },
 
   projects: {
@@ -111,8 +125,8 @@ const api = {
       ipcRenderer.invoke('projects:create', input),
     get: (projectId: string): Promise<ApiResult<ProjectDetail>> =>
       ipcRenderer.invoke('projects:get', projectId),
-    addMember: (input: { projectId: string; userId: string }): Promise<ApiResult<ProjectDetail>> =>
-      ipcRenderer.invoke('projects:add-member', input),
+    invite: (input: { projectId: string; userId: string }): Promise<ApiResult<ProjectDetail>> =>
+      ipcRenderer.invoke('projects:invite', input),
     removeMember: (input: {
       projectId: string
       userId: string

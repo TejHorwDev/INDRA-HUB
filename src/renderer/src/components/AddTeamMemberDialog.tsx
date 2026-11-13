@@ -1,36 +1,49 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { TeamDetail, UserSummary } from '@shared/types'
+import type { InvitationSummary, TeamDetail, UserSummary } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
 import { initialsOf, toneOf } from '../lib/format'
-import { SearchIcon, UserPlusIcon, XIcon } from './icons'
+import { CheckIcon, SearchIcon, UserPlusIcon, XIcon } from './icons'
 
 interface AddTeamMemberDialogProps {
   open: boolean
   onClose: () => void
-  onAdded: (team: TeamDetail) => void
+  /** Questions already asked and not yet answered. */
+  pending: InvitationSummary[]
+  onInvited: (team: TeamDetail) => void
+  onCancel: (invitation: InvitationSummary) => void
 }
 
 /**
- * Adding somebody is done by email address.
+ * Inviting somebody is done by email address, and it is an invitation.
  *
  * Names collide — and an initials avatar makes two people with the same name
  * look like the same person — so the one thing that identifies an account is
  * the address it was registered with. The lookup is exact and happens in the
- * main process; the people already on the team are filtered out there too, so
- * the UI is never given a choice that would fail.
+ * main process; the people already on the team, and the people already asked,
+ * are filtered out there too, so the UI is never given a choice that would fail.
  *
- * What comes back shows the *name*, because the person adding somebody needs to
- * see who they are adding, not just confirm an address they already typed.
+ * What comes back shows the *name*, because the person inviting needs to see
+ * who they are inviting. Nothing is shared by sending this: the person joins
+ * only by accepting, on their own Home screen, and until then the roster shows
+ * them as invited. The dialog stays open afterwards, because inviting two
+ * colleagues in a row is the usual case.
  */
-export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamMemberDialogProps) {
+export default function AddTeamMemberDialog({
+  open,
+  onClose,
+  pending,
+  onInvited,
+  onCancel
+}: AddTeamMemberDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<UserSummary[] | null>(null)
   const [searching, setSearching] = useState(false)
-  const [addingId, setAddingId] = useState<string | null>(null)
+  const [invitingId, setInvitingId] = useState<string | null>(null)
+  const [sentTo, setSentTo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -45,7 +58,8 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
     setQuery('')
     setResults(null)
     setSearching(false)
-    setAddingId(null)
+    setInvitingId(null)
+    setSentTo(null)
     setError(null)
     const timer = window.setTimeout(() => inputRef.current?.focus(), 60)
     return () => window.clearTimeout(timer)
@@ -85,17 +99,22 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
     }
   }, [query, open])
 
-  async function add(person: UserSummary): Promise<void> {
-    if (addingId) return
-    setAddingId(person.id)
+  async function invite(person: UserSummary): Promise<void> {
+    if (invitingId) return
+    setInvitingId(person.id)
     setError(null)
+    setSentTo(null)
     try {
-      const team = await api.team.addMember(person.id)
-      onAdded(team)
-      onClose()
+      const team = await api.team.invite(person.id)
+      onInvited(team)
+      setSentTo(person.displayName)
+      setQuery('')
+      setResults(null)
+      inputRef.current?.focus()
     } catch (failure) {
       setError(errorMessage(failure))
-      setAddingId(null)
+    } finally {
+      setInvitingId(null)
     }
   }
 
@@ -106,23 +125,28 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
       aria-labelledby="add-member-title"
       onCancel={(event) => {
         event.preventDefault()
-        if (!addingId) onClose()
+        if (!invitingId) onClose()
       }}
       onClick={(event) => {
-        if (event.target === dialogRef.current && !addingId) onClose()
+        if (event.target === dialogRef.current && !invitingId) onClose()
       }}
     >
       <div className="modal-panel">
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
-          <h2 id="add-member-title" className="text-[17px] font-semibold text-[var(--ink)]">
-            Add to team
-          </h2>
+          <div>
+            <h2 id="add-member-title" className="text-[17px] font-semibold text-[var(--ink)]">
+              Invite to team
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-tertiary)]">
+              You choose someone. They decide whether to join.
+            </p>
+          </div>
           <button
             type="button"
             className="icon-button"
             onClick={onClose}
             aria-label="Close"
-            disabled={Boolean(addingId)}
+            disabled={Boolean(invitingId)}
           >
             <XIcon size={15} />
           </button>
@@ -140,10 +164,17 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
               type="email"
               spellCheck={false}
               autoComplete="off"
-              aria-label="Email address of the person to add"
+              aria-label="Email address of the person to invite"
             />
           </div>
         </div>
+
+        {sentTo && (
+          <p className="invite-sent" role="status">
+            <CheckIcon size={14} />
+            Invitation sent to {sentTo}. They will see it on their Home screen.
+          </p>
+        )}
 
         <div className="member-results">
           {query.trim().length === 0 ? (
@@ -166,8 +197,8 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
                   <button
                     type="button"
                     className="member-choice"
-                    onClick={() => void add(person)}
-                    disabled={Boolean(addingId)}
+                    onClick={() => void invite(person)}
+                    disabled={Boolean(invitingId)}
                   >
                     <span className="avatar" style={{ '--tone': toneOf(person.id) } as CSSProperties}>
                       {initialsOf(person.displayName)}
@@ -176,7 +207,7 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
                       <span className="member-choice-name">{person.displayName}</span>
                       <span className="member-choice-handle">{person.email}</span>
                     </span>
-                    {addingId === person.id ? (
+                    {invitingId === person.id ? (
                       <span className="spinner" aria-hidden="true" />
                     ) : (
                       <UserPlusIcon size={15} className="member-choice-add" />
@@ -188,14 +219,48 @@ export default function AddTeamMemberDialog({ open, onClose, onAdded }: AddTeamM
           )}
         </div>
 
+        {pending.length > 0 && (
+          <div className="invite-pending">
+            <div className="invite-pending-head">Waiting for an answer</div>
+            <ul className="member-list">
+              {pending.map((invitation) => (
+                <li key={invitation.id} className="member">
+                  <span
+                    className="avatar"
+                    style={{ '--tone': toneOf(invitation.personId) } as CSSProperties}
+                    aria-hidden="true"
+                  >
+                    {initialsOf(invitation.displayName)}
+                  </span>
+                  <span className="member-text">
+                    <span className="member-name">{invitation.displayName}</span>
+                    <span className="member-handle">{invitation.email}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => onCancel(invitation)}
+                    aria-label={`Cancel the invitation to ${invitation.displayName}`}
+                  >
+                    Cancel
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {error && (
           <p className="px-6 pb-4 text-sm text-[var(--danger)]" role="alert">
             {error}
           </p>
         )}
 
-        <div className="flex items-center justify-end border-t border-[var(--line)] px-6 py-4">
-          <button type="button" className="btn btn-ghost w-auto" onClick={onClose} disabled={Boolean(addingId)}>
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] px-6 py-4">
+          <span className="text-xs text-[var(--ink-tertiary)]">
+            Nothing is shared until they accept.
+          </span>
+          <button type="button" className="btn btn-ghost w-auto" onClick={onClose} disabled={Boolean(invitingId)}>
             Done
           </button>
         </div>

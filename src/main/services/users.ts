@@ -90,9 +90,13 @@ export function searchUsers(query: string, projectId: string, limit = 8): UserSu
           AND suspended_at IS NULL
           AND id <> (SELECT owner_id FROM projects WHERE id = ?)
           AND id NOT IN (SELECT user_id FROM project_members WHERE project_id = ?)
+          AND id NOT IN (
+            SELECT user_id FROM invitations
+             WHERE kind = 'project' AND project_id = ? AND status = 'pending'
+          )
         LIMIT ?`
     )
-    .all(address, projectId, projectId, limit) as unknown as AccountRow[]
+    .all(address, projectId, projectId, projectId, limit) as unknown as AccountRow[]
 
   return rows.map((row) => ({ ...toSummary(row), email: row.email }))
 }

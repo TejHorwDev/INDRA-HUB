@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ProjectDetail, UserSummary } from '@shared/types'
+import type { InvitationSummary, ProjectDetail, UserSummary } from '@shared/types'
 import { api, errorMessage } from '../lib/api'
 import { initialsOf } from '../lib/format'
 import TextField from './TextField'
@@ -9,21 +9,30 @@ import { SearchIcon, XIcon } from './icons'
 interface AddMemberDialogProps {
   open: boolean
   projectId: string
+  /** Questions already asked and not yet answered. */
+  pending: InvitationSummary[]
   onClose: () => void
-  onUpdated: (project: ProjectDetail) => void
+  onInvited: (project: ProjectDetail) => void
+  onCancel: (invitation: InvitationSummary) => void
 }
 
 /**
- * Adding somebody to a project is done by email address, for the same reason the
- * team dialog is: names repeat, addresses do not. The match is exact, and the
- * main process filters out the owner and anyone already on the project before
- * returning — the person's name comes back so the choice is made by name.
+ * Inviting somebody to a project is done by email address, for the same reason
+ * the team dialog is: names repeat, addresses do not. The match is exact, and
+ * the main process filters out the owner, anyone already on the project and
+ * anyone already asked — the person's name comes back so the choice is made by
+ * name.
+ *
+ * It is an invitation in the same sense as the team one: the project is not
+ * opened to the person until they accept it themselves.
  */
 export default function AddMemberDialog({
   open,
   projectId,
+  pending,
   onClose,
-  onUpdated
+  onInvited,
+  onCancel
 }: AddMemberDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const toast = useToast()
@@ -34,6 +43,7 @@ export default function AddMemberDialog({
   const [searchError, setSearchError] = useState<string | null>(null)
   const [addingId, setAddingId] = useState<string | null>(null)
   const [addError, setAddError] = useState<string | null>(null)
+  const [sentTo, setSentTo] = useState<string | null>(null)
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -49,6 +59,7 @@ export default function AddMemberDialog({
     setSearchError(null)
     setAddError(null)
     setAddingId(null)
+    setSentTo(null)
   }, [open])
 
   useEffect(() => {
@@ -91,14 +102,17 @@ export default function AddMemberDialog({
     }
   }, [open, projectId, query])
 
-  async function addMember(user: UserSummary) {
+  async function inviteMember(user: UserSummary) {
     setAddingId(user.id)
     setAddError(null)
+    setSentTo(null)
     try {
-      const updated = await api.projects.addMember({ projectId, userId: user.id })
-      onUpdated(updated)
+      const updated = await api.projects.invite({ projectId, userId: user.id })
+      onInvited(updated)
       setResults((current) => current?.filter((candidate) => candidate.id !== user.id) ?? null)
-      toast.success(`${user.displayName} joined the project.`)
+      setQuery('')
+      setSentTo(user.displayName)
+      toast.success(`Invitation sent to ${user.displayName}.`)
     } catch (error) {
       setAddError(errorMessage(error))
     } finally {
@@ -123,10 +137,10 @@ export default function AddMemberDialog({
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
           <div>
             <h2 id="add-member-title" className="text-[17px] font-semibold text-[var(--ink)]">
-              Add member
+              Invite member
             </h2>
             <p className="mt-1 text-sm text-[var(--ink-tertiary)]">
-              By the email address they signed up with.
+              By the email they signed up with. They can accept or decline.
             </p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
@@ -147,6 +161,12 @@ export default function AddMemberDialog({
             autoFocus
           />
         </div>
+
+        {sentTo && (
+          <p className="invite-sent" role="status">
+            Invitation sent to {sentTo}. They will see it on their Home screen.
+          </p>
+        )}
 
         <div
           className={
@@ -190,10 +210,10 @@ export default function AddMemberDialog({
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm w-auto"
-                    onClick={() => void addMember(user)}
+                    onClick={() => void inviteMember(user)}
                     disabled={addingId !== null}
                   >
-                    {addingId === user.id ? 'Adding…' : 'Add'}
+                    {addingId === user.id ? 'Sending…' : 'Invite'}
                   </button>
                 </li>
               ))}
@@ -207,9 +227,37 @@ export default function AddMemberDialog({
           )}
         </div>
 
+        {pending.length > 0 && (
+          <div className="invite-pending">
+            <div className="invite-pending-head">Waiting for an answer</div>
+            <ul className="member-results">
+              {pending.map((invitation) => (
+                <li key={invitation.id} className="member-result">
+                  <span className="team-avatar">{initialsOf(invitation.displayName)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-[var(--ink)]">
+                      {invitation.displayName}
+                    </span>
+                    <span className="block truncate text-xs text-[var(--ink-tertiary)]">
+                      {invitation.email}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm w-auto"
+                    onClick={() => onCancel(invitation)}
+                  >
+                    Cancel
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] px-6 py-4">
           <span className="text-xs text-[var(--ink-tertiary)]">
-            Only the head developer can add people.
+            Nothing is shared until they accept.
           </span>
           <button type="button" className="btn btn-ghost w-auto" onClick={onClose}>
             Done

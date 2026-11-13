@@ -38,11 +38,12 @@ import {
   updateProfile
 } from '../services/auth'
 import { claimOfflineWork, offlineWork } from '../services/offline'
+import { myInvitations, respond, revoke } from '../services/invitations'
 import {
-  addMember,
   assertCanManageTeam,
   createProject,
   getProject,
+  inviteMember,
   listProjects,
   removeMember
 } from '../services/projects'
@@ -115,7 +116,7 @@ import {
 } from '../services/appearance'
 import { checkForUpdates, diagnoseConnection, installUpdate, updateState } from '../services/updates'
 import {
-  addTeamMember,
+  inviteTeamMember,
   createTeam,
   deleteTeam,
   removeTeamMember,
@@ -410,8 +411,27 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('team:delete', () => toResult(() => deleteTeam(actor())))
 
-  ipcMain.handle('team:add-member', (_event, userId: unknown) =>
-    toResult(() => addTeamMember(actor(), userId))
+  ipcMain.handle('team:invite', (_event, ref: unknown) =>
+    toResult(() => inviteTeamMember(actor(), ref))
+  )
+
+  /*
+   * Invitations are answered by the person they name, not by the owner of the
+   * team or project. The service checks whose invitation it is, so a guessed id
+   * is refused rather than acted on.
+   */
+  ipcMain.handle('invitations:list', () => toResult(() => myInvitations(actor())))
+
+  ipcMain.handle('invitations:accept', (_event, invitationId: unknown) =>
+    toResult(() => respond(actor(), String(invitationId ?? ''), true))
+  )
+
+  ipcMain.handle('invitations:decline', (_event, invitationId: unknown) =>
+    toResult(() => respond(actor(), String(invitationId ?? ''), false))
+  )
+
+  ipcMain.handle('invitations:cancel', (_event, invitationId: unknown) =>
+    toResult(() => revoke(actor(), String(invitationId ?? '')))
   )
 
   ipcMain.handle('team:remove-member', (_event, userId: unknown) =>
@@ -466,10 +486,14 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle(
-    'projects:add-member',
+    'projects:invite',
     (_event, payload: { projectId?: unknown; userId?: unknown }) =>
       toResult(() =>
-        addMember(actor(), requireProjectId(payload?.projectId), requireUserId(payload?.userId))
+        inviteMember(
+          actor(),
+          requireProjectId(payload?.projectId),
+          String(payload?.userId ?? '')
+        )
       )
   )
 

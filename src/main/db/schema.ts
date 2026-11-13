@@ -244,6 +244,37 @@ const MIGRATIONS: string[] = [
 
   CREATE INDEX cloud_saves_pushed_idx ON cloud_saves(pushed_at DESC);
   CREATE INDEX cloud_saves_cloud_idx ON cloud_saves(cloud_project_id);
+  `,
+
+  /* 9 — joining a team or a project is asked, not done */ `
+  CREATE TABLE invitations (
+    id           TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL CHECK (kind IN ('team', 'project')),
+    team_id      TEXT REFERENCES teams(id) ON DELETE CASCADE,
+    project_id   TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invited_by   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at   TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending'
+                 CHECK (status IN ('pending', 'accepted', 'declined', 'revoked', 'cancelled')),
+    responded_at TEXT,
+    /* One target per row: a team invitation names a team and no project, and
+       the other way round. */
+    CHECK (
+      (kind = 'team'    AND team_id IS NOT NULL AND project_id IS NULL) OR
+      (kind = 'project' AND project_id IS NOT NULL AND team_id IS NULL)
+    )
+  );
+
+  /* Nobody is asked twice about the same thing at the same time. History is
+     kept, so this only constrains the pending row. */
+  CREATE UNIQUE INDEX invitations_pending_idx
+    ON invitations (kind, COALESCE(team_id, project_id), user_id)
+    WHERE status = 'pending';
+
+  CREATE INDEX invitations_invitee_idx ON invitations (user_id, status, created_at DESC);
+  CREATE INDEX invitations_target_idx
+    ON invitations (kind, COALESCE(team_id, project_id), status);
   `
 ]
 

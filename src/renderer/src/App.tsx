@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AppShell from './components/AppShell'
@@ -19,6 +19,12 @@ import {
   SunIcon,
   UserIcon
 } from './components/icons'
+import { useToast } from './components/ToastProvider'
+import {
+  clearInvitations,
+  refreshInvitations,
+  useInvitations
+} from './lib/invitations'
 import { isLibraryPath, navDestinations } from './lib/nav'
 import { useAppStatus } from './lib/appStatus'
 import { routeAllowedOffline, useConnectivity } from './lib/connectivity'
@@ -94,6 +100,8 @@ export default function App() {
   const { theme, setTheme } = useTheme()
   const { offline } = useConnectivity()
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const toast = useToast()
+  const invitations = useInvitations()
 
   const signedIn = Boolean(user)
   const inShell = signedIn && SHELL_PATHS.some((path) => pathname.startsWith(path))
@@ -128,6 +136,59 @@ export default function App() {
   useEffect(() => {
     if (signedIn) void refreshStatus()
   }, [signedIn, refreshStatus])
+
+  /*
+   * Invitations are read when a session opens, when the window comes back into
+   * focus, and on a slow timer. There is no server pushing — an invitation is a
+   * row in this installation's database — so a poll is the honest way to notice
+   * one that arrived while the app sat in the background. Signing out empties
+   * the list instead of leaving one person's invitations on the next screen.
+   */
+  useEffect(() => {
+    if (!signedIn) {
+      clearInvitations()
+      return
+    }
+    void refreshInvitations()
+    const onFocus = (): void => {
+      void refreshInvitations()
+    }
+    window.addEventListener('focus', onFocus)
+    const timer = window.setInterval(() => {
+      void refreshInvitations()
+    }, 30_000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.clearInterval(timer)
+    }
+  }, [signedIn, user?.id])
+
+  /* An invitation that appears after the first read is announced once. */
+  const seenInvitations = useRef<Set<string>>(new Set())
+  const primedInvitations = useRef(false)
+  useEffect(() => {
+    if (!signedIn) {
+      seenInvitations.current = new Set()
+      primedInvitations.current = false
+      return
+    }
+    const known = seenInvitations.current
+    const fresh = invitations.filter((invitation) => !known.has(invitation.id))
+    for (const invitation of invitations) known.add(invitation.id)
+    if (!primedInvitations.current) {
+      primedInvitations.current = true
+      return
+    }
+    if (fresh.length === 0) return
+    if (fresh.length === 1) {
+      const [invitation] = fresh
+      toast.info(
+        `${invitation.invitedByName} invited you to ${invitation.kind === 'team' ? 'their team' : 'a project'} — ${invitation.targetName}.`
+      )
+    } else {
+      toast.info(`You have ${fresh.length} new invitations.`)
+    }
+  }, [invitations, signedIn, toast])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
