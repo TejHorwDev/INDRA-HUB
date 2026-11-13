@@ -7364,11 +7364,25 @@ body {
  */
 .about-card {
   overflow: hidden;
-  max-width: 720px;
+  max-width: 860px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background-color: var(--surface);
   box-shadow: var(--shadow-1);
+}
+
+/* Sitting inside Settings' own panel: no second box, and the whole width. */
+.about-card--plain {
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.about-card--plain .about-main {
+  padding: 4px 0 0;
+  min-height: 196px;
 }
 
 .about-main {
@@ -7376,8 +7390,9 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-5);
-  padding: 24px;
+  gap: var(--space-6);
+  min-height: 188px;
+  padding: 26px 30px;
 }
 
 .about-ident {
@@ -7393,9 +7408,9 @@ body {
 }
 
 .about-name {
-  margin-top: 8px;
+  margin-top: 10px;
   color: var(--ink);
-  font-size: 1.7rem;
+  font-size: 2.15rem;
   font-weight: 600;
   letter-spacing: -0.045em;
   line-height: 1.05;
@@ -7425,8 +7440,8 @@ body {
 .about-portrait {
   display: grid;
   place-items: center;
-  width: 78px;
-  height: 78px;
+  width: 116px;
+  height: 116px;
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 50%;
@@ -7440,16 +7455,13 @@ body {
   object-fit: cover;
 }
 
-.about-portrait--empty span {
+.about-portrait-mark {
   color: var(--ink-tertiary);
-  font-size: 1.35rem;
-  font-weight: 500;
-  letter-spacing: -0.03em;
 }
 
 .about-dev figcaption {
   color: var(--ink-tertiary);
-  font-size: 0.5625rem;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -7458,6 +7470,7 @@ body {
 .about-dev-tools {
   display: flex;
   gap: 12px;
+  margin-top: 2px;
 }
 
 .about-dev-tools button {
@@ -7528,9 +7541,23 @@ body {
   font-size: var(--fs-xs);
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .about-main {
+    min-height: 0;
     padding: 20px;
+  }
+
+  .about-card--plain .about-main {
+    min-height: 0;
+  }
+
+  .about-portrait {
+    width: 92px;
+    height: 92px;
+  }
+
+  .about-name {
+    font-size: 1.8rem;
   }
 
   .about-rail {

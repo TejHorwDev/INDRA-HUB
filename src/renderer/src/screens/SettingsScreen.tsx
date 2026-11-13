@@ -386,7 +386,7 @@ function AboutSection() {
     }
   }, [])
 
-  return <AboutCard canEditDeveloper={isAdmin} />
+  return <AboutCard canEditDeveloper={isAdmin} variant="plain" />
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
