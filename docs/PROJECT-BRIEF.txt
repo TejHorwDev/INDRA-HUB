@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.9.5
-  Latest release:     v1.9.5 (GitHub, public)
+  Version:            1.9.6
+  Latest release:     v1.9.6 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -54,7 +54,7 @@ Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
 v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0, v1.9.1, v1.9.2, v1.9.3,
-v1.9.4, v1.9.5.
+v1.9.4, v1.9.5, v1.9.6.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -428,6 +428,28 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     only (propagating a delete is a product decision, not an oversight), there
     is no live co-editing or presence, and two people editing the same document
     at the same instant still meet a conflict rather than a merge.
+  - **The surface was rebuilt as a system, not repainted (1.9.6).** The dark
+    canvas moves from near-black to the matte charcoal a native Windows app
+    sits on (#101113), panels step up through #16181B and #1B1D21, and the
+    separation between them is one hairline (#26282D) rather than a glow. Light
+    mode keeps its paper canvas. The accent deepens to #B94250 so a filled
+    button reads as wine rather than pink.
+  - One control height (32px), one radius (6px), one weight (550); headings lose
+    a step (page title 24 → 20px, panel labels 10px with 0.1em tracking), and the
+    window gets a 44px caption bar, thin neutral scrollbars, and a flat canvas
+    with no gradient wash.
+  - The rail is a list of places: 32px rows, muted glyphs, a hairline indicator
+    on the selected row. Every existing destination is unchanged.
+  - Projects are a two-column shelf of cards with a glyph, a name, two lines of
+    description and the same two facts as before (people, last change). The
+    cloud shelf uses the same card, because it is the same kind of thing.
+  - Page frames widen to 1180px, padding tightens to 28/24, and the rule under
+    a header is gone where no tabs need it. Header actions are outlined
+    secondaries with one primary; inside a toolbar a ghost button is a label
+    until hovered, so dense editors do not become a wall of boxes.
+  - Nothing was removed, re-routed, renamed or re-wired: 1.9.6 changes tokens,
+    spacing, typography and the project card's markup only. All ten
+    simulations and the typecheck/build pass unchanged.
   - Create, rename, delete projects; each has a description
   - Owner/member model stored in project_members, plus team access derived at
     read time
