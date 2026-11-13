@@ -372,6 +372,19 @@ const MIGRATIONS: string[] = [
 
   CREATE INDEX ai_activity_user_idx ON ai_activity (user_id, created_at DESC);
   CREATE INDEX ai_activity_document_idx ON ai_activity (document_id, created_at DESC);
+  `,
+
+  /* 12 — a balance is never stored on this machine.
+     The table `ai_credit_cache` held the last balance the server had reported
+     for each account on this PC, so a screen could draw something offline. It is
+     dropped rather than emptied: a balance is the thing that decides whether a
+     person may spend, and a copy that can disagree with the server is a copy
+     that will be wrong at exactly the moment it matters. It also held, in plain
+     JSON, how much every account on this machine had left, which is nobody's
+     business but the server's. The run log stays — it records what was written
+     into a document, which is the person's own work, not an entitlement. */
+  `
+  DROP TABLE IF EXISTS ai_credit_cache;
   `
 ]
 

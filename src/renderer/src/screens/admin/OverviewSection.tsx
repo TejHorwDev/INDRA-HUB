@@ -98,21 +98,21 @@ export default function OverviewSection({ overview, onOpenSection }: OverviewPro
               AI provider
             </h2>
             <button type="button" className="admin-link" onClick={() => onOpenSection('credits')}>
-              Credit console
+              Token console
             </button>
           </div>
           <div className="admin-card-body">
             <div className="admin-key-slot">
               <span className="micro-label">Pricing</span>
               <span className="admin-key-placeholder">
-                Currency and prices are set in the credit console
+                Currency and prices are set in the token console
               </span>
             </div>
             <p className="admin-hint">
-              What a credit buys, what a tier grants and what a top-up costs are all settings on the
+              What a tier grants and what a top-up costs are settings on the
               server — never in a build. The model key that spends them is still held by the cloud
               project, not by this app; until it is added there, AI runs answer that they are not
-              switched on and no credit is spent.
+              switched on and no token is spent.
             </p>
           </div>
         </section>

@@ -45,7 +45,7 @@ async function main() {
     logLevel: 'warning',
     alias: { '@shared': join(root, 'src/shared') }
   })
-  const { money, minorFrom, minorToText, shapeFor, credits } = await import(
+  const { money, minorFrom, minorToText, shapeFor, tokens } = await import(
     `file://${bundle}?t=${Date.now()}`
   ).then((module) => module.default)
 
@@ -93,7 +93,7 @@ async function main() {
   check(minorToText(399, 2) === '3.99', '399 turns back into 3.99', minorToText(399, 2))
   check(minorToText(300, 2) === '3.00', 'a whole amount keeps its decimals', minorToText(300, 2))
   check(minorToText(129900, 0) === '129900', 'a zero-decimal currency turns back exactly')
-  check(credits(2500) === '2,500', 'credits are grouped whole numbers', credits(2500))
+  check(tokens(2500) === '2,500', 'tokens are grouped whole numbers', tokens(2500))
 
   /* ---------------- the service reads the rules defensively ---------------- */
 
@@ -121,12 +121,11 @@ async function main() {
   })
   const service = await import(`file://${serviceBundle}?t=${Date.now()}`).then((module) => module.default)
 
-  const fromServer = service.asCreditSettings({
+  const fromServer = service.asTokenSettings({
     currency: 'npr',
     symbol: 'Rs',
     decimals: 2,
-    tokensPerCredit: 750,
-    topupCredits: 250,
+    topupTokens: 250,
     topupPriceMinor: 49900,
     minTopup: 50,
     maxTopup: 5000,
@@ -134,35 +133,33 @@ async function main() {
     updatedAt: '2026-01-01T00:00:00Z'
   })
   check(fromServer.currency === 'NPR', 'a lowercase currency code is normalised')
-  check(fromServer.tokensPerCredit === 750 && fromServer.topupCredits === 250, 'the rules are carried through')
+  check(fromServer.topupTokens === 250, 'the rules are carried through')
   check(money(fromServer.topupPriceMinor, fromServer) === 'Rs499.00', 'a pack price draws in its own currency', money(fromServer.topupPriceMinor, fromServer))
 
-  const empty = service.asCreditSettings({})
+  const empty = service.asTokenSettings({})
   check(
     empty.currency === 'USD' && empty.symbol === '$' && empty.decimals === 2,
     'a row with nothing in it falls back to dollars, never to blank'
   )
   check(
-    empty.tokensPerCredit === 1000 && empty.topupCredits === 100 && empty.topupPriceMinor === 199,
+    empty.topupTokens === 100_000 && empty.topupPriceMinor === 10_000 && empty.minTopup === 100_000,
     'the fallbacks match what the database ships'
   )
-  check(service.asCreditSettings(null) === null, 'no rules at all is null, not a zeroed price')
+  check(service.asTokenSettings(null) === null, 'no rules at all is null, not a zeroed price')
 
-  const nonsense = service.asCreditSettings({
+  const nonsense = service.asTokenSettings({
     currency: 'dollars',
     decimals: 9,
-    tokensPerCredit: -4,
-    topupCredits: 0,
+    topupTokens: 0,
     topupPriceMinor: 'lots'
   })
   check(nonsense.currency === 'USD', 'a currency that is not a code is refused')
   check(nonsense.decimals === 3, 'decimals are clamped to something a price can use', String(nonsense.decimals))
-  check(nonsense.tokensPerCredit === 1, 'a credit always buys at least one token', String(nonsense.tokensPerCredit))
-  check(nonsense.topupCredits === 1 && nonsense.topupPriceMinor === 199, 'impossible pack numbers fall back')
+  check(nonsense.topupTokens === 1 && nonsense.topupPriceMinor === 10_000, 'impossible pack numbers fall back')
 
   /* ---------------- what one credit costs ---------------- */
 
-  const perCredit = fromServer.topupPriceMinor / fromServer.topupCredits
+  const perCredit = fromServer.topupPriceMinor / fromServer.topupTokens
   check(perCredit === 199.6, 'the per-credit price comes from the pack, not a constant', String(perCredit))
 
   /* ---------------- the palette has no fourth colour ---------------- */

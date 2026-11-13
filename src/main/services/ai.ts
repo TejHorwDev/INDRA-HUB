@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { net } from 'electron'
 import type {
-  AdminCreditAccount,
-  AdminCreditAccountDetail,
-  AdminCreditResetInfo,
-  AdminCreditLedgerRow,
-  AdminCreditSettingsInput,
-  AdminCreditSnapshot,
+  AdminTokenAccount,
+  AdminTokenAccountDetail,
+  AdminTokenResetInfo,
+  AdminTokenLedgerRow,
+  AdminTokenSettingsInput,
+  AdminTokenSnapshot,
   AdminPlanInput,
   AiActivity,
   AiAnswer,
@@ -16,10 +16,10 @@ import type {
   AdminSpendRow,
   AiTraceStep,
   AiUsage,
-  CreditLedgerEntry,
-  CreditPlan,
-  CreditSettings,
-  CreditsState,
+  TokenLedgerEntry,
+  TokenPlan,
+  TokenSettings,
+  TokensState,
   PurchaseRequest,
   PurchaseRequestInput,
   SessionUser
@@ -38,15 +38,15 @@ import {
 import { getDocument } from './documents'
 
 /*
- * Credits and AI.
+ * Tokens and AI.
  *
  * The rule this file exists to protect: the balance lives on the server, and
  * the app only ever reports what the server said.
  *
- *   - Reading the balance is a call to indra_credit_state(). The answer is
- *     copied into SQLite so the Credits screen is not blank when the machine is
- *     offline, and that copy carries the time it was taken. It is never used to
- *     decide whether a request may run — the Edge Function asks the database.
+ *   - Reading the balance is a call to indra_credit_state(). Nothing is copied
+ *     anywhere: there is no local balance, so offline means no number at all
+ *     rather than a stale one. The Edge Function asks the database before it
+ *     spends anything.
  *   - Doing the work is a call to the indra-ai function. The provider key is in
  *     the cloud project's environment; it does not exist anywhere in this app,
  *     in a build, in a settings file, or in a log.
@@ -83,7 +83,7 @@ interface WireState {
  * These numbers decide what a person is quoted, so a missing field must never
  * become zero: every fallback is the same default the database ships with.
  */
-export function asCreditSettings(value: unknown): CreditSettings | null {
+export function asTokenSettings(value: unknown): TokenSettings | null {
   if (!value || typeof value !== 'object') return null
   const row = value as Record<string, unknown>
   const num = (key: string, fallback: number): number => {
@@ -97,12 +97,11 @@ export function asCreditSettings(value: unknown): CreditSettings | null {
     currency,
     symbol: typeof row.symbol === 'string' && row.symbol ? row.symbol : '$',
     decimals: Math.min(Math.max(Math.round(num('decimals', 2)), 0), 3),
-    tokensPerCredit: Math.max(1, Math.round(num('tokensPerCredit', 1000))),
-    topupCredits: Math.max(1, Math.round(num('topupCredits', 100))),
-    topupPriceMinor: Math.max(0, Math.round(num('topupPriceMinor', 199))),
-    minTopup: Math.max(1, Math.round(num('minTopup', 100))),
-    maxTopup: Math.max(1, Math.round(num('maxTopup', 100_000))),
-    lowBalance: Math.max(0, Math.round(num('lowBalance', 20))),
+    topupTokens: Math.max(1, Math.round(num('topupTokens', 100_000))),
+    topupPriceMinor: Math.max(0, Math.round(num('topupPriceMinor', 10_000))),
+    minTopup: Math.max(1, Math.round(num('minTopup', 100_000))),
+    maxTopup: Math.max(1, Math.round(num('maxTopup', 100_000_000))),
+    lowBalance: Math.max(0, Math.round(num('lowBalance', 3_000))),
     updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : null
   }
 }
@@ -111,7 +110,7 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-function disconnected(message: string): CreditsState {
+function disconnected(message: string): TokensState {
   return {
     connected: false,
     plan: 'free',
@@ -132,7 +131,7 @@ function disconnected(message: string): CreditsState {
   }
 }
 
-function fromWire(state: WireState, syncedAt: string, cached: boolean): CreditsState {
+function fromWire(state: WireState, syncedAt: string, cached: boolean): TokensState {
   const daily = Number(state.daily ?? 0)
   const purchased = Number(state.purchased ?? 0)
   return {
@@ -148,63 +147,36 @@ function fromWire(state: WireState, syncedAt: string, cached: boolean): CreditsS
     resetAt: state.resetAt ?? null,
     planExpiresAt: state.planExpiresAt ?? null,
     isAdmin: state.isAdmin === true,
-    settings: asCreditSettings(state.settings),
+    settings: asTokenSettings(state.settings),
     syncedAt,
     cached,
     message: null
   }
 }
 
-function readCache(userId: string): { state: CreditsState; syncedAt: string } | null {
-  const row = getDatabase()
-    .prepare('SELECT state, synced_at FROM ai_credit_cache WHERE user_id = ?')
-    .get(userId) as { state: string; synced_at: string } | undefined
-  if (!row) return null
-  try {
-    const parsed = JSON.parse(row.state) as WireState
-    return { state: fromWire(parsed, row.synced_at, true), syncedAt: row.synced_at }
-  } catch {
-    return null
-  }
-}
-
-function writeCache(userId: string, state: CreditsState): void {
-  if (!state.connected) return
-  getDatabase()
-    .prepare(
-      `INSERT INTO ai_credit_cache (user_id, state, synced_at) VALUES (?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, synced_at = excluded.synced_at`
-    )
-    .run(userId, JSON.stringify(state), state.syncedAt ?? nowIso())
-}
-
 /**
- * The balance the server currently holds.
+ * The balance, from the server, every time.
  *
- * `allowCache` is for screens that must draw something: the Credits page opens
- * with the last known numbers, marked with when they were true, and refreshes
- * them a moment later. Sign-in paths and the admin console pass false, because
- * a stale number there would be a lie with consequences.
+ * There used to be a local copy of this: a table in SQLite that let the screen
+ * draw yesterday's number when the cloud was unreachable. It is gone. A balance
+ * is the thing that decides whether a person may spend, so a copy of it kept on
+ * the machine is a copy that can disagree with the server — and in the window
+ * where it disagrees, the number on screen is simply wrong. Removing it also
+ * removes a table that held, in plain JSON, how much every account on this PC
+ * had left.
+ *
+ * Offline, the answer is that there is no answer. The screen says so, and the
+ * AI panel refuses before it builds a request.
  */
-export async function creditsState(viewer: SessionUser, allowCache = false): Promise<CreditsState> {
+export async function tokensState(viewer: SessionUser): Promise<TokensState> {
   if (viewer.mode === 'offline') {
-    return disconnected('The offline workspace has no cloud account, so it has no credits. Sign in to use AI.')
+    return disconnected('This PC is offline. A token balance lives on the server, so there is nothing to show until it answers.')
   }
   try {
     const session = await cloudSession(viewer)
     const state = await rpcCall<WireState>(session.token, 'indra_credit_state', {})
-    const mapped = fromWire(state ?? {}, nowIso(), false)
-    writeCache(viewer.id, mapped)
-    return mapped
+    return fromWire(state ?? {}, nowIso(), false)
   } catch (error) {
-    const cached = allowCache ? readCache(viewer.id) : null
-    if (cached) {
-      return {
-        ...cached.state,
-        cached: true,
-        message: 'Showing the last balance this PC saw. It will refresh when the cloud is reachable.'
-      }
-    }
     return disconnected(messageFor(error))
   }
 }
@@ -255,8 +227,8 @@ async function callFunction<T>(token: string, body: Record<string, unknown>): Pr
 
     if (!response.ok) {
       const failure = (payload ?? {}) as FunctionError
-      if (failure.error === 'insufficient_credits') {
-        throw errors.insufficientCredits(failure.message ?? 'You have no credits left today.')
+      if (failure.error === 'insufficient_tokens' || failure.error === 'insufficient_credits') {
+        throw errors.insufficientTokens(failure.message ?? 'You have no tokens left today.')
       }
       if (failure.error === 'unauthorized' || response.status === 401) {
         throw errors.authRequired()
@@ -309,8 +281,7 @@ function asTrace(value: unknown): AiTraceStep[] {
     out.push({
       stage: typeof row.stage === 'string' ? row.stage : 'step',
       ms: Number(row.ms ?? 0),
-      tokens: Number(row.tokens ?? 0),
-      credits: Number(row.credits ?? 0)
+      tokens: Number(row.tokens ?? row.credits ?? 0)
     })
   }
   return out
@@ -415,8 +386,6 @@ export async function ask(
     ms: Number(payload.ms ?? 0)
   }
 
-  if (answer.balance) writeCache(viewer.id, answer.balance)
-
   recordActivity(viewer.id, document.projectId, document.id, document.title, prompt, answer)
   return answer
 }
@@ -489,16 +458,16 @@ interface WirePlan {
   id?: string
   name?: string
   blurb?: string
-  daily_credits?: number
+  daily_tokens?: number
   price_minor?: number
   sort?: number
   enabled?: boolean
 }
 
-async function fetchPlans(token: string, currentPlan: string): Promise<CreditPlan[]> {
+async function fetchPlans(token: string, currentPlan: string): Promise<TokenPlan[]> {
   const rows = await restCall<WirePlan[]>(
     token,
-    '/rest/v1/indra_plans?select=id,name,blurb,daily_credits,price_minor,sort,enabled&order=sort.asc'
+    '/rest/v1/indra_plans?select=id,name,blurb,daily_tokens,price_minor,sort,enabled&order=sort.asc'
   )
   const plans = (rows ?? [])
     .filter((row) => typeof row.id === 'string')
@@ -506,7 +475,7 @@ async function fetchPlans(token: string, currentPlan: string): Promise<CreditPla
       id: row.id as string,
       name: typeof row.name === 'string' ? row.name : (row.id as string),
       blurb: typeof row.blurb === 'string' ? row.blurb : '',
-      dailyCredits: Number(row.daily_credits ?? 0),
+      dailyTokens: Number(row.daily_tokens ?? 0),
       priceMinor: Number(row.price_minor ?? 0),
       sort: Number(row.sort ?? 0),
       enabled: row.enabled !== false,
@@ -517,7 +486,7 @@ async function fetchPlans(token: string, currentPlan: string): Promise<CreditPla
   return plans
 }
 
-function writePlansCache(plans: CreditPlan[]): void {
+function writePlansCache(plans: TokenPlan[]): void {
   getDatabase()
     .prepare(
       `INSERT INTO app_state (key, value) VALUES (?, ?)
@@ -526,20 +495,20 @@ function writePlansCache(plans: CreditPlan[]): void {
     .run(PLAN_CACHE_KEY, JSON.stringify(plans))
 }
 
-function cachedPlans(): CreditPlan[] {
+function cachedPlans(): TokenPlan[] {
   const row = getDatabase().prepare('SELECT value FROM app_state WHERE key = ?').get(PLAN_CACHE_KEY) as
     | { value: string }
     | undefined
   if (!row) return []
   try {
-    const parsed = JSON.parse(row.value) as CreditPlan[]
+    const parsed = JSON.parse(row.value) as TokenPlan[]
     return Array.isArray(parsed) ? parsed.map((plan) => ({ ...plan, current: false })) : []
   } catch {
     return []
   }
 }
 
-export async function creditPlans(viewer: SessionUser): Promise<CreditPlan[]> {
+export async function tokenPlans(viewer: SessionUser): Promise<TokenPlan[]> {
   if (viewer.mode === 'offline') return cachedPlans()
   try {
     const session = await cloudSession(viewer)
@@ -558,14 +527,14 @@ export async function creditPlans(viewer: SessionUser): Promise<CreditPlan[]> {
   }
 }
 
-export async function creditLedger(viewer: SessionUser, limit = 40): Promise<CreditLedgerEntry[]> {
+export async function tokenLedger(viewer: SessionUser, limit = 40): Promise<TokenLedgerEntry[]> {
   const session = await cloudSession(viewer)
   const rows = await rpcCall<Array<Record<string, unknown>>>(session.token, 'indra_my_ledger', {
     p_limit: Math.min(Math.max(limit, 1), 200)
   })
   return (rows ?? []).map((row) => ({
     id: String(row.id ?? randomUUID()),
-    kind: (row.kind as CreditLedgerEntry['kind']) ?? 'adjust',
+    kind: (row.kind as TokenLedgerEntry['kind']) ?? 'adjust',
     amount: Number(row.amount ?? 0),
     balanceAfter: Number(row.balance_after ?? 0),
     meta: (row.meta as Record<string, unknown>) ?? {},
@@ -578,7 +547,9 @@ interface WirePurchase {
   kind?: string
   plan_id?: string | null
   plan_name?: string | null
+  /* The server column is still named `credits`; the app calls it tokens. */
   credits?: number | null
+  tokens?: number | null
   amount_minor?: number | null
   currency?: string | null
   note?: string | null
@@ -590,10 +561,15 @@ interface WirePurchase {
 function mapPurchase(row: WirePurchase): PurchaseRequest {
   return {
     id: String(row.id ?? ''),
-    kind: row.kind === 'credits' ? 'credits' : 'plan',
+    kind: row.kind === 'credits' ? 'topup' : 'plan',
     planId: row.plan_id ?? null,
     planName: row.plan_name ?? null,
-    credits: row.credits === null || row.credits === undefined ? null : Number(row.credits),
+    tokens:
+      row.tokens === null || row.tokens === undefined
+        ? row.credits === null || row.credits === undefined
+          ? null
+          : Number(row.credits)
+        : Number(row.tokens),
     amountMinor:
       row.amount_minor === null || row.amount_minor === undefined ? null : Number(row.amount_minor),
     currency: typeof row.currency === 'string' ? row.currency : null,
@@ -623,23 +599,23 @@ export async function requestPurchase(
   viewer: SessionUser,
   input: PurchaseRequestInput
 ): Promise<PurchaseRequest[]> {
-  const kind = input.kind === 'credits' ? 'credits' : 'plan'
+  const kind = input.kind === 'topup' ? 'credits' : 'plan'
   const note = typeof input.note === 'string' ? input.note.trim().slice(0, 400) : ''
   if (kind === 'plan' && !input.planId) {
     throw errors.validation('Choose the plan you want.', 'planId')
   }
-  const credits = kind === 'credits' ? Number(input.credits ?? 0) : null
+  const tokens = kind === 'credits' ? Number(input.tokens ?? 0) : null
   if (kind === 'credits') {
     /*
      * Only the shape is checked here. What a top-up may be, and what it costs,
      * are settings the administrator owns: the server applies them, and its
      * refusal names the real limits, so this must not keep a stale copy of them.
      */
-    if (!Number.isFinite(credits) || credits === null || !Number.isInteger(credits) || credits < 1) {
-      throw errors.validation('Give a whole number of credits.', 'credits')
+    if (!Number.isFinite(tokens) || tokens === null || !Number.isInteger(tokens) || tokens < 1) {
+      throw errors.validation('Give a whole number of tokens.', 'tokens')
     }
-    if (credits > 1_000_000) {
-      throw errors.validation('The largest single top-up is 1,000,000 credits.', 'credits')
+    if (tokens > 100_000_000) {
+      throw errors.validation('The largest single top-up is 100,000,000 tokens.', 'tokens')
     }
   }
 
@@ -647,7 +623,7 @@ export async function requestPurchase(
   await rpcCall(session.token, 'indra_request_purchase', {
     p_kind: kind,
     p_plan: kind === 'plan' ? input.planId : null,
-    p_credits: credits,
+    p_tokens: tokens,
     p_note: note
   })
   return purchaseRequests(viewer)
@@ -694,9 +670,9 @@ async function adminPurchases(token: string): Promise<AdminPurchase[]> {
  *
  * Two independent facts are reported, because they fail differently and the
  * panel must not confuse them: whether the server granted this administrator the
- * credit role, and whether it answered at all.
+ * token role, and whether it answered at all.
  */
-export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditSnapshot> {
+export async function adminTokenSnapshot(adminId: string): Promise<AdminTokenSnapshot> {
   try {
     const session = await adminCloudSession(adminId)
     const state = await rpcCall<WireState>(session.token, 'indra_credit_state', {})
@@ -712,7 +688,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
         decided: [],
         plans: cachedPlans(),
         accounts: [],
-        settings: asCreditSettings(state?.settings),
+        settings: asTokenSettings(state?.settings),
         reset: null,
         identity,
         live: false,
@@ -727,7 +703,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
          * the server's own refusal replaces the guess below when it refuses.
          */
         message:
-          'This PC is not an administrator on the server yet, so it does not hold credit administration. Take the role below: the server grants it at once when no other administrator is live, and if one is, it will say so and release it once that installation has been idle for a day.'
+          'This PC is not an administrator on the server yet, so it does not hold token administration. Take the role below: the server grants it at once when no other administrator is live, and if one is, it will say so and release it once that installation has been idle for a day.'
       }
     }
 
@@ -737,7 +713,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
     const accountRows = await rpcCall<Array<Record<string, unknown>>>(session.token, 'indra_admin_accounts', {
       p_query: ''
     })
-    const accounts: AdminCreditAccount[] = (accountRows ?? []).map((row) => ({
+    const accounts: AdminTokenAccount[] = (accountRows ?? []).map((row) => ({
       id: String(row.id ?? ''),
       displayName: String(row.display_name ?? ''),
       username: String(row.username ?? ''),
@@ -754,7 +730,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
     }))
     const plans = await fetchPlans(session.token, typeof state.plan === 'string' ? state.plan : 'free')
     const reset = await rpcCall<Record<string, unknown>>(session.token, 'indra_credit_reset_info', {})
-      .then((row): AdminCreditResetInfo | null =>
+      .then((row): AdminTokenResetInfo | null =>
         row && typeof row.nextResetAt === 'string'
           ? {
               nextResetAt: row.nextResetAt,
@@ -773,7 +749,7 @@ export async function adminCreditSnapshot(adminId: string): Promise<AdminCreditS
       decided,
       plans,
       accounts,
-      settings: asCreditSettings(state.settings),
+      settings: asTokenSettings(state.settings),
       reset,
       identity,
       live: true,
@@ -803,14 +779,14 @@ export async function adminDecidePurchase(
   id: string,
   approve: boolean,
   note: string
-): Promise<AdminCreditSnapshot> {
+): Promise<AdminTokenSnapshot> {
   const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_decide_purchase', {
     p_id: id,
     p_approve: approve,
     p_note: note.slice(0, 400)
   })
-  return adminCreditSnapshot(adminId)
+  return adminTokenSnapshot(adminId)
 }
 
 export async function adminSetPlan(
@@ -818,14 +794,14 @@ export async function adminSetPlan(
   userId: string,
   planId: string,
   days = 30
-): Promise<AdminCreditSnapshot> {
+): Promise<AdminTokenSnapshot> {
   const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_set_plan', {
     p_user: userId,
     p_plan: planId,
     p_days: Math.min(Math.max(Math.round(days) || 30, 1), 3650)
   })
-  return adminCreditSnapshot(adminId)
+  return adminTokenSnapshot(adminId)
 }
 
 export async function adminGrant(
@@ -833,34 +809,34 @@ export async function adminGrant(
   userId: string,
   amount: number,
   reason: string
-): Promise<AdminCreditSnapshot> {
-  const credits = Math.round(Number(amount))
-  if (!Number.isFinite(credits) || credits === 0) {
-    throw errors.validation('Give an amount of credits, positive or negative.', 'amount')
+): Promise<AdminTokenSnapshot> {
+  const tokens = Math.round(Number(amount))
+  if (!Number.isFinite(tokens) || tokens === 0) {
+    throw errors.validation('Give an amount of tokens, positive or negative.', 'amount')
   }
-  if (Math.abs(credits) > 1_000_000) {
-    throw errors.validation('The largest single adjustment is 1,000,000 credits.', 'amount')
+  if (Math.abs(tokens) > 50_000_000) {
+    throw errors.validation('The largest single adjustment is 50,000,000 tokens.', 'amount')
   }
   const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_grant_credits', {
     p_user: userId,
-    p_amount: credits,
+    p_amount: tokens,
     p_reason: reason.slice(0, 200)
   })
-  return adminCreditSnapshot(adminId)
+  return adminTokenSnapshot(adminId)
 }
 
 export async function adminUpdatePlan(
   adminId: string,
   input: AdminPlanInput
-): Promise<CreditPlan[]> {
+): Promise<TokenPlan[]> {
   if (!input.id) throw errors.validation('Choose a plan.', 'id')
   const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_save_plan', {
     p_id: input.id,
     p_name: input.name ?? null,
     p_blurb: input.blurb ?? null,
-    p_daily: input.dailyCredits === undefined ? null : Math.round(input.dailyCredits),
+    p_daily: input.dailyTokens === undefined ? null : Math.round(input.dailyTokens),
     p_price_minor: input.priceMinor === undefined ? null : Math.round(input.priceMinor),
     p_sort: input.sort === undefined ? null : Math.round(input.sort),
     p_enabled: input.enabled === undefined ? null : input.enabled,
@@ -870,30 +846,28 @@ export async function adminUpdatePlan(
 }
 
 /**
- * The pricing rules: currency, what a credit buys, the top-up pack, the limits.
+ * The pricing rules: currency, the top-up pack and what it costs, the limits.
  *
  * Written whole so two fields can never disagree, and read back from the
  * server's own row — the console shows what was saved, not what was typed.
  */
-export async function adminUpdateCreditSettings(
+export async function adminUpdateTokenSettings(
   adminId: string,
-  input: AdminCreditSettingsInput
-): Promise<CreditSettings> {
+  input: AdminTokenSettingsInput
+): Promise<TokenSettings> {
   const session = await adminCloudSession(adminId)
   const row = await rpcCall<unknown>(session.token, 'indra_admin_update_credit_settings', {
     p_currency: input.currency ?? null,
     p_symbol: input.symbol ?? null,
     p_decimals: input.decimals === undefined ? null : Math.round(input.decimals),
-    p_tokens_per_credit:
-      input.tokensPerCredit === undefined ? null : Math.round(input.tokensPerCredit),
-    p_topup_credits: input.topupCredits === undefined ? null : Math.round(input.topupCredits),
+    p_topup_tokens: input.topupTokens === undefined ? null : Math.round(input.topupTokens),
     p_topup_price_minor:
       input.topupPriceMinor === undefined ? null : Math.round(input.topupPriceMinor),
     p_min_topup: input.minTopup === undefined ? null : Math.round(input.minTopup),
     p_max_topup: input.maxTopup === undefined ? null : Math.round(input.maxTopup),
     p_low_balance: input.lowBalance === undefined ? null : Math.round(input.lowBalance)
   })
-  const settings = asCreditSettings(row)
+  const settings = asTokenSettings(row)
   if (!settings) throw errors.validation('The server did not return the new settings.')
   return settings
 }
@@ -902,7 +876,7 @@ export async function adminLedger(
   adminId: string,
   userId: string,
   limit = 40
-): Promise<AdminCreditLedgerRow[]> {
+): Promise<AdminTokenLedgerRow[]> {
   const session = await adminCloudSession(adminId)
   const rows = await rpcCall<Array<Record<string, unknown>>>(session.token, 'indra_admin_ledger', {
     p_user: userId,
@@ -910,7 +884,7 @@ export async function adminLedger(
   })
   return (rows ?? []).map((row) => ({
     id: String(row.id ?? randomUUID()),
-    kind: (row.kind as AdminCreditLedgerRow['kind']) ?? 'adjust',
+    kind: (row.kind as AdminTokenLedgerRow['kind']) ?? 'adjust',
     amount: Number(row.amount ?? 0),
     balanceAfter: Number(row.balance_after ?? 0),
     meta: (row.meta as Record<string, unknown>) ?? {},
@@ -922,13 +896,13 @@ export async function adminSetSuspended(
   adminId: string,
   userId: string,
   suspended: boolean
-): Promise<AdminCreditSnapshot> {
+): Promise<AdminTokenSnapshot> {
   const session = await adminCloudSession(adminId)
   await rpcCall(session.token, 'indra_admin_set_suspended', {
     p_user: userId,
     p_suspended: suspended
   })
-  return adminCreditSnapshot(adminId)
+  return adminTokenSnapshot(adminId)
 }
 
 /**
@@ -939,10 +913,10 @@ export async function adminSetSuspended(
  * who is fixing a plan after the fact. It is idempotent — an account already
  * refilled today is left alone.
  */
-export async function adminResetDaily(adminId: string): Promise<{ refilled: number; snapshot: AdminCreditSnapshot }> {
+export async function adminResetDaily(adminId: string): Promise<{ refilled: number; snapshot: AdminTokenSnapshot }> {
   const session = await adminCloudSession(adminId)
   const refilled = await rpcCall<number>(session.token, 'indra_admin_reset_daily', {})
-  return { refilled: Number(refilled ?? 0), snapshot: await adminCreditSnapshot(adminId) }
+  return { refilled: Number(refilled ?? 0), snapshot: await adminTokenSnapshot(adminId) }
 }
 
 /** Every account's movement, newest first — the console's log of the whole fleet. */
@@ -967,7 +941,7 @@ export async function adminSpendLog(adminId: string, limit = 60): Promise<AdminS
 export async function adminAccountDetail(
   adminId: string,
   userId: string
-): Promise<AdminCreditAccountDetail> {
+): Promise<AdminTokenAccountDetail> {
   const session = await adminCloudSession(adminId)
   const payload = await rpcCall<{
     account?: Record<string, unknown>
@@ -991,11 +965,11 @@ export async function adminAccountDetail(
       suspended: Boolean(row.suspended_at),
       createdAt: String(row.created_at ?? ''),
       memberNo: (row.member_no as string | null) ?? null,
-      creditsResetAt: (row.credits_reset_at as string | null) ?? null
+      tokensResetAt: ((row.tokens_reset_at ?? row.credits_reset_at) as string | null) ?? null
     },
     ledger: (payload?.ledger ?? []).map((entry) => ({
       id: String(entry.id ?? randomUUID()),
-      kind: (entry.kind as AdminCreditLedgerRow['kind']) ?? 'adjust',
+      kind: (entry.kind as AdminTokenLedgerRow['kind']) ?? 'adjust',
       amount: Number(entry.amount ?? 0),
       balanceAfter: Number(entry.balance_after ?? 0),
       meta: (entry.meta as Record<string, unknown>) ?? {},
@@ -1012,7 +986,7 @@ export async function adminAccountDetail(
  * client, this one included, can hand itself the role afterwards. Returns the
  * snapshot so the panel shows the result rather than claiming success.
  */
-export async function adminClaimCreditRole(adminId: string): Promise<AdminCreditSnapshot> {
+export async function adminClaimTokenRole(adminId: string): Promise<AdminTokenSnapshot> {
   try {
     const role = await adminCloudRole(adminId, true)
     if (!role.isAdmin && role.refused) {
@@ -1045,7 +1019,7 @@ export async function adminClaimCreditRole(adminId: string): Promise<AdminCredit
       message: messageFor(error)
     }
   }
-  return adminCreditSnapshot(adminId)
+  return adminTokenSnapshot(adminId)
 }
 
 /* ---------------- REST, with the person's own token ---------------- */

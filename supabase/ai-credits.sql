@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------------
 -- INDRA HUB — AI plans, credits and purchases (server-enforced)
 --
--- THIS FILE IS SUPERSEDED for anything that prices a credit: run
+-- THIS FILE IS SUPERSEDED for anything that prices a top-up: run
 -- credit-console.sql after it, which replaces the plan table's price column
 -- with a currency-neutral one, adds the pricing settings, and rewrites the
 -- functions that quote a price. What remains true here is the part this file
@@ -19,7 +19,10 @@
 -- alone — the Edge Function's key. The app can read its own state and ask for a
 -- purchase; it cannot pay itself.
 --
--- 1 credit = 1,000 tokens (input + output), rounded up.
+-- The unit is tokens. A charge is the token count the provider reported; there
+-- is no exchange rate. (This file predates that rule and still divides by a
+-- pack size when it quotes a price; credit-console.sql, which must be run after
+-- it, replaces that with the administrator's own settings.)
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
@@ -30,19 +33,19 @@ create table if not exists public.indra_plans (
   id            text primary key,
   name          text not null,
   blurb         text not null default '',
-  daily_credits integer not null check (daily_credits >= 0),
+  daily_tokens integer not null check (daily_tokens >= 0),
   price_inr     integer not null default 0,
   sort          integer not null default 0
 );
 
-insert into public.indra_plans (id, name, blurb, daily_credits, price_inr, sort) values
+insert into public.indra_plans (id, name, blurb, daily_tokens, price_inr, sort) values
   ('free',  'Free',  'For trying the writing tools and a little research.',        100,    0, 1),
   ('basic', 'Basic', 'For a student writing every day.',                           600,  299, 2),
   ('pro',   'Pro',   'For long research and a lot of documents.',                 2500,  899, 3)
 on conflict (id) do update
   set name = excluded.name,
       blurb = excluded.blurb,
-      daily_credits = excluded.daily_credits,
+      daily_tokens = excluded.daily_tokens,
       price_inr = excluded.price_inr,
       sort = excluded.sort;
 
@@ -62,8 +65,8 @@ grant select on public.indra_plans to authenticated;
 
 alter table public.indra_users add column if not exists plan text not null default 'free';
 alter table public.indra_users add column if not exists plan_expires_at timestamptz;
-alter table public.indra_users add column if not exists daily_balance bigint not null default 0;
-alter table public.indra_users add column if not exists purchased_balance bigint not null default 0;
+alter table public.indra_users add column if not exists daily_tokens bigint not null default 0;
+alter table public.indra_users add column if not exists purchased_tokens bigint not null default 0;
 alter table public.indra_users add column if not exists credits_reset_at timestamptz
   not null default (date_trunc('day', now()) + interval '1 day');
 alter table public.indra_users add column if not exists ai_requests integer not null default 0;
@@ -81,9 +84,9 @@ $$;
 
 -- Existing accounts start at the free allowance for today.
 update public.indra_users u
-   set daily_balance = p.daily_credits
+   set daily_tokens = p.daily_tokens
   from public.indra_plans p
- where u.plan = p.id and u.daily_balance = 0 and u.ai_requests = 0;
+ where u.plan = p.id and u.daily_tokens = 0 and u.ai_requests = 0;
 
 -- ---------------------------------------------------------------------------
 -- 3. The ledger — append-only, one row per movement
@@ -181,11 +184,11 @@ begin
   end if;
 
   if v_user.credits_reset_at is null or v_user.credits_reset_at <= now() then
-    select daily_credits into v_allow from public.indra_plans where id = v_user.plan;
-    v_total := coalesce(v_allow, 0) + v_user.purchased_balance;
+    select daily_tokens into v_allow from public.indra_plans where id = v_user.plan;
+    v_total := coalesce(v_allow, 0) + v_user.purchased_tokens;
 
     update public.indra_users
-       set daily_balance = coalesce(v_allow, 0),
+       set daily_tokens = coalesce(v_allow, 0),
            credits_reset_at = date_trunc('day', now()) + interval '1 day'
      where id = v_user.id;
 
@@ -193,7 +196,7 @@ begin
     values (v_user.id, 'reset', coalesce(v_allow, 0), v_total,
             jsonb_build_object('plan', v_user.plan, 'at', date_trunc('day', now())));
 
-    v_user.daily_balance := coalesce(v_allow, 0);
+    v_user.daily_tokens := coalesce(v_allow, 0);
     v_user.credits_reset_at := date_trunc('day', now()) + interval '1 day';
   end if;
 
@@ -232,10 +235,10 @@ begin
   return jsonb_build_object(
     'plan', v_user.plan,
     'planName', coalesce(v_plan.name, v_user.plan),
-    'dailyAllowance', coalesce(v_plan.daily_credits, 0),
-    'daily', v_user.daily_balance,
-    'purchased', v_user.purchased_balance,
-    'total', v_user.daily_balance + v_user.purchased_balance,
+    'dailyAllowance', coalesce(v_plan.daily_tokens, 0),
+    'daily', v_user.daily_tokens,
+    'purchased', v_user.purchased_tokens,
+    'total', v_user.daily_tokens + v_user.purchased_tokens,
     'spentToday', v_spent,
     'requestsToday', v_user.ai_requests,
     'resetAt', v_user.credits_reset_at,
@@ -273,28 +276,28 @@ begin
     raise exception 'This account has no cloud profile.';
   end if;
 
-  if v_user.daily_balance + v_user.purchased_balance < p_cost then
+  if v_user.daily_tokens + v_user.purchased_tokens < p_cost then
     raise exception 'insufficient_credits'
-      using detail = format('Balance %s, cost %s.', v_user.daily_balance + v_user.purchased_balance, p_cost);
+      using detail = format('Balance %s, cost %s.', v_user.daily_tokens + v_user.purchased_tokens, p_cost);
   end if;
 
-  v_daily := least(v_user.daily_balance, p_cost);
+  v_daily := least(v_user.daily_tokens, p_cost);
   v_bought := p_cost - v_daily;
 
   update public.indra_users
-     set daily_balance = daily_balance - v_daily,
-         purchased_balance = purchased_balance - v_bought,
+     set daily_tokens = daily_tokens - v_daily,
+         purchased_tokens = purchased_tokens - v_bought,
          ai_requests = ai_requests + 1
    where id = p_user;
 
   insert into public.indra_credit_ledger (user_id, kind, amount, balance_after, meta)
   values (p_user, 'usage', -p_cost,
-          v_user.daily_balance + v_user.purchased_balance - p_cost, p_meta);
+          v_user.daily_tokens + v_user.purchased_tokens - p_cost, p_meta);
 
   return jsonb_build_object(
-    'daily', v_user.daily_balance - v_daily,
-    'purchased', v_user.purchased_balance - v_bought,
-    'total', v_user.daily_balance + v_user.purchased_balance - p_cost,
+    'daily', v_user.daily_tokens - v_daily,
+    'purchased', v_user.purchased_tokens - v_bought,
+    'total', v_user.daily_tokens + v_user.purchased_tokens - p_cost,
     'cost', p_cost
   );
 end
@@ -358,9 +361,10 @@ begin
     end if;
   else
     if p_credits is null or p_credits < 100 or p_credits > 100000 then
-      raise exception 'Choose between 100 and 100,000 credits.';
+      raise exception 'Choose between 100 and 100,000 tokens.';
     end if;
-    -- 100 credits = ₹99, and the price rises with the pack.
+    -- One pack of 100 buys one charge of ₹99; the price rises with the pack.
+    -- credit-console.sql replaces this with the administrator's own numbers.
     v_price := ceil(p_credits / 100.0)::integer * 99;
   end if;
 
@@ -499,25 +503,25 @@ begin
       raise exception 'That plan no longer exists.';
     end if;
 
-    select ai_requests + 1, daily_balance into v_allow, v_balance
+    select ai_requests + 1, daily_tokens into v_allow, v_balance
       from public.indra_users where id = v_req.user_id;
 
     update public.indra_users
        set plan = coalesce(v_req.plan_id, plan),
            plan_expires_at = now() + interval '30 days',
-           daily_balance = v_plan.daily_credits,
+           daily_tokens = v_plan.daily_tokens,
            credits_reset_at = date_trunc('day', now()) + interval '1 day'
      where id = v_req.user_id
-     returning daily_balance + purchased_balance into v_balance;
+     returning daily_tokens + purchased_tokens into v_balance;
 
     insert into public.indra_credit_ledger (user_id, kind, amount, balance_after, meta)
-    values (v_req.user_id, 'grant', v_plan.daily_credits, v_balance,
+    values (v_req.user_id, 'grant', v_plan.daily_tokens, v_balance,
             jsonb_build_object('plan', v_plan.id, 'request', v_req.id));
   else
     update public.indra_users
-       set purchased_balance = purchased_balance + coalesce(v_req.credits, 0)
+       set purchased_tokens = purchased_tokens + coalesce(v_req.credits, 0)
      where id = v_req.user_id
-     returning daily_balance + purchased_balance into v_balance;
+     returning daily_tokens + purchased_tokens into v_balance;
 
     insert into public.indra_credit_ledger (user_id, kind, amount, balance_after, meta)
     values (v_req.user_id, 'purchase', coalesce(v_req.credits, 0), v_balance,
@@ -554,17 +558,17 @@ begin
   update public.indra_users
      set plan = p_plan,
          plan_expires_at = now() + make_interval(days => greatest(coalesce(p_days, 30), 1)),
-         daily_balance = v_plan.daily_credits,
+         daily_tokens = v_plan.daily_tokens,
          credits_reset_at = date_trunc('day', now()) + interval '1 day'
    where id = p_user
-   returning daily_balance + purchased_balance into v_balance;
+   returning daily_tokens + purchased_tokens into v_balance;
 
   if not found then
     raise exception 'That account does not exist.';
   end if;
 
   insert into public.indra_credit_ledger (user_id, kind, amount, balance_after, meta)
-  values (p_user, 'grant', v_plan.daily_credits, v_balance,
+  values (p_user, 'grant', v_plan.daily_tokens, v_balance,
           jsonb_build_object('plan', p_plan, 'by', 'admin'));
 
   return jsonb_build_object('plan', p_plan, 'balance', v_balance);
@@ -588,9 +592,9 @@ begin
   end if;
 
   update public.indra_users
-     set purchased_balance = greatest(0, purchased_balance + p_amount)
+     set purchased_tokens = greatest(0, purchased_tokens + p_amount)
    where id = p_user
-   returning daily_balance + purchased_balance into v_balance;
+   returning daily_tokens + purchased_tokens into v_balance;
 
   if not found then
     raise exception 'That account does not exist.';
@@ -679,8 +683,8 @@ begin
   if not public.indra_is_admin() then raise exception 'Only an administrator can list accounts.'; end if;
   return query
   select u.id, u.display_name, u.username, u.email, u.plan, p.name,
-         u.daily_balance, u.purchased_balance,
-         u.daily_balance + u.purchased_balance, u.ai_requests,
+         u.daily_tokens, u.purchased_tokens,
+         u.daily_tokens + u.purchased_tokens, u.ai_requests,
          u.plan_expires_at, u.last_sign_in_at, u.suspended_at
     from public.indra_users u
     left join public.indra_plans p on p.id = u.plan
@@ -733,14 +737,14 @@ begin
   end if;
   update public.indra_plans
      set name = coalesce(nullif(trim(p_name), ''), name),
-         daily_credits = coalesce(p_daily, daily_credits),
+         daily_tokens = coalesce(p_daily, daily_tokens),
          price_inr = coalesce(p_price, price_inr),
          blurb = coalesce(nullif(trim(p_blurb), ''), blurb)
    where id = p_id
    returning * into v_plan;
   if v_plan is null then raise exception 'That plan does not exist.'; end if;
   return jsonb_build_object('id', v_plan.id, 'name', v_plan.name,
-    'daily', v_plan.daily_credits, 'price', v_plan.price_inr, 'blurb', v_plan.blurb);
+    'daily', v_plan.daily_tokens, 'price', v_plan.price_inr, 'blurb', v_plan.blurb);
 end $$;
 
 revoke all on function public.indra_admin_accounts(text) from public, anon;

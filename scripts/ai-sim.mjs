@@ -146,21 +146,20 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
    * so the app is exercised against the real shape.
    */
   const plans = [
-    { id: 'free', name: 'Free', blurb: 'The daily habit.', daily_credits: 100, price_minor: 0, enabled: true, sort: 1 },
-    { id: 'basic', name: 'Basic', blurb: 'More room to research.', daily_credits: 600, price_minor: 399, enabled: true, sort: 2 },
-    { id: 'pro', name: 'Pro', blurb: 'Deep work, every day.', daily_credits: 2500, price_minor: 999, enabled: true, sort: 3 }
+    { id: 'free', name: 'Free', blurb: 'The daily habit.', daily_tokens: 10000, price_minor: 0, enabled: true, sort: 1 },
+    { id: 'basic', name: 'Basic', blurb: 'More room to research.', daily_tokens: 40000, price_minor: 399, enabled: true, sort: 2 },
+    { id: 'pro', name: 'Pro', blurb: 'Deep work, every day.', daily_tokens: 120000, price_minor: 999, enabled: true, sort: 3 }
   ]
 
   const creditSettings = {
     currency: 'USD',
     symbol: '$',
     decimals: 2,
-    tokensPerCredit: 1000,
-    topupCredits: 100,
-    topupPriceMinor: 199,
-    minTopup: 100,
-    maxTopup: 100000,
-    lowBalance: 20,
+    topupTokens: 100000,
+    topupPriceMinor: 10000,
+    minTopup: 100000,
+    maxTopup: 100000000,
+    lowBalance: 3000,
     updatedAt: new Date().toISOString()
   }
 
@@ -306,14 +305,14 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
         const amount =
           kind === 'plan'
             ? (plans.find((plan) => plan.id === body?.p_plan)?.price_minor ?? 0)
-            : Math.ceil(Number(body?.p_credits ?? 0) / creditSettings.topupCredits) *
+            : Math.ceil(Number(body?.p_tokens ?? body?.p_credits ?? 0) / creditSettings.topupTokens) *
               creditSettings.topupPriceMinor
         purchases.unshift({
           id: `req-${++seq}`,
           kind,
           plan_id: kind === 'plan' ? body?.p_plan : null,
           plan_name: kind === 'plan' ? (plans.find((plan) => plan.id === body?.p_plan)?.name ?? null) : null,
-          credits: kind === 'credits' ? Number(body?.p_credits ?? 0) : null,
+          credits: kind === 'credits' ? Number(body?.p_tokens ?? body?.p_credits ?? 0) : null,
           amount_minor: amount,
           currency: creditSettings.currency,
           status: 'pending',
@@ -329,8 +328,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
           currency: body?.p_currency ?? creditSettings.currency,
           symbol: body?.p_symbol ?? creditSettings.symbol,
           decimals: body?.p_decimals ?? creditSettings.decimals,
-          tokensPerCredit: body?.p_tokens_per_credit ?? creditSettings.tokensPerCredit,
-          topupCredits: body?.p_topup_credits ?? creditSettings.topupCredits,
+          topupTokens: body?.p_topup_tokens ?? creditSettings.topupTokens,
           topupPriceMinor: body?.p_topup_price_minor ?? creditSettings.topupPriceMinor,
           minTopup: body?.p_min_topup ?? creditSettings.minTopup,
           maxTopup: body?.p_max_topup ?? creditSettings.maxTopup,
@@ -344,7 +342,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
         const plan = plans.find((entry) => entry.id === body?.p_id)
         if (!plan) return json(404, { message: 'That plan does not exist.' })
         if (body?.p_name !== null && body?.p_name !== undefined) plan.name = body.p_name
-        if (body?.p_daily !== null && body?.p_daily !== undefined) plan.daily_credits = body.p_daily
+        if (body?.p_daily !== null && body?.p_daily !== undefined) plan.daily_tokens = body.p_daily
         if (body?.p_price_minor !== null && body?.p_price_minor !== undefined) plan.price_minor = body.p_price_minor
         if (body?.p_enabled !== null && body?.p_enabled !== undefined) plan.enabled = body.p_enabled
         return json(200, { id: plan.id, created: false })
@@ -501,7 +499,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
           const searches = 3
           const cost = 1 + searches + 8
           if (!charge(cost)) {
-            return json(402, { error: 'insufficient_credits', message: 'You have no credits left today.', balance: stateBody() })
+            return json(402, { error: 'insufficient_tokens', message: 'You have no tokens left today.', balance: stateBody() })
           }
           return json(200, {
             ok: true,
@@ -525,7 +523,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
         const cost = 2
         if (!charge(cost)) {
-          return json(402, { error: 'insufficient_credits', message: 'You have no credits left today.', balance: stateBody() })
+          return json(402, { error: 'insufficient_tokens', message: 'You have no tokens left today.', balance: stateBody() })
         }
         return json(200, {
           ok: true,
@@ -566,7 +564,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   /* ---------------- the balance is read, never assumed ---------------- */
 
   globalThis.__online = false
-  const offlineState = await api.creditsState(user, true)
+  const offlineState = await api.tokensState(user, true)
   check(offlineState.connected === false, 'offline: no balance is invented', JSON.stringify(offlineState.total))
   check(
     /offline|connection/i.test(offlineState.message ?? ''),
@@ -575,7 +573,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   )
 
   globalThis.__online = true
-  const live = await api.creditsState(user)
+  const live = await api.tokensState(user)
   check(live.connected === true && live.total === 100, 'the balance comes from the server', String(live.total))
   check(live.planName === 'Free' && live.dailyAllowance === 100, 'the plan and allowance are the server’s')
   check(Boolean(live.syncedAt) && live.cached === false, 'a live read is marked as live')
@@ -629,7 +627,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   const broke = await refused(() =>
     api.ask(user, { projectId: project.id, documentId: document.id, prompt: 'One more' }, 'chat')
   )
-  check(broke === 'INSUFFICIENT_CREDITS', 'no credits is reported as no credits', broke)
+  check(broke === 'INSUFFICIENT_TOKENS', 'no tokens is reported as no tokens', broke)
 
   globalThis.__aiServer.setBalance({ daily: 100 })
   globalThis.__aiServer.setChargeScript([
@@ -654,26 +652,26 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   check(wentOffline !== '', 'offline, a run is refused instead of queued', wentOffline)
   globalThis.__online = true
 
-  /* ---------------- the last known balance is drawn, not trusted ---------------- */
+  /* ---------------- there is no local balance, by design ---------------- */
 
-  const cachedLive = await api.creditsState(user)
   globalThis.__online = false
-  const cached = await api.creditsState(user, true)
-  check(cached.cached === true, 'with no route out the last known balance is served')
-  check(cached.total === cachedLive.total, 'the cached figure is the one the server last confirmed')
-  check(/last balance|refresh/i.test(cached.message ?? ''), 'the cached figure says what it is', cached.message)
+  const offlineRead = await api.tokensState(user)
+  check(offlineRead.connected === false, 'offline, no balance is served at all')
+  check(offlineRead.total === 0, 'offline, the number is zero rather than a stale copy')
+  check(offlineRead.cached === false, 'offline, nothing is presented as a cached balance')
+  check(/offline/i.test(offlineRead.message ?? ''), 'offline says why there is no number', offlineRead.message)
   globalThis.__online = true
 
-  const hidden = await api.creditsState(user, false)
-  check(hidden.connected === true, 'with a route out the cache is not used')
+  const hidden = await api.tokensState(user)
+  check(hidden.connected === true, 'with a route out the balance is read live')
 
   /* ---------------- the ledger and the requests ---------------- */
 
-  const history = await api.creditLedger(user, 10)
+  const history = await api.tokenLedger(user, 10)
   check(history.length >= 2 && history[0].kind === 'usage', 'the ledger is read from the server, newest first')
   check(history[0].amount < 0 && history[0].balanceAfter >= 0, 'a charge is negative and names the balance after it')
 
-  const tiers = await api.creditPlans(user)
+  const tiers = await api.tokenPlans(user)
   check(tiers.length === 3 && tiers[1].priceMinor === 399, 'the tiers come from the plan table')
   check(tiers.filter((plan) => plan.current).length === 1, 'exactly one tier is the current one')
   check(
@@ -690,25 +688,25 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     JSON.stringify(rules)
   )
   check(
-    rules?.tokensPerCredit === 1000 && rules?.topupCredits === 100 && rules?.topupPriceMinor === 199,
-    'what a credit buys, and what a pack costs, are the server settings'
+    rules?.topupTokens === 100000 && rules?.topupPriceMinor === 10000,
+    'what a pack holds, and what it costs, are the server settings'
   )
   check(
-    rules?.minTopup === 100 && rules?.maxTopup === 100000 && rules?.lowBalance === 20,
+    rules?.minTopup === 100000 && rules?.maxTopup === 100000000 && rules?.lowBalance === 3000,
     'the top-up limits and the low-balance mark are settings, not constants'
   )
 
-  /* A request is priced by the server: 250 credits at 100 per $1.99 pack is three packs. */
-  const priced = await api.requestPurchase(user, { kind: 'credits', credits: 250, note: '' })
-  const pricedRequest = priced.find((request) => request.kind === 'credits')
+  /* A top-up is priced by the server: 200,000 tokens at 100,000 per $100 pack is two packs. */
+  const priced = await api.requestPurchase(user, { kind: 'topup', tokens: 200_000, note: '' })
+  const pricedRequest = priced.find((request) => request.kind === 'topup')
   check(
-    pricedRequest?.amountMinor === 597 && pricedRequest?.currency === 'USD',
+    pricedRequest?.amountMinor === 20000 && pricedRequest?.currency === 'USD',
     'a top-up is priced in whole minor units by the server',
     JSON.stringify({ amount: pricedRequest?.amountMinor, currency: pricedRequest?.currency })
   )
   check(
-    pricedRequest?.planName === null && pricedRequest?.credits === 250,
-    'a top-up request keeps the credits it is for'
+    pricedRequest?.planName === null && pricedRequest?.tokens === 200_000,
+    'a top-up request keeps the tokens it is for'
   )
 
   /* A tier request carries the tier's price and its name, straight from the row. */
@@ -736,7 +734,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   /* ---------------- a member cannot administer credits ---------------- */
 
-  const snapshot = await api.adminCreditSnapshot(user)
+  const snapshot = await api.adminTokenSnapshot(user)
   check(snapshot.live === false, 'a normal account gets no credit console')
   check(snapshot.pending.length === 0 && snapshot.accounts.length === 0, 'and no other account’s numbers with it')
   check(/not an administrator/i.test(snapshot.message ?? ''), 'the refusal explains itself', snapshot.message)
@@ -757,7 +755,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   balance.isAdmin = true
 
-  const consoleState = await api.adminCreditSnapshot(user)
+  const consoleState = await api.adminTokenSnapshot(user)
   check(consoleState.live === true && consoleState.reachable === true, 'an administrator gets the console', consoleState.message)
   check(consoleState.accounts.length === 2, 'every account is listed', String(consoleState.accounts.length))
   check(
@@ -844,7 +842,7 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   balance.isAdmin = false
   globalThis.__aiRoleHeldElsewhere = true
 
-  const refusedClaim = await api.adminClaimCreditRole(user)
+  const refusedClaim = await api.adminClaimTokenRole(user)
   check(refusedClaim.live === false, 'a role held elsewhere leaves the console read-only')
   check(
     /still using the console|idle for a day/i.test(refusedClaim.message ?? ''),
@@ -854,14 +852,14 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
 
   /* Once the other installation is gone, the same press succeeds. */
   globalThis.__aiRoleHeldElsewhere = false
-  const acceptedClaim = await api.adminClaimCreditRole(user)
+  const acceptedClaim = await api.adminClaimTokenRole(user)
   check(acceptedClaim.live === true, 'with no live administrator the press takes the role', acceptedClaim.message)
   check(acceptedClaim.claimed === true && acceptedClaim.accounts.length === 2, 'and the console opens in the same press')
 
   /* The console refuses to pretend: with the role gone, it says so. */
   balance.isAdmin = false
   globalThis.__aiIsAdmin = false
-  const revoked = await api.adminCreditSnapshot(user)
+  const revoked = await api.adminTokenSnapshot(user)
   check(revoked.live === false && revoked.reachable === true, 'without the role the console is read-only, not broken')
   check(/not an administrator/i.test(revoked.message ?? ''), 'and it says exactly that', revoked.message)
   balance.isAdmin = true

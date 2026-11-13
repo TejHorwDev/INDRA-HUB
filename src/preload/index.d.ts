@@ -1,18 +1,18 @@
 import type {
   AboutInfo,
-  AdminCreditLedgerRow,
-  AdminCreditAccountDetail,
-  AdminCreditSnapshot,
+  AdminTokenLedgerRow,
+  AdminTokenAccountDetail,
+  AdminTokenSnapshot,
   AdminSpendRow,
-  AdminCreditSettingsInput,
+  AdminTokenSettingsInput,
   AdminPlanInput,
   AiActivity,
   AiAnswer,
   AiAskInput,
-  CreditLedgerEntry,
-  CreditPlan,
-  CreditSettings,
-  CreditsState,
+  TokenLedgerEntry,
+  TokenPlan,
+  TokenSettings,
+  TokensState,
   PurchaseRequest,
   PurchaseRequestInput,
   WorkspaceClaimInput,
@@ -248,10 +248,10 @@ export interface IndraBridge {
     onChange: (listener: (info: AboutInfo) => void) => () => void
   }
 
-  credits: {
-    state: (payload?: { cached?: boolean }) => Promise<ApiResult<CreditsState>>
-    plans: () => Promise<ApiResult<CreditPlan[]>>
-    ledger: (payload?: { limit?: number }) => Promise<ApiResult<CreditLedgerEntry[]>>
+  tokens: {
+    state: (payload?: { cached?: boolean }) => Promise<ApiResult<TokensState>>
+    plans: () => Promise<ApiResult<TokenPlan[]>>
+    ledger: (payload?: { limit?: number }) => Promise<ApiResult<TokenLedgerEntry[]>>
     purchases: () => Promise<ApiResult<PurchaseRequest[]>>
     request: (input: PurchaseRequestInput) => Promise<ApiResult<PurchaseRequest[]>>
     cancel: (id: string) => Promise<ApiResult<PurchaseRequest[]>>
@@ -269,35 +269,35 @@ export interface IndraBridge {
     login: (input: AdminLoginInput) => Promise<ApiResult<AdminAccount>>
     logout: () => Promise<ApiResult<null>>
     overview: () => Promise<ApiResult<AdminOverview>>
-    credits: () => Promise<ApiResult<AdminCreditSnapshot>>
-    claimCreditRole: () => Promise<ApiResult<AdminCreditSnapshot>>
-    creditAccount: (userId: string) => Promise<ApiResult<AdminCreditAccountDetail>>
-    creditSpend: (limit?: number) => Promise<ApiResult<AdminSpendRow[]>>
-    setSuspended: (userId: string, suspended: boolean) => Promise<ApiResult<AdminCreditSnapshot>>
-    resetDaily: () => Promise<ApiResult<{ refilled: number; snapshot: AdminCreditSnapshot }>>
+    tokens: () => Promise<ApiResult<AdminTokenSnapshot>>
+    claimTokenAdmin: () => Promise<ApiResult<AdminTokenSnapshot>>
+    tokenAccount: (userId: string) => Promise<ApiResult<AdminTokenAccountDetail>>
+    tokenSpend: (limit?: number) => Promise<ApiResult<AdminSpendRow[]>>
+    setSuspended: (userId: string, suspended: boolean) => Promise<ApiResult<AdminTokenSnapshot>>
+    resetDaily: () => Promise<ApiResult<{ refilled: number; snapshot: AdminTokenSnapshot }>>
     decidePurchase: (payload: {
       id: string
       approve: boolean
       note?: string
-    }) => Promise<ApiResult<AdminCreditSnapshot>>
+    }) => Promise<ApiResult<AdminTokenSnapshot>>
     setPlan: (payload: {
       userId: string
       planId: string
       days?: number
-    }) => Promise<ApiResult<AdminCreditSnapshot>>
-    grantCredits: (payload: {
+    }) => Promise<ApiResult<AdminTokenSnapshot>>
+    grantTokens: (payload: {
       userId: string
       amount: number
       reason?: string
-    }) => Promise<ApiResult<AdminCreditSnapshot>>
-    updatePlan: (input: AdminPlanInput) => Promise<ApiResult<CreditPlan[]>>
-    updateCreditSettings: (
-      input: AdminCreditSettingsInput
-    ) => Promise<ApiResult<CreditSettings>>
-    creditLedger: (payload: {
+    }) => Promise<ApiResult<AdminTokenSnapshot>>
+    updatePlan: (input: AdminPlanInput) => Promise<ApiResult<TokenPlan[]>>
+    updateTokenSettings: (
+      input: AdminTokenSettingsInput
+    ) => Promise<ApiResult<TokenSettings>>
+    tokenLedger: (payload: {
       userId: string
       limit?: number
-    }) => Promise<ApiResult<AdminCreditLedgerRow[]>>
+    }) => Promise<ApiResult<AdminTokenLedgerRow[]>>
     suspendAccount: (payload: {
       userId: string
       suspended: boolean

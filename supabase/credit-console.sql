@@ -48,17 +48,16 @@ create table if not exists public.indra_credit_settings (
   currency          text not null default 'USD' check (currency ~ '^[A-Z]{3}$'),
   currency_symbol   text not null default '$' check (length(currency_symbol) between 1 and 6),
   currency_decimals integer not null default 2 check (currency_decimals between 0 and 3),
-  -- What one credit buys. The AI function divides a provider's token count by
-  -- this to decide the charge, so changing it changes every future price.
-  tokens_per_credit integer not null default 1000 check (tokens_per_credit between 1 and 1000000),
-  -- The top-up unit: `topup_credits` credits for `topup_price_minor` minor
+  -- There is no exchange rate. A charge is the token count the provider
+  -- reported, so a "tokens per credit" column has nothing to describe.
+  -- The top-up unit: `topup_tokens` credits for `topup_price_minor` minor
   -- units. Larger top-ups are priced in whole packs of this size.
-  topup_credits     integer not null default 100 check (topup_credits between 1 and 1000000),
-  topup_price_minor bigint  not null default 199 check (topup_price_minor >= 0),
-  min_topup_credits integer not null default 100 check (min_topup_credits >= 1),
-  max_topup_credits integer not null default 100000 check (max_topup_credits >= 1),
-  -- The balance at which the app starts suggesting a top-up.
-  low_balance       integer not null default 20 check (low_balance >= 0),
+  topup_tokens     integer not null default 100000 check (topup_tokens between 1 and 100000000),
+  topup_price_minor bigint  not null default 10000 check (topup_price_minor >= 0),
+  min_topup_credits integer not null default 100000 check (min_topup_credits >= 1),
+  max_topup_credits integer not null default 100000000 check (max_topup_credits >= 1),
+  -- The balance at which the app starts suggesting a top-up: below one reply.
+  low_balance       integer not null default 3000 check (low_balance >= 0),
   updated_at        timestamptz not null default now(),
   updated_by        text,
   check (min_topup_credits <= max_topup_credits)
@@ -92,8 +91,7 @@ as $$
     'currency', s.currency,
     'symbol', s.currency_symbol,
     'decimals', s.currency_decimals,
-    'tokensPerCredit', s.tokens_per_credit,
-    'topupCredits', s.topup_credits,
+    'topupTokens', s.topup_tokens,
     'topupPriceMinor', s.topup_price_minor,
     'minTopup', s.min_topup_credits,
     'maxTopup', s.max_topup_credits,
@@ -154,10 +152,10 @@ begin
   return jsonb_build_object(
     'plan', v_user.plan,
     'planName', coalesce(v_plan.name, v_user.plan),
-    'dailyAllowance', coalesce(v_plan.daily_credits, 0),
-    'daily', v_user.daily_balance,
-    'purchased', v_user.purchased_balance,
-    'total', v_user.daily_balance + v_user.purchased_balance,
+    'dailyAllowance', coalesce(v_plan.daily_tokens, 0),
+    'daily', v_user.daily_tokens,
+    'purchased', v_user.purchased_tokens,
+    'total', v_user.daily_tokens + v_user.purchased_tokens,
     'spentToday', v_spent,
     'requestsToday', v_user.ai_requests,
     'resetAt', v_user.credits_reset_at,
@@ -222,7 +220,7 @@ begin
         v_cfg.min_topup_credits, v_cfg.max_topup_credits;
     end if;
     -- Whole packs: 250 credits at 100 credits per pack is three packs.
-    v_price := ceil(p_credits::numeric / greatest(v_cfg.topup_credits, 1))::bigint
+    v_price := ceil(p_credits::numeric / greatest(v_cfg.topup_tokens, 1))::bigint
                * v_cfg.topup_price_minor;
   end if;
 
@@ -336,20 +334,20 @@ begin
     update public.indra_users
        set plan = v_plan.id,
            plan_expires_at = now() + interval '30 days',
-           daily_balance = v_plan.daily_credits,
+           daily_tokens = v_plan.daily_tokens,
            credits_reset_at = date_trunc('day', now()) + interval '1 day'
      where id = v_req.user_id
-     returning daily_balance + purchased_balance into v_balance;
+     returning daily_tokens + purchased_tokens into v_balance;
 
     insert into public.indra_credit_ledger (user_id, kind, amount, balance_after, meta)
-    values (v_req.user_id, 'grant', v_plan.daily_credits, v_balance,
+    values (v_req.user_id, 'grant', v_plan.daily_tokens, v_balance,
             jsonb_build_object('plan', v_plan.id, 'request', v_req.id,
                                'minor', v_req.amount_minor, 'currency', v_req.currency));
   else
     update public.indra_users
-       set purchased_balance = purchased_balance + coalesce(v_req.credits, 0)
+       set purchased_tokens = purchased_tokens + coalesce(v_req.credits, 0)
      where id = v_req.user_id
-     returning daily_balance + purchased_balance into v_balance;
+     returning daily_tokens + purchased_tokens into v_balance;
 
     insert into public.indra_credit_ledger (user_id, kind, amount, balance_after, meta)
     values (v_req.user_id, 'purchase', coalesce(v_req.credits, 0), v_balance,
@@ -414,7 +412,7 @@ begin
     if nullif(trim(coalesce(p_name, '')), '') is null then
       raise exception 'Give the new tier a name.';
     end if;
-    insert into public.indra_plans (id, name, blurb, daily_credits, price_minor, sort, enabled)
+    insert into public.indra_plans (id, name, blurb, daily_tokens, price_minor, sort, enabled)
     values (v_id, trim(p_name), coalesce(p_blurb, ''), coalesce(p_daily, 0),
             coalesce(p_price_minor, 0), coalesce(p_sort, 99), coalesce(p_enabled, true))
     returning * into v_plan;
@@ -431,7 +429,7 @@ begin
   update public.indra_plans
      set name = coalesce(nullif(trim(p_name), ''), name),
          blurb = coalesce(p_blurb, blurb),
-         daily_credits = coalesce(p_daily, daily_credits),
+         daily_tokens = coalesce(p_daily, daily_tokens),
          price_minor = coalesce(p_price_minor, price_minor),
          sort = coalesce(p_sort, sort),
          enabled = coalesce(p_enabled, enabled)
@@ -450,8 +448,7 @@ create or replace function public.indra_admin_update_credit_settings(
   p_currency text default null,
   p_symbol text default null,
   p_decimals integer default null,
-  p_tokens_per_credit integer default null,
-  p_topup_credits integer default null,
+  p_topup_tokens integer default null,
   p_topup_price_minor bigint default null,
   p_min_topup integer default null,
   p_max_topup integer default null,
@@ -467,7 +464,7 @@ declare
   v_row  public.indra_credit_settings;
 begin
   if not public.indra_is_admin() then
-    raise exception 'Only an administrator can change the credit settings.';
+    raise exception 'Only an administrator can change the pricing settings.';
   end if;
 
   v_code := upper(trim(coalesce(p_currency, '')));
@@ -480,25 +477,21 @@ begin
   if p_decimals is not null and (p_decimals < 0 or p_decimals > 3) then
     raise exception 'Decimals run from 0 to 3.';
   end if;
-  if p_tokens_per_credit is not null and (p_tokens_per_credit < 1 or p_tokens_per_credit > 1000000) then
-    raise exception 'One credit must buy at least one token.';
-  end if;
-  if p_topup_credits is not null and (p_topup_credits < 1 or p_topup_credits > 1000000) then
-    raise exception 'A pack is at least one credit.';
+  if p_topup_tokens is not null and (p_topup_tokens < 1 or p_topup_tokens > 100000000) then
+    raise exception 'A pack is at least one token.';
   end if;
   if p_topup_price_minor is not null and (p_topup_price_minor < 0 or p_topup_price_minor > 100000000) then
     raise exception 'A pack price must be between 0 and 1,000,000.';
   end if;
-  if p_low_balance is not null and (p_low_balance < 0 or p_low_balance > 1000000) then
-    raise exception 'The low-balance mark must be between 0 and 1,000,000.';
+  if p_low_balance is not null and (p_low_balance < 0 or p_low_balance > 100000000) then
+    raise exception 'The low-balance mark must be a sensible token count.';
   end if;
 
   update public.indra_credit_settings
      set currency = coalesce(nullif(v_code, ''), currency),
          currency_symbol = coalesce(nullif(trim(p_symbol), ''), currency_symbol),
          currency_decimals = coalesce(p_decimals, currency_decimals),
-         tokens_per_credit = coalesce(p_tokens_per_credit, tokens_per_credit),
-         topup_credits = coalesce(p_topup_credits, topup_credits),
+         topup_tokens = coalesce(p_topup_tokens, topup_tokens),
          topup_price_minor = coalesce(p_topup_price_minor, topup_price_minor),
          min_topup_credits = coalesce(p_min_topup, min_topup_credits),
          max_topup_credits = coalesce(p_max_topup, max_topup_credits),

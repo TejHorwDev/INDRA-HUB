@@ -62,8 +62,8 @@ begin
   if not public.indra_is_admin() then raise exception 'Only an administrator can list accounts.'; end if;
   return query
   select u.id, u.display_name, u.username, u.email, u.plan, p.name,
-         u.daily_balance::bigint, u.purchased_balance::bigint,
-         (u.daily_balance + u.purchased_balance)::bigint, u.ai_requests::bigint,
+         u.daily_tokens::bigint, u.purchased_tokens::bigint,
+         (u.daily_tokens + u.purchased_tokens)::bigint, u.ai_requests::bigint,
          u.plan_expires_at, u.last_sign_in_at, u.suspended_at
     from public.indra_users u
     left join public.indra_plans p on p.id = u.plan
@@ -201,8 +201,8 @@ begin
 
   select to_jsonb(t) into v_row from (
     select u.id, u.display_name, u.username, u.email, u.plan, p.name as plan_name,
-           u.daily_balance as daily, u.purchased_balance as purchased,
-           (u.daily_balance + u.purchased_balance)::bigint as total,
+           u.daily_tokens as daily, u.purchased_tokens as purchased,
+           (u.daily_tokens + u.purchased_tokens)::bigint as total,
            u.ai_requests as requests, u.plan_expires_at, u.last_sign_in_at, u.suspended_at,
            u.created_at, u.member_no, u.credits_reset_at, u.role
       from public.indra_users u
