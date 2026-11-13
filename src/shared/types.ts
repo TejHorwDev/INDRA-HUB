@@ -1222,3 +1222,47 @@ export interface AdminTokenSettingsInput {
   maxTopup?: number
   lowBalance?: number
 }
+
+/* ---------------- INDRA account: the server identity ---------------- */
+
+/**
+ * The human identity, as the main process sees it.
+ *
+ * `connected` means this installation holds a sealed Supabase session.
+ * `stale` means the session exists but could not be refreshed — offline, or the
+ * refresh token was revoked — so the app is running from its cache and will ask
+ * for the password again rather than pretend it is still signed in.
+ */
+export interface AccountState {
+  connected: boolean
+  stale: boolean
+  email: string | null
+  displayName: string | null
+  username: string | null
+  /** The `indra_users` row every server table keys on. */
+  profileId: string | null
+  memberNo: string | null
+  role: 'member' | 'admin' | null
+  /** True when the OS keystore held the session rather than plain text. */
+  sealed: boolean
+  online: boolean
+  expiresAt: string | null
+}
+
+export interface AccountCredentialsInput {
+  email: string
+  password: string
+}
+
+export interface AccountCreateInput {
+  email: string
+  password: string
+  displayName?: string
+  username?: string
+}
+
+/** Signing in opens the local mirror of the account, so the app has a session. */
+export interface AccountSignInResult {
+  user: SessionUser
+  state: AccountState
+}

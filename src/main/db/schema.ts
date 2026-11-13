@@ -394,6 +394,27 @@ const MIGRATIONS: string[] = [
      24px in a member row and at 96px on the chooser, and it costs a string. */
   `
   ALTER TABLE users ADD COLUMN avatar TEXT;
+  `,
+
+  /* 14 — the account is the server's, the row is the mirror.
+
+     `auth_user_id` is the link to `auth.users.id`; `cloud_profile_id` is the
+     `public.indra_users` row every policy in Supabase keys on. Both are null for
+     an account that has not been connected yet, which is exactly how the app
+     tells a legacy local account from a server one.
+
+     `member_no` and `cloud_role` are copies of server fields kept locally so a
+     screen can draw a member number or an admin badge while offline, and are
+     refreshed on every sign-in. Nothing here is a credential. */
+  `
+  ALTER TABLE users ADD COLUMN auth_user_id TEXT;
+  ALTER TABLE users ADD COLUMN cloud_profile_id TEXT;
+  ALTER TABLE users ADD COLUMN cloud_role TEXT;
+  ALTER TABLE users ADD COLUMN member_no TEXT;
+  ALTER TABLE users ADD COLUMN cloud_synced_at TEXT;
+
+  CREATE UNIQUE INDEX users_auth_user_key ON users(auth_user_id)
+    WHERE auth_user_id IS NOT NULL;
   `
 ]
 

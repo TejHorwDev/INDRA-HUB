@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AboutInfo,
+  AccountCreateInput,
+  AccountCredentialsInput,
+  AccountSignInResult,
+  AccountState,
   ApiResult,
   CreateProjectInput,
   DocumentDetail,
@@ -110,6 +114,21 @@ const api = {
       ipcRenderer.invoke('auth:change-password', input),
     deleteAccount: (input: DeleteAccountInput): Promise<ApiResult<null>> =>
       ipcRenderer.invoke('auth:delete-account', input)
+  },
+
+  /*
+   * The INDRA account — the human identity in the cloud, as opposed to the
+   * local session above. Signing in resolves to the app session it opens.
+   */
+  account: {
+    state: (): Promise<ApiResult<AccountState>> => ipcRenderer.invoke('account:state'),
+    signIn: (input: AccountCredentialsInput): Promise<ApiResult<AccountSignInResult>> =>
+      ipcRenderer.invoke('account:sign-in', input),
+    create: (input: AccountCreateInput): Promise<ApiResult<AccountSignInResult>> =>
+      ipcRenderer.invoke('account:create', input),
+    createFromLocal: (password: string): Promise<ApiResult<AccountSignInResult>> =>
+      ipcRenderer.invoke('account:create-from-local', password),
+    signOut: (): Promise<ApiResult<null>> => ipcRenderer.invoke('account:sign-out')
   },
 
   users: {

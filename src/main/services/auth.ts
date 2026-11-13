@@ -311,6 +311,21 @@ export function signOut(): void {
   getDatabase().prepare('DELETE FROM app_state WHERE key = ?').run(SESSION_KEY)
 }
 
+/**
+ * Opens the ordinary app session for an account that was authenticated
+ * somewhere else — today, the INDRA account sign-in, which proves the identity
+ * against the server and then needs the session every guard in the app reads.
+ *
+ * The session is the same kind a local sign-in writes, so nothing downstream
+ * has to know how the person got in.
+ */
+export function openSessionFor(userId: string): SessionUser {
+  const user = findUserById(userId)
+  if (!user) throw errors.authRequired()
+  writeSession(user.id)
+  return user
+}
+
 export function requireUser(): SessionUser {
   const user = currentUser()
   if (!user) throw errors.authRequired()

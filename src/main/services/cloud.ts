@@ -10,12 +10,18 @@ import type {
   ProjectDetail,
   SessionUser
 } from '@shared/types'
-import { WORKSPACE_BUCKET, WORKSPACE_KEY, WORKSPACE_URL, normaliseUrl } from '@shared/workspace'
+import { WORKSPACE_BUCKET } from '@shared/workspace'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
+import { liveAccount, sessionForLocalUser } from '../lib/accountSession'
 import { sealSecret, unsealSecret } from '../lib/seal'
+import {
+  SupabaseError,
+  supabaseConfigured,
+  supabaseEndpoint,
+  supabaseRequest
+} from '../lib/supabase'
 import { restoreArchive } from './archive'
-import { readBackendCredentials } from './backend'
 import { recheckConnectivity } from './connectivity'
 
 /*
@@ -181,17 +187,38 @@ function saveProfile(accountId: string, record: ProfileRecord): void {
 
 /* ---------------- transport ---------------- */
 
-function endpoint(): { url: string; key: string } {
-  const configured = readBackendCredentials()
-  if (configured) return { url: normaliseUrl(configured.url), key: configured.key }
-  return { url: normaliseUrl(WORKSPACE_URL), key: WORKSPACE_KEY }
+/*
+ * The project's HTTP door now lives in `lib/supabase.ts`: human sign-in needs
+ * exactly the same one, and two auth clients is how a token ends up handled
+ * differently in each. This wrapper keeps every call site below unchanged and
+ * gives the one failure that deserves its own sentence — a request the server
+ * never answered — the sentence it had before.
+ */
+async function request<T>(
+  path: string,
+  options: { method?: string; body?: unknown; token?: string; prefer?: string } = {}
+): Promise<T> {
+  try {
+    return await supabaseRequest<T>(path, options)
+  } catch (error) {
+    if (error instanceof SupabaseError && error.status === 0) {
+      throw errors.cloud(
+        'The cloud did not answer in time. Try again when the connection is steadier.'
+      )
+    }
+    throw error
+  }
 }
 
 function cloudConfigured(): boolean {
-  const key = endpoint().key
-  // A publishable key is what the app ships with; a server-side secret key is
+  // The publishable key is what the app ships with; a server-side secret key is
   // never used here even if someone pastes one into settings.
-  return Boolean(endpoint().url) && key.length > 0 && !key.startsWith('sb_secret_')
+  return supabaseConfigured()
+}
+
+/** Where this installation talks to. Same resolution as `lib/supabase.ts`. */
+function endpoint(): { url: string; key: string } {
+  return supabaseEndpoint()
 }
 
 /**
@@ -205,47 +232,6 @@ function assertReachable(): void {
   if (!cloudConfigured()) throw errors.cloud('No cloud is configured in this build.')
   if (!recheckConnectivity().online) {
     throw errors.cloud('This PC is offline. The cloud copy is not available.')
-  }
-}
-
-interface RequestOptions {
-  method?: string
-  body?: unknown
-  token?: string
-  prefer?: string
-}
-
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { url, key } = endpoint()
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
-  try {
-    const response = await net.fetch(`${url}${path}`, {
-      method: options.method ?? 'GET',
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${options.token ?? key}`,
-        'Content-Type': 'application/json',
-        ...(options.prefer ? { Prefer: options.prefer } : {})
-      },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      signal: controller.signal
-    })
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      throw new Error(`cloud ${response.status}: ${detail.slice(0, 160)}`)
-    }
-    if (response.status === 204) return undefined as T
-    const text = await response.text()
-    return (text ? JSON.parse(text) : undefined) as T
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw errors.cloud('The cloud did not answer in time. Try again when the connection is steadier.')
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -309,11 +295,33 @@ async function refresh(identity: Identity): Promise<Identity> {
 }
 
 /**
- * The identity behind the cloud copies: created on first use, refreshed when it
- * is close to expiring, and re-established from the sealed password if the
- * token was rotated away. No network at all while the token is fresh.
+ * The identity behind the cloud copies.
+ *
+ * For a connected INDRA account this is the human's own Supabase session, so a
+ * project pushed from this PC belongs to the person rather than to the machine.
+ * That is the whole point of the migration: the same account on two PCs is one
+ * owner, one member row, one set of permissions.
+ *
+ * An account that has not been connected yet keeps the old per-installation
+ * identity, so nothing that already works stops working before its owner has
+ * signed up. `identityForKey` below remains for that path and for the credit
+ * console, which keys on `admin:<adminId>`.
  */
 async function identity(viewer: SessionUser): Promise<Identity> {
+  const human = sessionForLocalUser(viewer.id)
+  if (human) {
+    const live = await liveAccount()
+    return {
+      email: live.email,
+      // A human's password is never stored, so there is nothing to re-sign-in
+      // with; `liveAccount()` refreshes from the sealed refresh token instead.
+      password: '',
+      uid: live.uid,
+      accessToken: live.accessToken,
+      refreshToken: live.refreshToken,
+      expiresAt: live.expiresAt
+    }
+  }
   return identityForKey(viewer.id)
 }
 
@@ -345,6 +353,14 @@ async function identityForKey(key: string): Promise<Identity> {
  * changes it — so the common path costs no request at all.
  */
 async function profileFor(viewer: SessionUser, actor: Identity): Promise<string> {
+  /*
+   * A connected account already knows its profile: sign-in resolved it and
+   * stored it with the session. Nothing is written here — the profile row is the
+   * server's, and `contact_email` was set at sign-in from a verified address.
+   */
+  const human = sessionForLocalUser(viewer.id)
+  if (human?.profileId) return human.profileId
+
   const address = viewer.email.trim().toLowerCase()
   const name = viewer.displayName.trim()
   const known = readProfile(viewer.id)

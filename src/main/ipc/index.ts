@@ -1,6 +1,8 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { basename } from 'node:path'
 import type {
+  AccountCreateInput,
+  AccountCredentialsInput,
   ChangePasswordInput,
   CreateProjectInput,
   DeleteAccountInput,
@@ -12,6 +14,13 @@ import type {
   WorkspaceCredentialsInput
 } from '@shared/types'
 import { errors, toResult } from '../lib/errors'
+import {
+  createAccount,
+  createAccountFromLocal,
+  currentAccountState,
+  signInAccount,
+  signOutOfAccount
+} from '../services/account'
 import { archiveProject, exportProjectToFile, importProjectFromFile, restoreArchive } from '../services/archive'
 import { recheckConnectivity } from '../services/connectivity'
 import {
@@ -542,6 +551,41 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('auth:session', () => toResult(() => currentUser()))
+
+  /* ---------------- the INDRA account ----------------
+   *
+   * The server identity, separate from the local session above. Signing in here
+   * opens an ordinary local session for the mirrored account, so the rest of the
+   * app keeps using one guard and one `SessionUser`; what changes underneath is
+   * whose token the cloud calls carry.
+   */
+  ipcMain.handle('account:state', () => toResult(() => currentAccountState()))
+
+  ipcMain.handle('account:sign-in', (_event, input: AccountCredentialsInput) =>
+    toResult(() =>
+      signInAccount(input ?? ({ email: '', password: '' } as AccountCredentialsInput))
+    )
+  )
+
+  ipcMain.handle('account:create', (_event, input: AccountCreateInput) =>
+    toResult(() => createAccount(input ?? ({ email: '', password: '' } as AccountCreateInput)))
+  )
+
+  /**
+   * Turning the account already signed in on this PC into an INDRA account.
+   * The password is the local one, checked here, and is used once to create the
+   * server account with the same address.
+   */
+  ipcMain.handle('account:create-from-local', (_event, password: unknown) =>
+    toResult(() => createAccountFromLocal(String(password ?? '')))
+  )
+
+  ipcMain.handle('account:sign-out', () =>
+    toResult(async () => {
+      await signOutOfAccount()
+      return null
+    })
+  )
 
   ipcMain.handle('auth:update-profile', (_event, input: ProfileInput) =>
     toResult(() => updateProfile(actor(), input ?? ({ displayName: '', email: '' } as ProfileInput)))

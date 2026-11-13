@@ -4,6 +4,7 @@ import type { FormEvent } from 'react'
 import type { CloudPortrait } from '@shared/types'
 import { ApiError, api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
+import AccountCloudCard from './AccountCloudCard'
 import ConfirmDialog from './ConfirmDialog'
 import PasswordField from './PasswordField'
 import PortraitPicker from './PortraitPicker'
@@ -214,6 +215,8 @@ export default function AccountPanel() {
 
   return (
     <>
+      <AccountCloudCard />
+
       <form onSubmit={saveProfile} noValidate>
         <h3 className="account-subhead">Profile</h3>
 
