@@ -281,11 +281,7 @@ export default function App() {
    */
   if (enteredAt) {
     return (
-      <OpeningScreen
-        name={user?.displayName?.trim().split(/\s+/)[0]}
-        detail={user?.mode === 'offline' ? 'Working offline' : 'Signed in'}
-        onDone={acknowledgeEntry}
-      />
+      <OpeningScreen onDone={acknowledgeEntry} />
     )
   }
 
