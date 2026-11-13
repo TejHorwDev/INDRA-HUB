@@ -207,6 +207,29 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
   let chargeScript = []
   let lastAsk = null
 
+  /*
+   * One more account, so the console has something to act on that is not the
+   * caller: suspension and the per-account view are refused on yourself, which
+   * is itself a rule worth exercising rather than working around.
+   */
+  const otherAccount = {
+    id: 'profile-other',
+    display_name: 'Second Writer',
+    username: 'second',
+    email: 'second@example.com',
+    plan: 'free',
+    plan_name: 'Free',
+    daily: '100',
+    purchased: '0',
+    total: 100,
+    requests: 0,
+    plan_expires_at: null,
+    last_sign_in_at: new Date().toISOString(),
+    suspended_at: null
+  }
+  const suspension = new Map()
+  const spendRows = []
+
   const charge = (cost) => {
     if (balance.daily + balance.purchased < cost) return false
     const fromDaily = Math.min(balance.daily, cost)
@@ -322,6 +345,131 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
         if (body?.p_price_minor !== null && body?.p_price_minor !== undefined) plan.price_minor = body.p_price_minor
         if (body?.p_enabled !== null && body?.p_enabled !== undefined) plan.enabled = body.p_enabled
         return json(200, { id: plan.id, created: false })
+      }
+
+      /*
+       * The console's own reads and writes, answered with the shapes the real
+       * functions return. The caller's balance is the stub's own `balance`, so a
+       * grant made here shows up in the next balance read — the same thing the
+       * database does.
+       */
+      /*
+       * Only the console's own calls are gated. Everything else — the ledger, the
+       * Edge Function, a member's own balance — belongs to the member paths and
+       * must keep working while this switch is off.
+       */
+      if (path.startsWith('/rest/v1/rpc/indra_admin_') && !balance.isAdmin) {
+        return json(403, { message: 'Only an administrator can do that.' })
+      }
+
+      if (path === '/rest/v1/rpc/indra_credit_reset_info') {
+        return json(200, {
+          nextResetAt: new Date(Date.now() + 6 * 3_600_000).toISOString(),
+          lastRefillAt: new Date(Date.now() - 18 * 3_600_000).toISOString(),
+          schedule: '5 0 * * *',
+          totalAccounts: 2,
+          suspendedAccounts: suspension.size
+        })
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_purchases') return json(200, purchases)
+
+      if (path === '/rest/v1/rpc/indra_admin_accounts') {
+        return json(200, [
+          {
+            id: 'profile-me',
+            display_name: 'Writer',
+            username: 'writer',
+            email: 'writer@example.com',
+            plan: balance.plan,
+            plan_name: balance.planName,
+            daily: String(balance.daily),
+            purchased: String(balance.purchased),
+            total: balance.daily + balance.purchased,
+            requests: balance.requestsToday,
+            plan_expires_at: null,
+            last_sign_in_at: new Date().toISOString(),
+            suspended_at: suspension.get('profile-me') ?? null
+          },
+          { ...otherAccount }
+        ])
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_spend_log') {
+        return json(200, spendRows.slice(0, body?.p_limit ?? 60))
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_account') {
+        if (body?.p_user === 'profile-other') {
+          return json(200, {
+            account: { ...otherAccount, suspended_at: suspension.get('profile-other') ?? null },
+            ledger: [
+              {
+                id: 'l-other-1',
+                kind: 'grant',
+                amount: 250,
+                balance_after: 350,
+                meta: { note: 'console test' },
+                created_at: new Date().toISOString()
+              }
+            ]
+          })
+        }
+        return json(200, {
+          account: {
+            id: 'profile-me',
+            display_name: 'Writer',
+            plan: balance.plan,
+            plan_name: balance.planName,
+            daily: balance.daily,
+            purchased: balance.purchased,
+            total: balance.daily + balance.purchased,
+            requests: balance.requestsToday,
+            suspended_at: null
+          },
+          ledger
+        })
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_grant_credits') {
+        const amount = Number(body?.p_amount ?? 0)
+        balance.purchased += amount
+        const movement = {
+          id: `l-${++seq}`,
+          user_id: 'profile-me',
+          display_name: 'Writer',
+          kind: 'grant',
+          amount,
+          balance_after: balance.daily + balance.purchased,
+          meta: { note: body?.p_note ?? '' },
+          created_at: new Date().toISOString()
+        }
+        ledger.unshift(movement)
+        spendRows.unshift(movement)
+        return json(200, { ok: true, balance: balance.daily + balance.purchased })
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_set_suspended') {
+        if (body?.p_user === 'profile-me') {
+          return json(400, { message: 'An administrator cannot suspend their own account.' })
+        }
+        if (body?.p_suspended === false) suspension.delete(body?.p_user)
+        else suspension.set(body?.p_user, new Date().toISOString())
+        return json(200, { ok: true })
+      }
+
+      if (path === '/rest/v1/rpc/indra_admin_reset_daily') {
+        spendRows.unshift({
+          id: `l-${++seq}`,
+          user_id: 'profile-other',
+          display_name: 'Second Writer',
+          kind: 'refill',
+          amount: 100,
+          balance_after: 200,
+          meta: { reason: 'administrator refill' },
+          created_at: new Date().toISOString()
+        })
+        return json(200, 1)
       }
 
       if (path === '/functions/v1/indra-ai') {
@@ -576,6 +724,87 @@ export * from ${JSON.stringify(join(root, 'src/main/db/database.ts'))}
     snapshot.accounts.length === 0 && snapshot.settings?.currency === 'USD',
     'a member may read the prices but nothing about another account'
   )
+
+  /* ---------------- the console, as the administrator ---------------- */
+
+  /*
+   * Everything below is the panel's real path: the same functions the IPC
+   * handlers call, against a stub that answers like the database. The point is
+   * not that the numbers look nice — it is that each control reaches a function
+   * that exists, sends the argument names the function declares, and reports
+   * what came back instead of assuming.
+   */
+
+  balance.isAdmin = true
+
+  const consoleState = await api.adminCreditSnapshot(user)
+  check(consoleState.live === true && consoleState.reachable === true, 'an administrator gets the console', consoleState.message)
+  check(consoleState.accounts.length === 2, 'every account is listed', String(consoleState.accounts.length))
+  check(
+    consoleState.reset?.totalAccounts === 2 && consoleState.reset?.schedule === '5 0 * * *',
+    'the refill clock and the real account count come from the server',
+    JSON.stringify(consoleState.reset)
+  )
+  check(
+    consoleState.reset?.nextResetAt !== undefined && consoleState.reset?.lastRefillAt !== null,
+    'the panel knows when the allowance next refills, and when it last did'
+  )
+
+  const granted = await api.adminGrant(user, 'profile-other', 250, 'console test')
+  check(granted.accounts.length === 2, 'a grant returns the state after it, not a claim', String(granted.accounts?.length))
+  const grantedCall = globalThis.__aiCalls.filter((call) => call.url.includes('indra_admin_grant_credits')).pop()
+  check(
+    grantedCall?.body?.p_user === 'profile-other' && grantedCall?.body?.p_amount === 250,
+    'the grant sends the account and the amount the function declares',
+    JSON.stringify(grantedCall?.body)
+  )
+  check(
+    typeof grantedCall?.body?.p_reason === 'string',
+    'and a reason, which is the argument name the function requires',
+    JSON.stringify(Object.keys(grantedCall?.body ?? {}))
+  )
+
+  const detail = await api.adminAccountDetail(user, 'profile-other')
+  check(detail.account.displayName === 'Second Writer', 'an account opens with its own facts', JSON.stringify(detail.account.displayName))
+  check(detail.ledger.length === 1 && detail.ledger[0].kind === 'grant', 'and with its own history')
+
+  const suspended = await api.adminSetSuspended(user, 'profile-other', true)
+  check(suspended.accounts.length === 2, 'a suspension returns the state after it')
+  // Exact, because `indra_admin_account` is a prefix of `indra_admin_accounts`
+  // and a loose match would silently assert against the account *list* instead.
+  const detailCall = globalThis.__aiCalls
+    .filter((call) => call.url.endsWith('/rpc/indra_admin_account'))
+    .pop()
+  check(
+    detailCall?.body?.p_user === 'profile-other',
+    'the account view sends the account it is asking about',
+    JSON.stringify(detailCall?.body)
+  )
+
+  const selfSuspend = await refused(() => api.adminSetSuspended(user, 'profile-me', true))
+  check(/own account|self/i.test(selfSuspend), 'an administrator cannot suspend themselves', selfSuspend)
+
+  const refilled = await api.adminResetDaily(user)
+  check(
+    refilled.refilled === 1 && refilled.snapshot?.live === true,
+    'a fleet-wide refill says how many accounts it touched',
+    JSON.stringify({ refilled: refilled.refilled, live: refilled.snapshot?.live })
+  )
+
+  const spend = await api.adminSpendLog(user, 60)
+  check(spend.length >= 1, 'every movement is readable across accounts', String(spend.length))
+  check(
+    spend.some((row) => row.accountName === 'Writer' && row.kind === 'grant'),
+    'a movement names the account it belongs to',
+    JSON.stringify(spend.map((row) => [row.accountName, row.kind]))
+  )
+
+  /* The console refuses to pretend: with the role gone, it says so. */
+  balance.isAdmin = false
+  const revoked = await api.adminCreditSnapshot(user)
+  check(revoked.live === false && revoked.reachable === true, 'without the role the console is read-only, not broken')
+  check(/not an administrator/i.test(revoked.message ?? ''), 'and it says exactly that', revoked.message)
+  balance.isAdmin = true
 
   /* ---------------- nothing was written to a balance from here ---------------- */
 

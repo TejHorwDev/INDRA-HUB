@@ -1,7 +1,9 @@
 import type {
   AboutInfo,
   AdminCreditLedgerRow,
+  AdminCreditAccountDetail,
   AdminCreditSnapshot,
+  AdminSpendRow,
   AdminCreditSettingsInput,
   AdminPlanInput,
   AiActivity,
@@ -268,6 +270,11 @@ export interface IndraBridge {
     logout: () => Promise<ApiResult<null>>
     overview: () => Promise<ApiResult<AdminOverview>>
     credits: () => Promise<ApiResult<AdminCreditSnapshot>>
+    claimCreditRole: () => Promise<ApiResult<AdminCreditSnapshot>>
+    creditAccount: (userId: string) => Promise<ApiResult<AdminCreditAccountDetail>>
+    creditSpend: (limit?: number) => Promise<ApiResult<AdminSpendRow[]>>
+    setSuspended: (userId: string, suspended: boolean) => Promise<ApiResult<AdminCreditSnapshot>>
+    resetDaily: () => Promise<ApiResult<{ refilled: number; snapshot: AdminCreditSnapshot }>>
     decidePurchase: (payload: {
       id: string
       approve: boolean

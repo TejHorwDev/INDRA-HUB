@@ -7,6 +7,9 @@ import type {
   DocumentSummary,
   DocumentVersionSummary,
   AdminAccount,
+  AdminCreditAccountDetail,
+  AdminCreditSnapshot,
+  AdminSpendRow,
   AdminIdentityInput,
   AdminLoginInput,
   AdminOverview,
@@ -47,7 +50,6 @@ import type {
   WorkspaceCredentialsInput,
   WorkspaceState,
   AdminCreditLedgerRow,
-  AdminCreditSnapshot,
   AdminCreditSettingsInput,
   AdminPlanInput,
   AiActivity,
@@ -374,6 +376,17 @@ const api = {
     overview: (): Promise<ApiResult<AdminOverview>> => ipcRenderer.invoke('admin:overview'),
     credits: (): Promise<ApiResult<AdminCreditSnapshot>> =>
       ipcRenderer.invoke('admin:credits:snapshot'),
+    /** Takes the server's credit-administrator role, once, for this installation. */
+    claimCreditRole: (): Promise<ApiResult<AdminCreditSnapshot>> =>
+      ipcRenderer.invoke('admin:credits:claim'),
+    creditAccount: (userId: string): Promise<ApiResult<AdminCreditAccountDetail>> =>
+      ipcRenderer.invoke('admin:credits:account', { userId }),
+    creditSpend: (limit?: number): Promise<ApiResult<AdminSpendRow[]>> =>
+      ipcRenderer.invoke('admin:credits:spend', { limit }),
+    setSuspended: (userId: string, suspended: boolean): Promise<ApiResult<AdminCreditSnapshot>> =>
+      ipcRenderer.invoke('admin:credits:suspend', { userId, suspended }),
+    resetDaily: (): Promise<ApiResult<{ refilled: number; snapshot: AdminCreditSnapshot }>> =>
+      ipcRenderer.invoke('admin:credits:resetDaily'),
     decidePurchase: (payload: {
       id: string
       approve: boolean

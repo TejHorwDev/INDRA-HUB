@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type {
   InvitationSummary,
@@ -24,7 +23,7 @@ import {
   refreshInvitations,
   useInvitations
 } from '../lib/invitations'
-import { initialsOf, toneOf } from '../lib/format'
+import { initialsOf } from '../lib/format'
 import { useSession } from '../lib/session'
 import { useConnectivity } from '../lib/connectivity'
 
@@ -336,7 +335,7 @@ export default function HomeScreen() {
             * of its own, and the footer carries the only two facts left.
             */}
           <div className="home-profile-head">
-            <span className="avatar avatar--lg" style={{ '--tone': toneOf(user?.id ?? '') } as CSSProperties}>
+            <span className="avatar avatar--lg">
               {initialsOf(user?.displayName ?? '')}
             </span>
 
@@ -412,7 +411,7 @@ export default function HomeScreen() {
                   <li key={member.id} className="member">
                     <span
                       className="avatar"
-                      style={{ '--tone': toneOf(member.id) } as CSSProperties}
+                     
                       aria-hidden="true"
                     >
                       {initialsOf(member.displayName)}
@@ -446,7 +445,7 @@ export default function HomeScreen() {
                   <li key={invitation.id} className="member member--invited">
                     <span
                       className="avatar"
-                      style={{ '--tone': toneOf(invitation.personId) } as CSSProperties}
+                     
                       aria-hidden="true"
                     >
                       {initialsOf(invitation.displayName)}
@@ -527,7 +526,7 @@ export default function HomeScreen() {
           <ul className="member-list member-list--flat">
             {memberOf.map((other) => (
               <li key={other.id} className="member">
-                <span className="avatar" style={{ '--tone': toneOf(other.ownerId) } as CSSProperties} aria-hidden="true">
+                <span className="avatar" aria-hidden="true">
                   {initialsOf(other.ownerName)}
                 </span>
                 <span className="member-text">

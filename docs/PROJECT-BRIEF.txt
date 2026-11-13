@@ -1,6 +1,6 @@
 ================================================================================
 INDRA HUB — FULL PROJECT BRIEF
-Version 2.1.1 · Windows desktop app · Electron + React + TypeScript + SQLite
+Version 2.1.2 · Windows desktop app · Electron + React + TypeScript + SQLite
 Repository: https://github.com/TejHorwDev/INDRA-HUB (public)
 Written: 2026-11-12
 ================================================================================
@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            2.1.1
-  Latest release:     v2.1.0 (v2.1.1 is on the branch, not yet released)
+  Version:            2.1.2
+  Latest release:     v2.1.1
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -692,8 +692,9 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
 Seventeen tables, created by ordered migrations in src/main/db/schema.ts; the
 schema version is stored in PRAGMA user_version and MIGRATION_COUNT tracks the
 number of migrations (eleven; the last added the credit cache and the AI run
-log). The server side has its own schema in supabase/ (schema.sql, auth.sql,
-sharing.sql, ai-credits.sql, credit-console.sql).
+log). The server side has its own schema in supabase/, applied in this order:
+schema.sql, auth.sql, sharing.sql, ai-credits.sql, credit-console.sql,
+credit-console-tools.sql.
 
   users              id, username, display_name, email, password_hash,
                      password_salt, created_at, suspended_at
