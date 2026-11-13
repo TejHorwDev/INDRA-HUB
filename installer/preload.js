@@ -1,11 +1,11 @@
 /*
  * The only door between the installer's page and the machine.
  *
- * The page can ask five things and nothing else: what version this is, where
- * the background film is (a path the main process chose, never one the page
- * supplied), to minimise or close the window, to install with one of two scopes,
- * and to finish by launching the app. No filesystem, no shell, no arbitrary
- * command, no arbitrary path.
+ * The page can ask six things and nothing else: what version this is, where the
+ * background film is, the default install folders, the system folder picker, to
+ * minimise or close the window, to install with a scope and a folder, and to
+ * finish by launching the app. The folder it passes back is checked again in the
+ * main process. No filesystem, no shell, no arbitrary command.
  */
 
 const { contextBridge, ipcRenderer } = require('electron')
@@ -19,6 +19,16 @@ contextBridge.exposeInMainWorld('setup', {
    * beside the app, outside the archive the page is loaded from.
    */
   background: () => ipcRenderer.invoke('setup:background'),
+
+  /** `defaults()` — the folder the window starts with, per scope. */
+  defaults: () => ipcRenderer.invoke('setup:defaults'),
+
+  /**
+   * `chooseFolder(suggested)` — opens the system folder picker and resolves to
+   * the chosen path, or null. The page may suggest a starting folder; the
+   * choice itself is the dialog's.
+   */
+  chooseFolder: (suggested) => ipcRenderer.invoke('setup:choose-folder', suggested),
   minimise: () => ipcRenderer.invoke('setup:minimise'),
   close: () => ipcRenderer.invoke('setup:close'),
 

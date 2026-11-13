@@ -29,6 +29,7 @@ If a design idea needs a glow to work, it is the wrong idea for this window.
 | File | What it is |
 | --- | --- |
 | `ui/index.html`, `ui/style.css`, `ui/app.js` | the window: four steps, one decision per screen |
+| `main.js` `/D=` | the chosen folder reaches NSIS as `/D`, last and unquoted |
 | `ui/background.mp4` | the film behind the scrim — **shipped as a resource, not inside the asar** |
 | `main.js` | window, install, launch, close, and the film's real path |
 | `preload.js` | the five things the page may ask for |
@@ -58,7 +59,21 @@ cd installer/ui && python3 -m http.server 3000
 
 With no bridge present it simulates the install, so the screens can be reviewed
 without touching a machine. The film is picked up from the same folder, so the
-background plays there too.
+background plays there too. The folder picker needs the bridge, so in a browser
+the field is typed into by hand.
+
+## Choosing the folder
+
+The window owns the choice; the installer just obeys it. `Browse…` opens the real
+Windows folder dialog (through the main process — the page never touches the
+filesystem), and the path is validated twice: once as you type, and again in
+`main.js` before it reaches a command line.
+
+It reaches NSIS as `/D=<path>`, which has two rules that are easy to get wrong:
+it must be the **last** argument, and it must **not** be quoted even when the
+path contains spaces. That is why the child process is spawned with
+`windowsVerbatimArguments: true` and a hand-built command line instead of an
+argument array.
 
 ## Building it
 

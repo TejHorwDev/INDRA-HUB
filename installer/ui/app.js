@@ -5,6 +5,9 @@
  * touches the machine is behind `window.setup` (the preload bridge); when that
  * bridge is absent — this page opened in a browser for review — the same screens
  * run on a simulated install, so the design can be judged without installing.
+ *
+ * The folder is chosen here, but it is only a suggestion: the main process
+ * validates it again and is the one that passes it to the installer.
  */
 
 const bridge = window.setup ?? null
@@ -12,6 +15,9 @@ const bridge = window.setup ?? null
 const state = {
   screen: 'options',
   scope: 'user',
+  path: '',
+  /** True until the person types in the field, so the scope can move the default. */
+  followDefault: true,
   percent: 0,
   installed: false
 }
@@ -33,12 +39,46 @@ const errorCopy = document.getElementById('error')
 const reviewScope = document.getElementById('review-scope')
 const reviewPath = document.getElementById('review-path')
 const reviewVersion = document.getElementById('review-version')
+const completedPath = document.getElementById('completed-path')
 const launchBox = document.getElementById('launch')
 const versionTag = document.getElementById('version')
+const pathInput = document.getElementById('path')
+const pathHint = document.getElementById('path-hint')
+const browseButton = document.getElementById('browse')
 
-const PATHS = {
-  user: '%LOCALAPPDATA%\\Programs\\INDRA HUB',
-  machine: '%PROGRAMFILES%\\INDRA HUB'
+const HINT = pathHint.textContent
+
+/* Defaults, so the page is complete before the bridge answers (or without it). */
+let defaults = {
+  user: 'C:\\Users\\you\\AppData\\Local\\Programs\\INDRA HUB',
+  machine: 'C:\\Program Files\\INDRA HUB'
+}
+
+const INVALID_CHARS = /[<>:"|?*\u0000-\u001f]/
+
+/**
+ * The same rules the main process applies. Duplicated on purpose: the page uses
+ * them to answer instantly, the main process uses them because it cannot trust
+ * the page.
+ */
+function pathProblem(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return 'Choose a folder.'
+  if (!/^[a-zA-Z]:\\/.test(raw)) return 'Use a full Windows path, like C:\\Program Files\\INDRA HUB.'
+  if (raw.length > 170) return 'That path is too long.'
+  if (INVALID_CHARS.test(raw.slice(2))) return 'A folder name cannot contain < > : " | ? *'
+  if (/^[a-zA-Z]:\\?$/.test(raw)) return 'Choose a folder inside the drive, not the drive itself.'
+  const settled = raw.replace(/[\\/]+$/, '').toLowerCase()
+  const reserved = [
+    'c:\\windows',
+    'c:\\windows\\system32',
+    'c:\\program files',
+    'c:\\program files (x86)',
+    'c:\\users',
+    'c:\\programdata'
+  ]
+  if (reserved.includes(settled)) return 'Choose a folder for the app, not a system folder.'
+  return null
 }
 
 /* ---------------- painting ---------------- */
@@ -55,8 +95,15 @@ function paint() {
     node.classList.toggle('is-done', at < here)
   }
 
-  reviewScope.textContent = state.scope === 'machine' ? 'Everyone on this PC' : 'Only me'
-  reviewPath.textContent = PATHS[state.scope]
+  const scopeName = state.scope === 'machine' ? 'Everyone on this PC' : 'Only me'
+  reviewScope.textContent = scopeName
+  reviewPath.textContent = state.path
+
+  const problem = pathProblem(state.path)
+  pathInput.classList.toggle('is-invalid', Boolean(problem))
+  pathInput.setAttribute('aria-invalid', problem ? 'true' : 'false')
+  pathHint.classList.toggle('is-error', Boolean(problem))
+  pathHint.textContent = problem ?? HINT
 
   const label =
     state.screen === 'options'
@@ -68,7 +115,7 @@ function paint() {
           : 'Finish'
 
   nextButton.textContent = label
-  nextButton.disabled = state.screen === 'installing'
+  nextButton.disabled = state.screen === 'installing' || Boolean(problem)
   cancelButton.textContent = state.screen === 'completed' ? 'Close' : 'Cancel'
 
   const percent = Math.round(state.percent)
@@ -97,7 +144,12 @@ function clearError() {
 for (const choice of document.querySelectorAll('.choice')) {
   choice.addEventListener('click', () => {
     if (state.screen !== 'options') return
-    state.scope = choice.dataset.scope
+    const scope = choice.dataset.scope
+    state.scope = scope
+    if (state.followDefault) {
+      state.path = defaults[scope] ?? state.path
+      pathInput.value = state.path
+    }
     for (const other of document.querySelectorAll('.choice')) {
       const selected = other === choice
       other.classList.toggle('is-selected', selected)
@@ -106,6 +158,36 @@ for (const choice of document.querySelectorAll('.choice')) {
     paint()
   })
 }
+
+pathInput.addEventListener('input', () => {
+  state.followDefault = false
+  state.path = pathInput.value
+  paint()
+})
+
+pathInput.addEventListener('blur', () => {
+  /* Tidy what people type: no trailing slash, trimmed. */
+  const tidied = pathInput.value.trim().replace(/[\\/]+$/, '')
+  if (tidied && tidied !== pathInput.value) {
+    pathInput.value = tidied
+    state.path = tidied
+    paint()
+  }
+})
+
+browseButton.addEventListener('click', async () => {
+  if (!bridge?.chooseFolder) return
+  try {
+    const picked = await bridge.chooseFolder(pathInput.value.trim())
+    if (!picked) return
+    state.path = picked
+    state.followDefault = false
+    pathInput.value = picked
+    paint()
+  } catch {
+    /* A cancelled dialog is not an error; anything else keeps the old value. */
+  }
+})
 
 /* ---------------- installing ---------------- */
 
@@ -120,6 +202,7 @@ async function install() {
   state.percent = 2
   paint()
   setStage('Preparing…', 'This takes a few seconds.')
+  completedPath.textContent = `Installed to ${state.path}`
 
   if (!bridge) {
     /* Review mode: the same beats, at reading speed. */
@@ -133,7 +216,7 @@ async function install() {
       setStage(label)
       state.percent = percent
       paint()
-      await new Promise((done) => setTimeout(done, 520))
+      await new Promise((done) => setTimeout(done, 480))
     }
     state.percent = 100
     paint()
@@ -149,7 +232,7 @@ async function install() {
   })
 
   try {
-    const result = await bridge.install({ scope: state.scope })
+    const result = await bridge.install({ scope: state.scope, path: state.path })
     if (!result?.ok) throw new Error(result?.message || 'The installation did not complete.')
     state.percent = 100
     paint()
@@ -158,24 +241,29 @@ async function install() {
   } catch (error) {
     state.percent = 0
     go('ready')
-    showError(
-      `${error?.message ?? error} Nothing else on this PC was changed — you can try again.`
-    )
+    showError(`${error?.message ?? error} Nothing else on this PC was changed — you can try again.`)
   }
 }
 
 /* ---------------- the one button ---------------- */
 
 nextButton.addEventListener('click', () => {
-  if (state.screen === 'options') return go('ready')
+  if (nextButton.disabled) return undefined
+  if (state.screen === 'options') {
+    if (pathProblem(state.path)) {
+      pathInput.focus()
+      return undefined
+    }
+    return go('ready')
+  }
   if (state.screen === 'ready') return void install()
   if (state.screen === 'completed') return finish()
+  return undefined
 })
 
 function cancel() {
   if (bridge) return bridge.close()
-  if (state.screen === 'completed') return go('options')
-  if (state.screen !== 'options') return go('options')
+  if (state.screen === 'completed' || state.screen !== 'options') return go('options')
   return undefined
 }
 
@@ -197,14 +285,13 @@ document.querySelector('[data-win="minimise"]')?.addEventListener('click', () =>
   bridge?.minimise()
 })
 
-/* Keyboard: the same two actions the buttons offer, and nothing else. */
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     event.preventDefault()
     cancel()
     return
   }
-  if (event.key === 'Enter' && !nextButton.disabled) {
+  if (event.key === 'Enter' && !nextButton.disabled && document.activeElement !== pathInput) {
     event.preventDefault()
     nextButton.click()
   }
@@ -218,8 +305,7 @@ window.addEventListener('keydown', (event) => {
  *
  * The main process hands over an absolute path because the file is shipped
  * beside the app (`resources/background.mp4`) rather than packed into the asar
- * archive — Chromium cannot stream media out of an archive, which is the
- * reason the film never played in the first build.
+ * archive — Chromium cannot stream media out of an archive.
  */
 async function startBackdrop() {
   const video = document.getElementById('video')
@@ -237,14 +323,12 @@ async function startBackdrop() {
       /* No film in this build. */
     }
   }
-  /* Browser review: the file next to the page. */
   candidates.push(new URL('background.mp4', document.baseURI).href)
 
   let index = 0
 
   const giveUp = () => {
     if (live || dead) return
-    /* Still buffering a large file is not a failure. */
     if (video.readyState >= 2) return landed()
     dead = true
     video.remove()
@@ -271,24 +355,40 @@ async function startBackdrop() {
     if (!live) next()
   })
 
-  /* A film that has not started within eight seconds is not going to. */
   setTimeout(giveUp, 8000)
 
   next()
 }
 
-/* ---------------- chrome ---------------- */
+/* ---------------- start ---------------- */
 
-if (bridge?.version) {
-  bridge
-    .version()
-    .then((value) => {
-      if (!value) return
-      versionTag.textContent = `v${value}`
-      reviewVersion.textContent = value
-    })
-    .catch(() => undefined)
+async function start() {
+  if (bridge?.defaults) {
+    try {
+      const values = await bridge.defaults()
+      if (values?.user) defaults.user = values.user
+      if (values?.machine) defaults.machine = values.machine
+    } catch {
+      /* Keep the placeholders. */
+    }
+  }
+
+  state.path = defaults[state.scope]
+  pathInput.value = state.path
+
+  if (bridge?.version) {
+    bridge
+      .version()
+      .then((value) => {
+        if (!value) return
+        versionTag.textContent = `v${value}`
+        reviewVersion.textContent = value
+      })
+      .catch(() => undefined)
+  }
+
+  void startBackdrop()
+  paint()
 }
 
-void startBackdrop()
-paint()
+void start()

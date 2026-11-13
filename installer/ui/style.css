@@ -3,23 +3,24 @@
  *
  * The rules of this file:
  *   • one accent (white), one surface, hairline rules instead of shadows;
- *   • no glows, no radial gradients, no floating cards, no large display type;
+ *   • no glows, no gradients on controls, no floating cards, no display type;
  *   • movement is 120ms and only ever opacity or a 4px lift;
  *   • the video, when present, is the only colour in the window.
  *
- * Everything here is sized for a 1120×720 window and degrades to 1000×660.
+ * Everything is sized for an 880×580 window and degrades to 820×540.
  */
 
 :root {
   --bg: #08080a;
+  --field: #101013;
   --text: #f2f2f4;
-  --text-2: #a2a2ab;
-  --text-3: #6d6d77;
+  --text-2: #9c9ca5;
+  --text-3: #686872;
   --line: rgba(255, 255, 255, 0.08);
   --line-2: rgba(255, 255, 255, 0.16);
   --fill: rgba(255, 255, 255, 0.035);
   --step: 120ms cubic-bezier(0.4, 0, 0.2, 1);
-  --radius: 8px;
+  --radius: 6px;
 }
 
 * {
@@ -36,7 +37,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
@@ -44,7 +45,8 @@ body {
   cursor: default;
 }
 
-button {
+button,
+input {
   font: inherit;
   color: inherit;
 }
@@ -71,18 +73,14 @@ button {
   opacity: 1;
 }
 
-/*
- * A flat wash rather than a glow: heavy on the left where type sits, lighter on
- * the right so movement is still visible. No vignette, no bloom.
- */
 .backdrop__scrim {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(8, 8, 10, 0.95) 0%,
-    rgba(8, 8, 10, 0.88) 42%,
-    rgba(8, 8, 10, 0.66) 100%
+    rgba(8, 8, 10, 0.96) 0%,
+    rgba(8, 8, 10, 0.9) 40%,
+    rgba(8, 8, 10, 0.7) 100%
   );
 }
 
@@ -102,8 +100,8 @@ button {
   align-items: center;
   justify-content: space-between;
   flex: 0 0 auto;
-  height: 52px;
-  padding-left: 20px;
+  height: 46px;
+  padding-left: 18px;
   border-bottom: 1px solid var(--line);
   background: rgba(8, 8, 10, 0.7);
   -webkit-app-region: drag;
@@ -112,31 +110,30 @@ button {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .brand__mark {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   fill: var(--text);
 }
 
 .brand__name {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--text);
+  letter-spacing: 0.13em;
 }
 
 .brand__rule {
   width: 1px;
-  height: 12px;
+  height: 11px;
   background: var(--line-2);
 }
 
 .brand__suffix {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--text-3);
 }
 
@@ -149,10 +146,10 @@ button {
 .winbtn {
   display: grid;
   place-items: center;
-  width: 46px;
+  width: 44px;
   border: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.68);
+  color: rgba(255, 255, 255, 0.66);
   cursor: pointer;
   transition: background var(--step), color var(--step);
 }
@@ -185,21 +182,21 @@ button {
 
 .layout {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 176px 1fr;
   flex: 1 1 auto;
   min-height: 0;
 }
 
 .rail {
-  padding: 28px 20px;
+  padding: 22px 16px;
   border-right: 1px solid var(--line);
-  background: rgba(8, 8, 10, 0.55);
+  background: rgba(8, 8, 10, 0.58);
 }
 
 .rail__label {
-  margin: 0 0 18px;
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
+  margin: 0 0 14px;
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--text-3);
 }
@@ -209,7 +206,7 @@ button {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 17px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -218,9 +215,9 @@ button {
 .steps::before {
   content: '';
   position: absolute;
-  left: 10px;
-  top: 16px;
-  bottom: 16px;
+  left: 8.5px;
+  top: 14px;
+  bottom: 14px;
   width: 1px;
   background: var(--line);
 }
@@ -229,10 +226,10 @@ button {
   counter-increment: step;
   position: relative;
   display: grid;
-  grid-template-columns: 21px 1fr;
+  grid-template-columns: 18px 1fr;
   align-items: start;
-  gap: 12px;
-  opacity: 0.5;
+  gap: 10px;
+  opacity: 0.45;
   transition: opacity var(--step);
 }
 
@@ -246,8 +243,8 @@ button {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   border: 1px solid var(--line-2);
   border-radius: 50%;
   background: var(--bg);
@@ -256,14 +253,14 @@ button {
 
 .step__dot::before {
   content: counter(step);
-  font-size: 10px;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
   transition: color var(--step);
 }
 
 .step.is-active .step__dot {
-  border-color: rgba(255, 255, 255, 0.75);
+  border-color: rgba(255, 255, 255, 0.72);
 }
 
 .step.is-active .step__dot::before {
@@ -277,29 +274,28 @@ button {
 
 .step.is-done .step__dot::before {
   content: '';
-  width: 7px;
-  height: 4px;
+  width: 6px;
+  height: 3px;
   margin-top: -2px;
-  border-left: 1.4px solid var(--bg);
-  border-bottom: 1.4px solid var(--bg);
+  border-left: 1.3px solid var(--bg);
+  border-bottom: 1.3px solid var(--bg);
   transform: rotate(-45deg);
 }
 
 .step__copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   padding-top: 1px;
 }
 
 .step__title {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
-  color: var(--text);
 }
 
 .step__hint {
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: var(--text-3);
 }
 
@@ -312,7 +308,7 @@ button {
 .pane {
   display: flex;
   min-width: 0;
-  padding: 30px 44px 26px 40px;
+  padding: 20px 30px 18px 26px;
   overflow: hidden;
 }
 
@@ -320,7 +316,7 @@ button {
   display: none;
   flex-direction: column;
   width: 100%;
-  max-width: 600px;
+  max-width: 540px;
 }
 
 .screen.is-current {
@@ -331,7 +327,7 @@ button {
 @keyframes enter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -340,28 +336,27 @@ button {
 }
 
 .eyebrow {
-  margin: 0 0 10px;
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
+  margin: 0 0 7px;
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--text-3);
 }
 
 .page-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  color: var(--text);
+  letter-spacing: -0.008em;
+  line-height: 1.3;
 }
 
 .page-lede {
-  margin: 10px 0 0;
-  max-width: 520px;
-  font-size: 13px;
-  line-height: 1.6;
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--text-2);
+  word-break: break-all;
 }
 
 /* ---------------- the decision ---------------- */
@@ -369,16 +364,16 @@ button {
 .choices {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 26px;
+  gap: 6px;
+  margin-top: 18px;
 }
 
 .choice {
   display: grid;
-  grid-template-columns: 16px 20px 1fr;
+  grid-template-columns: 15px 1fr;
   align-items: center;
-  gap: 14px;
-  padding: 13px 16px;
+  gap: 11px;
+  padding: 9px 12px;
   text-align: left;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -393,8 +388,8 @@ button {
 }
 
 .choice.is-selected {
-  border-color: rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .choice:focus-visible {
@@ -404,8 +399,8 @@ button {
 
 .choice__dot {
   position: relative;
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   transition: border-color var(--step);
@@ -418,45 +413,89 @@ button {
 .choice.is-selected .choice__dot::after {
   content: '';
   position: absolute;
-  inset: 3.5px;
+  inset: 3px;
   border-radius: 50%;
   background: #fff;
 }
 
-.choice__icon svg {
-  display: block;
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.5);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: stroke var(--step);
-}
-
-.choice.is-selected .choice__icon svg {
-  stroke: rgba(255, 255, 255, 0.88);
-}
-
 .choice__title {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text);
 }
 
 .choice__hint {
   display: block;
-  margin-top: 3px;
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: var(--text-3);
+}
+
+/* ---------------- the folder ---------------- */
+
+.field {
+  margin-top: 16px;
+}
+
+.field__label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10.5px;
+  color: var(--text-2);
+}
+
+.field__row {
+  display: flex;
+  gap: 6px;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--field);
+  font-family: 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text);
+  user-select: text;
+  transition: border-color var(--step), background var(--step);
+}
+
+.input:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.5);
+  background: #131317;
+}
+
+.input.is-invalid {
+  border-color: #e5484d;
+}
+
+.input::selection {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.field__hint {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.field__hint.is-error {
+  color: #ff9fa2;
 }
 
 /* ---------------- review ---------------- */
 
 .review {
-  margin: 24px 0 0;
+  margin: 16px 0 0;
   padding: 0;
   border-top: 1px solid var(--line);
 }
@@ -465,39 +504,39 @@ button {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 24px;
-  padding: 12px 0;
+  gap: 20px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .review__row dt {
-  font-size: 12px;
+  flex: 0 0 auto;
+  font-size: 11px;
   color: var(--text-3);
 }
 
 .review__row dd {
   margin: 0;
-  font-size: 12.5px;
-  color: var(--text);
+  font-size: 11.5px;
   text-align: right;
   word-break: break-all;
 }
 
 .review__path {
   font-family: 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', ui-monospace, monospace;
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: var(--text-2);
 }
 
 .error {
-  margin: 16px 0 0;
-  padding: 10px 12px;
+  margin: 14px 0 0;
+  padding: 9px 11px;
   border: 1px solid rgba(229, 72, 77, 0.32);
   border-left: 2px solid #e5484d;
   border-radius: 4px;
   background: rgba(229, 72, 77, 0.07);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 11.5px;
+  line-height: 1.5;
   color: #ffb3b5;
 }
 
@@ -508,7 +547,7 @@ button {
 /* ---------------- progress ---------------- */
 
 .progress {
-  margin-top: 26px;
+  margin-top: 20px;
   height: 3px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.1);
@@ -528,9 +567,9 @@ button {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 24px;
-  margin-top: 10px;
-  font-size: 11.5px;
+  gap: 20px;
+  margin-top: 8px;
+  font-size: 10.5px;
   color: var(--text-3);
 }
 
@@ -544,10 +583,9 @@ button {
 .checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 26px;
-  font-size: 13px;
-  color: var(--text);
+  gap: 9px;
+  margin-top: 20px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -559,8 +597,8 @@ button {
 
 .checkbox__box {
   position: relative;
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 3px;
   transition: background var(--step), border-color var(--step);
@@ -576,10 +614,10 @@ button {
   position: absolute;
   left: 4px;
   top: 1px;
-  width: 5px;
-  height: 9px;
-  border-right: 1.6px solid var(--bg);
-  border-bottom: 1.6px solid var(--bg);
+  width: 4px;
+  height: 8px;
+  border-right: 1.5px solid var(--bg);
+  border-bottom: 1.5px solid var(--bg);
   transform: rotate(42deg);
 }
 
@@ -591,11 +629,10 @@ button {
 /* ---------------- footnotes ---------------- */
 
 .note {
-  margin: auto 0 0;
-  padding-top: 22px;
+  margin: 16px 0 0;
   max-width: 520px;
-  font-size: 11.5px;
-  line-height: 1.6;
+  font-size: 10.5px;
+  line-height: 1.55;
   color: var(--text-3);
 }
 
@@ -606,9 +643,9 @@ button {
   align-items: center;
   justify-content: space-between;
   flex: 0 0 auto;
-  gap: 24px;
-  height: 64px;
-  padding: 0 16px 0 20px;
+  gap: 20px;
+  height: 54px;
+  padding: 0 14px 0 18px;
   border-top: 1px solid var(--line);
   background: rgba(8, 8, 10, 0.72);
 }
@@ -616,17 +653,17 @@ button {
 .footer__meta {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
 }
 
 .footer__name {
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .footer__version {
-  font-size: 11px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
 }
@@ -634,17 +671,17 @@ button {
 .footer__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: 6px;
-  font-size: 12.5px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 5px;
+  font-size: 11.5px;
   cursor: pointer;
   transition: background var(--step), border-color var(--step), color var(--step);
 }
@@ -666,7 +703,7 @@ button {
 }
 
 .btn--primary {
-  min-width: 104px;
+  min-width: 92px;
   border: 1px solid #fff;
   background: #fff;
   color: #0a0a0c;
@@ -679,18 +716,18 @@ button {
 }
 
 .btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
 /* ---------------- narrow windows ---------------- */
 
-@media (max-width: 1040px) {
+@media (max-width: 860px) {
   .layout {
-    grid-template-columns: 200px 1fr;
+    grid-template-columns: 158px 1fr;
   }
   .pane {
-    padding: 24px 28px;
+    padding: 18px 20px;
   }
 }
 
