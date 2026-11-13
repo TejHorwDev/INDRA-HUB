@@ -83,6 +83,7 @@ export * from ${JSON.stringify(join(root, 'src/main/services/settings.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/projects.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/documents.ts'))}
 export * from ${JSON.stringify(join(root, 'src/main/services/presentations.ts'))}
+export * from ${JSON.stringify(join(root, 'src/main/services/offline.ts'))}
 export * from ${JSON.stringify(join(root, 'src/renderer/src/lib/nav.ts'))}
 `
   )
@@ -142,6 +143,91 @@ export * from ${JSON.stringify(join(root, 'src/renderer/src/lib/nav.ts'))}
     api.isLibraryPath('/documents') && api.isLibraryPath('/presentations/123') && !api.isLibraryPath('/dashboard'),
     'and the library is recognisable as a route, so online it can redirect'
   )
+
+  /* ---- 1c. no credentials are accepted with no route out ----------- */
+  /*
+   * The bug this replaced: offline, the sign-in form still checked a password
+   * against a local hash, so it "worked" and proved nothing. Accounts are an
+   * online thing; the offline mode is a workspace.
+   */
+  globalThis.__online = true
+  const returned = api.register({
+    username: 'returning',
+    displayName: 'Returning Person',
+    email: 'returning@example.test',
+    password: 'CorrectHorse9'
+  })
+  api.signOut()
+
+  globalThis.__online = false
+  check(api.currentUser() === null, 'offline, after signing out, there is no session')
+  const offlineSignIn = refused(() =>
+    api.signIn({ identifier: 'returning', password: 'CorrectHorse9' })
+  )
+  check(/needs a connection/i.test(offlineSignIn), 'signing in offline is refused', offlineSignIn)
+  check(api.currentUser() === null, 'and refusal leaves no session behind')
+
+  const offlineRegister = refused(() =>
+    api.register({
+      username: 'newcomer',
+      displayName: 'New Comer',
+      email: 'newcomer@example.test',
+      password: 'CorrectHorse9'
+    })
+  )
+  check(/needs a connection/i.test(offlineRegister), 'registering offline is refused', offlineRegister)
+
+  /* ---- 1d. the offline workspace opens without an account ---------- */
+  const guest = api.startOfflineWorkspace()
+  check(guest.mode === 'offline', 'the offline workspace opens as itself, not as an account')
+  check(guest.displayName === 'This PC', 'under the name this PC, not a person', guest.displayName)
+  check(api.currentUser()?.id === guest.id, 'with a session the rest of the app can use')
+  check(
+    refused(() => api.signIn({ identifier: 'offline', password: '' })).length > 0,
+    'and nothing can sign in as it'
+  )
+  check(
+    refused(() => api.signIn({ identifier: 'offline', password: 'anything' })).length > 0,
+    'even with a password that looks usable'
+  )
+
+  const offlineProject = api.createProject(guest, { name: 'Written on a train' })
+  const offlineDoc = api.createDocument(guest, offlineProject.id, 'Chapter one')
+  api.saveDocument(guest, offlineProject.id, offlineDoc.id, {
+    baseVersion: offlineDoc.version,
+    title: 'Chapter one',
+    blocks: [{ id: 'b1', type: 'paragraph', html: 'No signal, no problem.' }]
+  })
+  api.createBlankPresentation(guest, offlineProject.id, 'Pitch on a train')
+  check(api.librarySnapshot(guest).documents.length === 1, 'the offline workspace writes real work')
+
+  const summary = api.offlineWork()
+  check(summary.projects === 1 && summary.documents === 1, 'and it is counted as offline work', JSON.stringify(summary))
+
+  /* ---- 1e. signing in later adopts that work ----------------------- */
+  globalThis.__online = true
+  const account = api.signIn({ identifier: 'returning', password: 'CorrectHorse9' })
+  check(account.mode === 'account', 'a real sign-in is an account session')
+  check(api.listProjects(account).every((project) => project.name !== 'Written on a train'), 'offline work is not silently mixed into the account')
+
+  const claimed = api.claimOfflineWork(account)
+  check(claimed.projects === 0 && claimed.documents === 0, 'adopting empties the offline workspace', JSON.stringify(claimed))
+  const adopted = api.listProjects(account)
+  check(adopted.some((project) => project.name === 'Written on a train'), 'and the project is now in the account', JSON.stringify(adopted.map((p) => p.name)))
+  const adoptedProject = adopted.find((project) => project.name === 'Written on a train')
+  const adoptedDocs = api.listDocuments(account, adoptedProject.id)
+  check(adoptedDocs.length === 1, 'with its document')
+  check(api.getDocument(account, adoptedProject.id, adoptedDocs[0].id).blocks[0]?.html === 'No signal, no problem.', 'and its content intact')
+  check(api.listPresentations(account, adoptedProject.id).length === 1, 'and its deck')
+  check(refused(() => api.claimOfflineWork({ ...account, mode: 'offline' })).length > 0, 'the offline workspace cannot adopt itself')
+
+  api.signOut()
+  globalThis.__online = false
+  check(api.currentUser() === null, 'signing out returns to no session')
+
+  globalThis.__online = true
+  api.signIn({ identifier: 'returning', password: 'CorrectHorse9' })
+  api.signOut()
 
   /* ---- 2. work is written locally, whoever is on the machine ------- */
   const owner = api.register({

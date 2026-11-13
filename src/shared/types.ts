@@ -36,6 +36,18 @@ export interface SessionUser {
   email: string
   createdAt: string
   lastSignInAt: string | null
+  /**
+   * 'offline' is the local writing workspace: no account, no credentials, no
+   * network. It owns work the same way an account does, so it can be adopted.
+   */
+  mode?: 'account' | 'offline'
+}
+
+/** What is sitting in the offline workspace, waiting to be adopted. */
+export interface OfflineWorkSummary {
+  projects: number
+  documents: number
+  presentations: number
 }
 
 /**

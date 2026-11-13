@@ -41,8 +41,8 @@ explicitly rejected "downloads the new installer and runs it".
 
 2. CURRENT STATE
 ----------------
-  Version:            1.8.1
-  Latest release:     v1.8.1 (GitHub, public)
+  Version:            1.9.0
+  Latest release:     v1.9.0 (GitHub, public)
   Platform:           Windows (NSIS installer, per-user install)
   Database:           local SQLite at %APPDATA%\indra-hub\indra-hub.db
   Update channel:     GitHub Releases, public repository, tag-triggered CI
@@ -53,7 +53,7 @@ explicitly rejected "downloads the new installer and runs it".
 Release history: v1.0.0, v1.0.1, v1.0.2, v1.1.0, v1.2.0, v1.2.1, v1.3.0,
 v1.3.1, v1.3.2, v1.3.3, v1.3.4, v1.3.5, v1.3.6, v1.3.7, v1.4.0, v1.4.1,
 v1.4.2, v1.4.3, v1.5.0, v1.5.1, v1.5.2, v1.6.0, v1.6.1, v1.6.2, v1.6.3,
-v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1.
+v1.6.4, v1.6.5, v1.7.0, v1.8.0, v1.8.1, v1.9.0.
 
 Version 1.3.0 introduced the in-app updater. Versions 1.3.2 through 1.3.6 were
 spent fixing it (see section 8 — the asar problem is worth knowing about).
@@ -188,10 +188,40 @@ presentations:*, graph:*, updates:*, backend:*, admin:*.
     activity line along the bottom edge. Same hairline grid as the sign-in
     canvas, light and dark, and it collapses to one column at narrow widths.
 
-5.1b Offline (1.7.0)
+5.1b Offline (1.7.0, completed in 1.9.0)
   - The main process answers `net.isOnline()` every four seconds, re-reads it
     when the window is focused, and tells every window when it changes. No
     ping, no DNS lookup, no traffic: the operating system's own view.
+  - **No credential is accepted with no route out (1.9.0).** Signing in and
+    registering are refused below the UI: offline they could only compare a
+    password against a hash in the same file, which proves nothing about who
+    the person is. The refusal is a typed error with a sentence, not a dead
+    button, and it leaves no session behind.
+  - **Signed out and offline, the sign-in form is not shown at all.** The app
+    opens on the offline screen: what is offline, why signing in needs a
+    connection, and one action — `Go offline`.
+  - `Go offline` opens the **offline workspace**: a local profile named
+    `offline` (shown as "This PC") that owns the work written there. Its
+    password is 32 random bytes, hashed and discarded in the same statement,
+    so nobody can sign in as it; sign-in by that name is refused explicitly as
+    well as practically. The session is marked `mode: 'offline'`, and every
+    screen that needs an account refuses while it is open — the cloud copy on a
+    project page reads "Needs an account", and the cloud IPC calls answer
+    AUTH_REQUIRED.
+  - **Offline work is adoptable.** Projects written in the offline workspace
+    are listed on the Projects screen under "N projects written offline", with
+    one action: `Move into my account`. Ownership moves — nothing is copied or
+    deleted, ids, versions and history survive — and the offline workspace is
+    left empty for next time.
+  - An offline session lasts one day and does not survive a restart into a
+    connection: starting up online returns to the account screen rather than
+    silently running yesterday's mode.
+  - Signed in and the connection drops: the session (remembered 30 days) still
+    works and the workspace narrows, which is the point of local-first. What
+    1.9.0 forbids is proving a *new* identity offline.
+  - Working offline is also a choice: the sign-in screen offers `work offline`
+    on a connected PC. The same workspace opens, and `Sign in instead` in
+    Settings returns to the account screen.
   - The renderer mirrors it through ConnectivityProvider, with the browser's
     online/offline events as a second pair of eyes.
   - Offline, the app is the writing tool: the rail keeps Documents,
@@ -704,6 +734,8 @@ before any window exists:
 12. KNOWN LIMITATIONS / UNFINISHED WORK
 ---------------------------------------
 Honest list; none of these are hidden:
+  - The offline workspace is a single local profile per PC. Two people using one
+    machine offline share it until one of them signs in and adopts the work.
   - Cloud copies are per installation. A second PC reaches them only by
     adopting a transfer code from the first (Settings → Cloud); there is no
     person-level sign-in that would let two machines meet on their own.
@@ -796,6 +828,9 @@ them is a regression, not a design choice.
   scripts/appearance-sim.mjs   background-video pipeline test (npm run sim:appearance)
   scripts/team-sim.mjs         team ownership and roster test (npm run sim:team)
   src/main/services/cloud.ts   the cloud copy: identity, push, pull, transfer
+  src/main/services/offline.ts the offline workspace: its profile, adoption
+  src/shared/offline.ts        the offline profile's name, shared by both sides
+  src/renderer/src/screens/OfflineScreen.tsx  what a disconnected PC opens on
   scripts/offline-sim.mjs      connectivity + save/open a project file (npm run sim:offline)
   scripts/cloud-sim.mjs        cloud identity, isolation, offline refusal (npm run sim:cloud)
   supabase/schema.sql          cloud tables (applied)

@@ -11,7 +11,7 @@ import type {
   WorkspaceClaimInput,
   WorkspaceCredentialsInput
 } from '@shared/types'
-import { toResult } from '../lib/errors'
+import { errors, toResult } from '../lib/errors'
 import { archiveProject, exportProjectToFile, importProjectFromFile, restoreArchive } from '../services/archive'
 import { recheckConnectivity } from '../services/connectivity'
 import {
@@ -34,8 +34,10 @@ import {
   requireUser,
   signIn,
   signOut,
+  startOfflineWorkspace,
   updateProfile
 } from '../services/auth'
+import { claimOfflineWork, offlineWork } from '../services/offline'
 import {
   addMember,
   assertCanManageTeam,
@@ -142,6 +144,21 @@ function actor(): SessionUser {
   return requireUser()
 }
 
+/**
+ * Anything that talks to an account rather than to this disk.
+ *
+ * The offline workspace is not an account: it has no cloud copy to push, no team
+ * to join and no profile in the cloud. Refusing here means the rule holds even
+ * if a screen forgets it.
+ */
+function accountActor(): SessionUser {
+  const user = requireUser()
+  if (user.mode === 'offline') {
+    throw errors.authRequired()
+  }
+  return user
+}
+
 function requireProjectId(value: unknown): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 64) {
     throw new Error('invalid project id')
@@ -180,6 +197,23 @@ export function registerIpcHandlers(): void {
    */
   ipcMain.handle('app:connectivity', () => toResult(() => recheckConnectivity()))
 
+  /* ---------------- the offline workspace ---------------- */
+  /*
+   * Offline is a workspace, not an account. Opening it creates the local
+   * profile that owns offline work — with a password nobody can know — and a
+   * session marked `offline`, so every screen below knows there is no account.
+   */
+  ipcMain.handle('offline:start', () => toResult(() => startOfflineWorkspace()))
+
+  ipcMain.handle('offline:summary', () =>
+    toResult(() => {
+      const user = requireUser()
+      return user.mode === 'offline' ? { projects: 0, documents: 0, presentations: 0 } : offlineWork()
+    })
+  )
+
+  ipcMain.handle('offline:claim', () => toResult(() => claimOfflineWork(actor())))
+
   /* ---------------- offline library ---------------- */
   // Every document and deck the account can reach, in one read.
   ipcMain.handle('library:snapshot', () => toResult(() => librarySnapshot(actor())))
@@ -199,10 +233,13 @@ export function registerIpcHandlers(): void {
     toResult(() => cloudProjectState(actor(), requireProjectId(projectId)))
   )
 
-  ipcMain.handle('cloud:list', () => toResult(() => listCloudProjects()))
+  ipcMain.handle('cloud:list', () => toResult(() => {
+    accountActor()
+    return listCloudProjects()
+  }))
 
   ipcMain.handle('cloud:push', (_event, projectId: unknown) =>
-    toResult(() => pushProject(actor(), requireProjectId(projectId)))
+    toResult(() => pushProject(accountActor(), requireProjectId(projectId)))
   )
 
   ipcMain.handle('cloud:pull', (_event, cloudId: unknown) =>
@@ -210,7 +247,7 @@ export function registerIpcHandlers(): void {
       if (typeof cloudId !== 'string' || cloudId.length === 0 || cloudId.length > 160) {
         throw new Error('invalid cloud project id')
       }
-      return pullProject(actor(), cloudId)
+      return pullProject(accountActor(), cloudId)
     })
   )
 
@@ -219,13 +256,19 @@ export function registerIpcHandlers(): void {
    * only produced when asked for, and only stored by another machine that
    * proves the password still works.
    */
-  ipcMain.handle('cloud:key', () => toResult(() => exportCloudKey()))
+  ipcMain.handle('cloud:key', () =>
+    toResult(() => {
+      accountActor()
+      return exportCloudKey()
+    })
+  )
 
   ipcMain.handle('cloud:adopt', (_event, code: unknown) =>
     toResult(() => {
       if (typeof code !== 'string' || code.length === 0 || code.length > 600) {
         throw new Error('invalid transfer code')
       }
+      accountActor()
       return adoptCloudKey(code)
     })
   )

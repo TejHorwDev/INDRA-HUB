@@ -58,7 +58,7 @@ export default function Sidebar() {
 
   // Online the rail is about projects; offline it is about the two things the
   // machine can do on its own. lib/nav.ts decides, so a simulation can check it.
-  const groups = navGroups(offline)
+  const groups = navGroups(offline || user?.mode === 'offline')
 
   return (
     <aside className={collapsed ? 'sidebar sidebar--collapsed' : 'sidebar'} aria-label="Primary">

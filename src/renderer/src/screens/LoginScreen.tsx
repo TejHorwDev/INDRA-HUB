@@ -11,7 +11,7 @@ import { useSession } from '../lib/session'
 
 export default function LoginScreen() {
   const navigate = useNavigate()
-  const { signIn } = useSession()
+  const { signIn, refresh } = useSession()
 
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -123,6 +123,33 @@ export default function LoginScreen() {
         <Link to="/register" className="link">
           Create one
         </Link>
+      </p>
+
+      {/*
+        Working offline is a choice as well as a circumstance: someone can open
+        the writing tools on a connected PC without an account. It is the same
+        workspace the offline screen offers, opened the same way.
+      */}
+      <p className="auth-alt auth-alt--offline">
+        Or{' '}
+        <button
+          type="button"
+          className="link link-button"
+          onClick={() => {
+            void (async () => {
+              try {
+                await api.offline.start()
+                await refresh()
+                navigate('/documents', { replace: true })
+              } catch (failure) {
+                setFormError(errorMessage(failure))
+              }
+            })()
+          }}
+        >
+          work offline
+        </button>{' '}
+        — the writing tools, saved on this PC, no account needed.
       </p>
 
       {/* Nothing here points at the administration area. The installation ships

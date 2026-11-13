@@ -10,6 +10,7 @@ import { useToast } from '../components/ToastProvider'
 import { AlertCircleIcon, CloudIcon, FolderIcon, PlusIcon, SaveIcon } from '../components/icons'
 import { api, errorCode, errorMessage } from '../lib/api'
 import { useConnectivity } from '../lib/connectivity'
+import { useSession } from '../lib/session'
 import { formatDate, formatRelative, initialsOf } from '../lib/format'
 import { Skeleton } from '../components/Skeleton'
 
@@ -19,6 +20,9 @@ export default function ProjectDashboardScreen() {
   const { projectId = '' } = useParams()
   const toast = useToast()
   const { offline } = useConnectivity()
+  const { user } = useSession()
+  /* No account behind this session, so there is no cloud copy to write. */
+  const noAccount = offline || user?.mode === 'offline'
 
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [state, setState] = useState<LoadState>('loading')
@@ -44,7 +48,7 @@ export default function ProjectDashboardScreen() {
    * button is inert — the cloud is not something this app pretends to reach.
    */
   async function saveToCloud(): Promise<void> {
-    if (pushing || offline) return
+    if (pushing || noAccount) return
     setPushing(true)
     try {
       const result = await api.cloud.push(projectId)
@@ -186,9 +190,9 @@ export default function ProjectDashboardScreen() {
               type="button"
               className="btn btn-ghost w-auto"
               onClick={() => void saveToCloud()}
-              disabled={pushing || offline || !isOwner}
+              disabled={pushing || noAccount || !isOwner}
               title={
-                offline
+                noAccount
                   ? 'The cloud copy is unavailable while this PC is offline'
                   : isOwner
                     ? 'Save this project to its cloud copy'
@@ -261,9 +265,11 @@ export default function ProjectDashboardScreen() {
                 <dt>Cloud copy</dt>
                 <dd>
                   {!cloud?.pushedAt
-                    ? isOwner
-                      ? 'Not saved yet'
-                      : 'Saved by the head developer'
+                    ? noAccount
+                      ? 'Needs an account'
+                      : isOwner
+                        ? 'Not saved yet'
+                        : 'Saved by the head developer'
                     : cloud.stale
                       ? `Saved ${formatRelative(cloud.pushedAt)} · newer work here`
                       : `Saved ${formatRelative(cloud.pushedAt)}`}

@@ -20,6 +20,7 @@ import type {
   CloudPushResult,
   CloudState,
   LibrarySnapshot,
+  OfflineWorkSummary,
   ProjectArchive,
   ChangePasswordInput,
   CreateActivationKeyInput,
@@ -130,6 +131,13 @@ const api = {
 
   library: {
     snapshot: (): Promise<ApiResult<LibrarySnapshot>> => ipcRenderer.invoke('library:snapshot')
+  },
+
+  offline: {
+    /** Opens the local writing workspace. No account, no credentials, no network. */
+    start: (): Promise<ApiResult<SessionUser>> => ipcRenderer.invoke('offline:start'),
+    summary: (): Promise<ApiResult<OfflineWorkSummary>> => ipcRenderer.invoke('offline:summary'),
+    claim: (): Promise<ApiResult<OfflineWorkSummary>> => ipcRenderer.invoke('offline:claim')
   },
 
   cloud: {

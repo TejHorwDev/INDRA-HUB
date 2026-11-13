@@ -14,6 +14,9 @@ import { EMAIL_PATTERN, normalizeEmail, validateRegistration } from '../lib/vali
 import { consumeActivationKey, findUsableKey } from './activation'
 import { findUserById } from './users'
 import { readSettings } from './settings'
+import { recheckConnectivity } from './connectivity'
+import { ensureOfflineProfile, isOfflineUserId } from './offline'
+import { OFFLINE_USERNAME } from '@shared/offline'
 
 const SESSION_KEY = 'session'
 const SESSION_DAYS = 30
@@ -23,6 +26,8 @@ const LOCK_MINUTES = 15
 interface SessionRecord {
   userId: string
   expiresAt: string
+  /** Absent means an account session, which is the only kind that existed first. */
+  mode?: 'account' | 'offline'
 }
 
 interface AccountRow {
@@ -54,14 +59,50 @@ function readSession(): SessionRecord | null {
   }
 }
 
-function writeSession(userId: string): void {
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000).toISOString()
+function writeSession(userId: string, mode: 'account' | 'offline' = 'account'): void {
+  const days = mode === 'offline' ? 1 : SESSION_DAYS
+  const expiresAt = new Date(Date.now() + days * 86_400_000).toISOString()
   getDatabase()
     .prepare(
       `INSERT INTO app_state (key, value) VALUES (?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`
     )
-    .run(SESSION_KEY, JSON.stringify({ userId, expiresAt } satisfies SessionRecord))
+    .run(SESSION_KEY, JSON.stringify({ userId, expiresAt, mode } satisfies SessionRecord))
+}
+
+/**
+ * Signing in and registering are online acts.
+ *
+ * With no route out there is nothing to prove and nothing to reach: the account
+ * lives in this file, so checking a password against it would "work" and would
+ * prove only that some hash matched. Offline the app offers the writing tools
+ * instead, and this refusal is what makes that true below the UI as well.
+ */
+function requireConnectionForCredentials(): void {
+  if (!recheckConnectivity().online) {
+    throw errors.offline(
+      'Signing in needs a connection. You can work offline instead — your writing saves on this PC.'
+    )
+  }
+}
+
+/**
+ * Opens the offline workspace: the local profile that owns offline work, with a
+ * session marked as such so the rest of the app knows there is no account here.
+ */
+export function startOfflineWorkspace(): SessionUser {
+  const profile = ensureOfflineProfile()
+  writeSession(profile.id, 'offline')
+  const user = findUserById(profile.id)
+  if (!user) throw new Error('offline profile vanished')
+  return user
+}
+
+/** An offline session does not survive a restart into a connection. */
+export function dropStaleOfflineSession(): void {
+  const session = readSession()
+  if (!session || session.mode !== 'offline') return
+  if (recheckConnectivity().online) signOut()
 }
 
 function lockMessage(minutes: number): string {
@@ -69,6 +110,7 @@ function lockMessage(minutes: number): string {
 }
 
 export function register(input: RegisterInput): SessionUser {
+  requireConnectionForCredentials()
   const settings = readSettings()
   // Maintenance closes the workspace, never the front door: an account created
   // during it simply lands on the maintenance screen like everyone else.
@@ -133,10 +175,17 @@ export function signIn(input: LoginInput): SessionUser {
    * closes is the workspace, and that is enforced by requireUser() for every
    * data call — below this, not in front of it.
    */
+  requireConnectionForCredentials()
+
   const identifier = (input.identifier ?? '').trim()
   const password = input.password ?? ''
   if (!identifier || !password) {
     throw errors.validation('Enter your username and password.')
+  }
+  // The offline workspace has no usable password by construction; this makes it
+  // explicit rather than a puzzle about a random hash.
+  if (identifier.toLowerCase() === OFFLINE_USERNAME) {
+    throw errors.invalidCredentials()
   }
 
   // Email or username — both are unique and case-insensitive.
@@ -229,7 +278,14 @@ export function activeSessionUserId(): string | null {
 /* Self-service                                                        */
 /* ------------------------------------------------------------------ */
 
+function assertRealAccount(viewer: SessionUser): void {
+  if (viewer.mode === 'offline' || isOfflineUserId(viewer.id)) {
+    throw errors.forbidden('This is the offline workspace, not an account. Sign in to manage one.')
+  }
+}
+
 export function updateProfile(viewer: SessionUser, input: ProfileInput): SessionUser {
+  assertRealAccount(viewer)
   const displayName = (input.displayName ?? '').trim().replace(/\s+/g, ' ')
   const email = normalizeEmail(input.email ?? '')
 
@@ -256,6 +312,7 @@ export function updateProfile(viewer: SessionUser, input: ProfileInput): Session
 }
 
 export function changeOwnPassword(viewer: SessionUser, input: ChangePasswordInput): void {
+  assertRealAccount(viewer)
   const currentPassword = input.currentPassword ?? ''
   const newPassword = input.newPassword ?? ''
 
@@ -283,6 +340,7 @@ export function changeOwnPassword(viewer: SessionUser, input: ChangePasswordInpu
 }
 
 export function deleteOwnAccount(viewer: SessionUser, input: DeleteAccountInput): void {
+  assertRealAccount(viewer)
   const db = getDatabase()
   const account = db
     .prepare('SELECT password_hash, password_salt FROM users WHERE id = ?')

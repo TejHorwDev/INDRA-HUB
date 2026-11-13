@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import AppShell from './components/AppShell'
 import CommandPalette from './components/CommandPalette'
 import type { Command } from './components/CommandPalette'
+import OfflineScreen from './screens/OfflineScreen'
 import TitleBar from './components/TitleBar'
 import {
   CodeIcon,
@@ -109,8 +110,14 @@ export default function App() {
    * writing and building a deck. Anything else is redirected rather than shown
    * half-working — a dashboard whose cloud half is missing is worse than a
    * clear "this is what works right now".
+   *
+   * The offline workspace counts as offline even on a connected machine: while
+   * it is open there is no account behind the session, so nothing that needs
+   * one should be reachable.
    */
-  const blockedOffline = signedIn && offline && !routeAllowedOffline(pathname)
+  const offlineMode = user?.mode === 'offline'
+  const restricted = offline || offlineMode
+  const blockedOffline = signedIn && restricted && !routeAllowedOffline(pathname)
 
   // The title bar names what is actually on screen, not the view underneath.
   const label = workspaceClosed ? 'Maintenance' : viewLabel(pathname)
@@ -160,7 +167,7 @@ export default function App() {
       '/credits': <SparkIcon size={15} />,
       '/settings': <SettingsIcon size={15} />
     }
-    const destinations = navDestinations(offline).map((entry) => ({
+    const destinations = navDestinations(restricted).map((entry) => ({
       to: entry.to,
       label: `Go to ${entry.label}`,
       icon: icons[entry.to]
@@ -202,7 +209,7 @@ export default function App() {
         }
       }
     ]
-  }, [navigate, offline, pathname, setTheme, signOut, theme, user])
+  }, [navigate, pathname, restricted, setTheme, signOut, theme, user])
 
   return (
     <div className="flex h-full flex-col">
@@ -213,10 +220,17 @@ export default function App() {
       />
 
       <div className="min-h-0 flex-1">
-        {blockedOffline ? (
+        {!signedIn && offline && !pathname.startsWith('/admin') ? (
+          /*
+           * No account and no connection: the sign-in form would accept a
+           * password and check it against a hash in this file, which proves
+           * nothing. It is not shown. The offline workspace is.
+           */
+          <OfflineScreen />
+        ) : blockedOffline ? (
           /* Offline: the two things that work, and nothing that does not. */
           <Navigate to="/documents" replace />
-        ) : signedIn && !offline && isLibraryPath(pathname) ? (
+        ) : signedIn && !restricted && isLibraryPath(pathname) ? (
           /*
            * The library is the offline workspace. Online, documents and decks
            * live in their project, so an old link or a bookmark lands on the
