@@ -50,14 +50,14 @@
               <span class="step__dot" aria-hidden="true"></span>
               <span class="step__copy">
                 <span class="step__title">Options</span>
-                <span class="step__hint">Choose how to install</span>
+                <span class="step__hint">Folder and scope</span>
               </span>
             </li>
             <li class="step" data-step="ready">
               <span class="step__dot" aria-hidden="true"></span>
               <span class="step__copy">
                 <span class="step__title">Review</span>
-                <span class="step__hint">Confirm your choices</span>
+                <span class="step__hint">Confirm</span>
               </span>
             </li>
             <li class="step" data-step="installing">
@@ -81,55 +81,49 @@
           <!-- ---------------- options ---------------- -->
           <div class="screen is-current" data-screen="options">
             <p class="eyebrow">Step 1 of 4</p>
-            <h1 class="page-title">Installation options</h1>
-            <p class="page-lede">
-              Choose who this copy of INDRA HUB is for. Both install the same app; only the
-              folder and the shortcuts differ.
-            </p>
+            <h1 class="page-title">Where should it go?</h1>
 
             <div class="choices" role="radiogroup" aria-label="Who to install for">
               <button class="choice" role="radio" aria-checked="false" data-scope="machine">
                 <span class="choice__dot" aria-hidden="true"></span>
-                <span class="choice__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <circle cx="9" cy="8" r="3.2" />
-                    <path d="M3.2 19c0-3.2 2.6-5.4 5.8-5.4s5.8 2.2 5.8 5.4" />
-                    <path d="M16.2 6.2a2.6 2.6 0 0 1 0 5" />
-                    <path d="M17.6 14.2c2 .6 3.2 2.2 3.2 4.4" />
-                  </svg>
-                </span>
                 <span class="choice__copy">
                   <span class="choice__title">Everyone on this PC</span>
-                  <span class="choice__hint">Program Files · administrator approval required</span>
+                  <span class="choice__hint">Needs administrator approval</span>
                 </span>
               </button>
 
               <button class="choice is-selected" role="radio" aria-checked="true" data-scope="user">
                 <span class="choice__dot" aria-hidden="true"></span>
-                <span class="choice__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <circle cx="12" cy="8" r="3.6" />
-                    <path d="M4.6 20c0-3.9 3.3-6.4 7.4-6.4s7.4 2.5 7.4 6.4" />
-                  </svg>
-                </span>
                 <span class="choice__copy">
                   <span class="choice__title">Only for me</span>
-                  <span class="choice__hint">Your AppData folder · no password needed</span>
+                  <span class="choice__hint">No administrator needed</span>
                 </span>
               </button>
             </div>
 
-            <p class="note">
-              Projects, accounts and pictures are kept in your own user folder, so changing the
-              install location never moves your work.
-            </p>
+            <div class="field">
+              <label class="field__label" for="path">Install folder</label>
+              <div class="field__row">
+                <input
+                  class="input"
+                  id="path"
+                  type="text"
+                  spellcheck="false"
+                  autocomplete="off"
+                  aria-describedby="path-hint"
+                />
+                <button class="btn btn--ghost" id="browse" type="button">Browse…</button>
+              </div>
+              <p class="field__hint" id="path-hint">
+                Your work is stored in your user folder, so moving the app never moves it.
+              </p>
+            </div>
           </div>
 
           <!-- ---------------- ready ---------------- -->
           <div class="screen" data-screen="ready">
             <p class="eyebrow">Step 2 of 4</p>
-            <h1 class="page-title">Review</h1>
-            <p class="page-lede">Check the details below, then install.</p>
+            <h1 class="page-title">Ready to install</h1>
 
             <dl class="review">
               <div class="review__row">
@@ -137,24 +131,20 @@
                 <dd id="review-scope">Only me</dd>
               </div>
               <div class="review__row">
-                <dt>Location</dt>
-                <dd class="review__path" id="review-path">%LOCALAPPDATA%\Programs\INDRA HUB</dd>
+                <dt>Folder</dt>
+                <dd class="review__path" id="review-path"></dd>
               </div>
               <div class="review__row">
-                <dt>Adds</dt>
-                <dd>Desktop and Start menu shortcuts</dd>
+                <dt>Shortcuts</dt>
+                <dd>Desktop and Start menu</dd>
               </div>
               <div class="review__row">
                 <dt>Version</dt>
-                <dd id="review-version">2.9.3</dd>
+                <dd id="review-version">2.9.4</dd>
               </div>
             </dl>
 
             <p class="error" id="error" role="alert" hidden></p>
-
-            <p class="note">
-              The installer can be removed later from Settings → Apps, like any other program.
-            </p>
           </div>
 
           <!-- ---------------- installing ---------------- -->
@@ -178,16 +168,14 @@
               <span id="install-note">This takes a few seconds.</span>
               <span class="progress__percent" id="percent">0%</span>
             </div>
+            <p class="note">Do not close this window until it finishes.</p>
           </div>
 
           <!-- ---------------- completed ---------------- -->
           <div class="screen" data-screen="completed">
             <p class="eyebrow">Step 4 of 4</p>
             <h1 class="page-title">Installed</h1>
-            <p class="page-lede">
-              INDRA HUB is on this PC. It checks for updates each time it opens, so this copy keeps
-              itself current.
-            </p>
+            <p class="page-lede" id="completed-path" aria-live="polite"></p>
 
             <label class="checkbox">
               <input type="checkbox" id="launch" checked />
@@ -201,7 +189,7 @@
       <footer class="footer">
         <div class="footer__meta">
           <span class="footer__name">INDRA HUB</span>
-          <span class="footer__version" id="version">v2.9.3</span>
+          <span class="footer__version" id="version">v2.9.4</span>
         </div>
         <div class="footer__actions">
           <button class="btn btn--ghost" id="cancel" type="button">Cancel</button>

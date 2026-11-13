@@ -77,6 +77,28 @@ check(displayType.length === 0, 'no display-size type', displayType.join(', '))
 const animations = [...css.matchAll(/@keyframes\s+([\w-]+)/g)].map((match) => match[1])
 check(animations.length <= 1, 'at most one keyframe animation', animations.join(', '))
 
+/* ---- 2b. the window is small, and the folder is really chosen -------- */
+
+const size = (main.match(/width:\s*(\d+),\s*\n\s*height:\s*(\d+)/) ?? []).slice(1).map(Number)
+check(size.length === 2, 'the window size is declared')
+check(size[0] <= 920 && size[1] <= 620, 'and it is a compact window, not a canvas', `${size[0]}×${size[1]}`)
+
+check(/id="path"/.test(html) && /id="browse"/.test(html), 'the page has a folder field and a Browse button')
+check(/setup:defaults/.test(main), 'the main process offers the default folders')
+check(/setup:choose-folder/.test(main), 'and owns the folder picker')
+check(/showOpenDialog/.test(main) && /openDirectory/.test(main), 'the picker is the real system dialog')
+check(/background:\s*\(\)/.test(preload) && /chooseFolder/.test(preload), 'the bridge exposes both')
+check(/bridge\?\.chooseFolder/.test(script), 'and the page asks the dialog, never the filesystem')
+check(/bridge\?\.defaults/.test(script), 'and starts from the defaults it is given')
+
+/* The folder reaches NSIS as /D, which must be last and unquoted. */
+check(/`\/D=\$\{target\.dir\}`|'\/D='|`\/D=/.test(main), 'the chosen folder is passed as /D')
+check(/windowsVerbatimArguments:\s*true/.test(main), 'unquoted, as NSIS requires for /D')
+check(
+  /\^\[a-zA-Z\]:\\/.test(main),
+  'and the main process rejects anything that is not an absolute drive path'
+)
+
 /* ---- 3. the film: shipped outside the archive, wired end to end ------ */
 
 check(
