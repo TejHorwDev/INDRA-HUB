@@ -38,6 +38,7 @@ import DevelopersScreen from './screens/DevelopersScreen'
 import DocumentEditorScreen from './screens/DocumentEditorScreen'
 import DocumentsScreen from './screens/DocumentsScreen'
 import LibraryScreen from './screens/LibraryScreen'
+import OpeningScreen from './components/OpeningScreen'
 import LoginScreen from './screens/LoginScreen'
 import MaintenanceScreen from './screens/MaintenanceScreen'
 import PresentationEditorScreen from './screens/PresentationEditorScreen'
@@ -95,7 +96,7 @@ function viewLabel(pathname: string): string {
 export default function App() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { user, signOut } = useSession()
+  const { user, signOut, enteredAt, acknowledgeEntry } = useSession()
   const { status, refresh: refreshStatus } = useAppStatus()
   const { theme, setTheme } = useTheme()
   const { offline } = useConnectivity()
@@ -271,6 +272,22 @@ export default function App() {
       }
     ]
   }, [navigate, pathname, restricted, setTheme, signOut, theme, user])
+
+  /*
+   * Signing in and registering both land here for four seconds. It sits above
+   * the routes on purpose: the moment the session exists, /login and /register
+   * redirect, and a loader rendered inside either screen would be unmounted
+   * before it could finish.
+   */
+  if (enteredAt) {
+    return (
+      <OpeningScreen
+        name={user?.displayName?.trim().split(/\s+/)[0]}
+        detail={user?.mode === 'offline' ? 'Working offline' : 'Signed in'}
+        onDone={acknowledgeEntry}
+      />
+    )
+  }
 
   return (
     <div className="flex h-full flex-col">

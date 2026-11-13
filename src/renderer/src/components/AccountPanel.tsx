@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { ApiError, api, errorMessage } from '../lib/api'
 import { useSession } from '../lib/session'
 import Avatar, { AVATAR_MARKS } from './Avatar'
@@ -21,6 +21,8 @@ export default function AccountPanel() {
   const [displayName, setDisplayName] = useState(user?.displayName ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
   const [avatar, setAvatar] = useState(user?.avatar ?? 'initials')
+  const [uploadingPortrait, setUploadingPortrait] = useState(false)
+  const portraitInput = useRef<HTMLInputElement>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [profileField, setProfileField] = useState<string | null>(null)
@@ -75,6 +77,50 @@ export default function AccountPanel() {
       setProfileError(errorMessage(error))
     } finally {
       setSavingProfile(false)
+    }
+  }
+
+  /**
+   * A photo is saved the moment it is chosen, not with the form: the file has
+   * already been copied into the app by then, and a pending portrait that is
+   * waiting on a name change is a confusing thing to show.
+   */
+  async function uploadPortrait(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    if (!user) return
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setProfileError(null)
+    setProfileField(null)
+
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      setProfileField('avatar')
+      setProfileError('Choose a PNG, JPEG or WebP image.')
+      return
+    }
+    if (file.size > 6 * 1024 * 1024) {
+      setProfileField('avatar')
+      setProfileError('That photo is larger than 6 MB. Pick a smaller one.')
+      return
+    }
+
+    setUploadingPortrait(true)
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const updated = await api.auth.updateProfile({
+        displayName: user.displayName,
+        email: user.email,
+        avatarPhoto: { bytes, name: file.name }
+      })
+      setAvatar(updated.avatar ?? 'initials')
+      await refresh()
+      toast.success('Portrait updated.')
+    } catch (error) {
+      setProfileField(error instanceof ApiError ? (error.field ?? null) : null)
+      setProfileError(errorMessage(error))
+    } finally {
+      setUploadingPortrait(false)
     }
   }
 
@@ -144,6 +190,7 @@ export default function AccountPanel() {
             size="lg"
             title="Your portrait"
           />
+          <div className="account-portrait-body">
           <div className="account-portrait-picks" role="radiogroup" aria-label="Your portrait">
             {AVATAR_MARKS.map((mark) => {
               const value = `mark:${mark.id}`
@@ -156,7 +203,10 @@ export default function AccountPanel() {
                   aria-label={mark.label}
                   title={mark.label}
                   className={`portrait-pip${avatar === value ? ' is-selected' : ''}`}
-                  onClick={() => setAvatar(value)}
+                  onClick={() => {
+                    setProfileError(null)
+                    setAvatar(value)
+                  }}
                   disabled={savingProfile}
                 >
                   <Avatar name={displayName || user.displayName} avatar={value} />
@@ -170,11 +220,34 @@ export default function AccountPanel() {
               aria-label="My initials"
               title="My initials"
               className={`portrait-pip portrait-pip--initials${avatar === 'initials' ? ' is-selected' : ''}`}
-              onClick={() => setAvatar('initials')}
+              onClick={() => {
+                setProfileError(null)
+                setAvatar('initials')
+              }}
               disabled={savingProfile}
             >
               <Avatar name={displayName || user.displayName} avatar="initials" />
             </button>
+          </div>
+
+          <div className="portrait-upload portrait-upload--account">
+            <input
+              ref={portraitInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="portrait-file"
+              onChange={(event) => void uploadPortrait(event)}
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm w-auto"
+              onClick={() => portraitInput.current?.click()}
+              disabled={uploadingPortrait || savingProfile}
+            >
+              {uploadingPortrait ? 'Uploading…' : 'Upload photo'}
+            </button>
+            <span className="portrait-note">PNG, JPEG or WebP · up to 6 MB</span>
+          </div>
           </div>
         </div>
 

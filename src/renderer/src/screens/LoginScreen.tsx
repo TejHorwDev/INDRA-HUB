@@ -49,8 +49,9 @@ export default function LoginScreen() {
 
     setPending(true)
     try {
+      // The session provider records the arrival, and the app shows the
+      // opening screen for four seconds before the workspace.
       await signIn({ identifier: identifier.trim(), password })
-      navigate('/home', { replace: true })
     } catch (error) {
       /*
        * One screen, two identities. If these are the administrator's

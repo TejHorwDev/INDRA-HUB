@@ -12,6 +12,13 @@ interface SessionValue {
   signOut: () => Promise<void>
   /** Re-reads the main process session, e.g. after a profile change. */
   refresh: () => Promise<SessionUser | null>
+  /**
+   * Set by a deliberate sign-in or registration, cleared once the opening
+   * screen has finished. A restored session on launch does not set it: the
+   * four seconds belong to arriving, not to opening the app again.
+   */
+  enteredAt: number | null
+  acknowledgeEntry: () => void
 }
 
 const SessionContext = createContext<SessionValue | null>(null)
@@ -23,6 +30,7 @@ const SessionContext = createContext<SessionValue | null>(null)
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [enteredAt, setEnteredAt] = useState<number | null>(null)
 
   useEffect(() => {
     let active = true
@@ -45,12 +53,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (input: LoginInput) => {
     const signedIn = await api.auth.signIn(input)
     setUser(signedIn)
+    setEnteredAt(Date.now())
     return signedIn
   }, [])
 
   const signUp = useCallback(async (input: RegisterInput) => {
     const created = await api.auth.signUp(input)
     setUser(created)
+    setEnteredAt(Date.now())
     return created
   }, [])
 
@@ -72,9 +82,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const acknowledgeEntry = useCallback(() => setEnteredAt(null), [])
+
   const value = useMemo<SessionValue>(
-    () => ({ user, loading, signIn, signUp, signOut, refresh }),
-    [loading, refresh, signIn, signOut, signUp, user]
+    () => ({ user, loading, signIn, signUp, signOut, refresh, enteredAt, acknowledgeEntry }),
+    [acknowledgeEntry, enteredAt, loading, refresh, signIn, signOut, signUp, user]
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

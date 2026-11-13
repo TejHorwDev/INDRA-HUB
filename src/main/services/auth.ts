@@ -16,6 +16,7 @@ import { findUserById } from './users'
 import { readSettings } from './settings'
 import { recheckConnectivity } from './connectivity'
 import { ensureOfflineProfile, isOfflineUserId } from './offline'
+import { PORTRAIT_PATTERN, installPortrait, removePortrait } from './portrait'
 import { OFFLINE_USERNAME } from '@shared/offline'
 
 const SESSION_KEY = 'session'
@@ -105,6 +106,31 @@ export function dropStaleOfflineSession(): void {
   if (recheckConnectivity().online) signOut()
 }
 
+/**
+ * Turns what a request carried into the string an account stores.
+ *
+ * A photo is written before the account row exists, so a database failure has
+ * to be able to take the file back with it. Every other value is one the
+ * renderer can draw, checked here because the renderer is not trusted to have
+ * checked anything.
+ */
+function avatarValue(input: {
+  avatar?: string | null
+  avatarPhoto?: { bytes?: Uint8Array; name?: string } | null
+}): { value: string; installed: boolean } {
+  if (input.avatarPhoto?.bytes && input.avatarPhoto.bytes.length > 0) {
+    return {
+      value: installPortrait(input.avatarPhoto.bytes, input.avatarPhoto.name),
+      installed: true
+    }
+  }
+  const value = (input.avatar ?? 'initials').trim() || 'initials'
+  if (!PORTRAIT_PATTERN.test(value)) {
+    throw errors.validation('That portrait is not one the app can draw.', 'avatar')
+  }
+  return { value, installed: false }
+}
+
 function lockMessage(minutes: number): string {
   return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`
 }
@@ -145,19 +171,24 @@ export function register(input: RegisterInput): SessionUser {
   const id = randomUUID()
   const now = new Date().toISOString()
 
+  // Chosen before the account exists and stored with it, so an account is
+  // never created without the portrait its owner just picked.
+  const portrait = avatarValue(input)
+
   db.exec('BEGIN')
   try {
     db.prepare(
       `INSERT INTO users
          (id, username, display_name, email, password_hash, password_salt,
-          created_at, password_changed_at, last_sign_in_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, username, displayName, email, hash, salt, now, now, now)
+          created_at, password_changed_at, last_sign_in_at, avatar)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, username, displayName, email, hash, salt, now, now, now, portrait.value)
 
     if (keyId) consumeActivationKey(keyId, id)
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
+    if (portrait.installed) removePortrait(portrait.value)
     throw error
   }
 
@@ -301,29 +332,42 @@ export function updateProfile(viewer: SessionUser, input: ProfileInput): Session
   if (taken) throw errors.conflict('Another account already uses that email.', 'email')
 
   /*
-   * The portrait is an id, not bytes: `initials` or one of the marks the
-   * renderer knows how to draw. Anything else is refused rather than stored,
-   * so a malformed value can never reach a screen that renders it.
+   * The portrait is an id, not bytes: `initials`, one of the marks the renderer
+   * knows how to draw, or a photo already copied into the app. Anything else is
+   * refused rather than stored, so a malformed value can never reach a screen
+   * that renders it.
    */
-  const AVATAR_PATTERN = /^(initials|mark:[a-z]{3,16})$/
-  if (input.avatar !== undefined && input.avatar !== null && !AVATAR_PATTERN.test(input.avatar)) {
-    throw errors.validation('That portrait is not one the app can draw.', 'avatar')
+  const previous = findUserById(viewer.id)
+  if (!previous) throw errors.authRequired()
+
+  const portrait =
+    input.avatar !== undefined || input.avatarPhoto
+      ? avatarValue(input)
+      : { value: previous.avatar ?? 'initials', installed: false }
+
+  try {
+    if (portrait.value !== previous.avatar) {
+      db.prepare('UPDATE users SET display_name = ?, email = ?, avatar = ? WHERE id = ?').run(
+        displayName,
+        email,
+        portrait.value,
+        viewer.id
+      )
+    } else {
+      db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(
+        displayName,
+        email,
+        viewer.id
+      )
+    }
+  } catch (error) {
+    // Never keep a file for a change that did not happen.
+    if (portrait.installed) removePortrait(portrait.value)
+    throw error
   }
 
-  if (input.avatar !== undefined) {
-    db.prepare('UPDATE users SET display_name = ?, email = ?, avatar = ? WHERE id = ?').run(
-      displayName,
-      email,
-      input.avatar,
-      viewer.id
-    )
-  } else {
-    db.prepare('UPDATE users SET display_name = ?, email = ? WHERE id = ?').run(
-      displayName,
-      email,
-      viewer.id
-    )
-  }
+  // The old photo is forgotten only once the new value is the one on the row.
+  if (portrait.value !== previous.avatar) removePortrait(previous.avatar)
 
   const user = findUserById(viewer.id)
   if (!user) throw errors.authRequired()

@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import type { SessionUser } from '@shared/types'
+import type { ChangeEvent, FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout'
 import Avatar, { AVATAR_MARKS } from '../components/Avatar'
 import Button from '../components/Button'
@@ -9,12 +8,14 @@ import Notice from '../components/Notice'
 import PasswordField from '../components/PasswordField'
 import PasswordStrength from '../components/PasswordStrength'
 import TextField from '../components/TextField'
-import { ApiError, api, errorMessage } from '../lib/api'
+import { ApiError, errorMessage } from '../lib/api'
 import { useAppStatus } from '../lib/appStatus'
 import { useSession } from '../lib/session'
 import { passwordStrength, validateEmail, validateName } from '../lib/validation'
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{2,23}$/
+const MAX_PHOTO_BYTES = 6 * 1024 * 1024
+const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 const STEPS = [
   { n: 1, label: 'Credentials' },
@@ -23,24 +24,29 @@ const STEPS = [
 ] as const
 
 type Step = 1 | 2 | 3
+type FieldName = 'email' | 'password' | 'confirmPassword' | 'activationKey' | 'username' | 'displayName'
+
+interface PickedPhoto {
+  bytes: Uint8Array
+  name: string
+  url: string
+}
 
 /**
  * Registration, in three steps on one page.
  *
- * A single form with six fields asks for decisions in the order they matter:
- * a handle and a picture are not credentials, and a wall of inputs makes every
- * one of them feel optional. So the page opens with only what is needed to
- * make the account — email, password, confirmation — then asks who the person
- * is, then, once the account exists, shows them eight marks and lets them pick
- * one or keep their initials.
+ * The account is created at the END of step three, after the portrait — not
+ * before it. Asking for a face and then handing out an account would make the
+ * portrait an optional afterthought; doing it in this order means the person
+ * exists with the face they chose, and a failure at any point leaves nothing
+ * half-made.
  *
- * The account is created at the end of step two, so the portrait step is a
- * signed-in edit rather than a required field: closing the app on step three
- * leaves a working account with initials, never a half-registered one.
+ * A portrait can be a real photograph. The bytes are read here, checked for
+ * type and size before they leave the renderer, and validated again in the main
+ * process by their signature before anything is written to disk.
  */
 export default function RegisterScreen() {
-  const navigate = useNavigate()
-  const { signUp, refresh } = useSession()
+  const { signUp } = useSession()
   const { status } = useAppStatus()
 
   const [step, setStep] = useState<Step>(1)
@@ -53,12 +59,11 @@ export default function RegisterScreen() {
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
 
-  /** The account exists by the time step three renders. */
-  const [created, setCreated] = useState<SessionUser | null>(null)
-  const [avatar, setAvatar] = useState<string | null>(null)
+  /** A drawn mark (`mark:<id>`) or `initials`. A photo wins while it is set. */
+  const [avatar, setAvatar] = useState<string>('initials')
+  const [photo, setPhoto] = useState<PickedPhoto | null>(null)
 
   const [pending, setPending] = useState(false)
-  const [savingPortrait, setSavingPortrait] = useState(false)
   const [portraitError, setPortraitError] = useState<string | null>(null)
   const [serverIssue, setServerIssue] = useState<{ field?: string; message: string } | null>(null)
 
@@ -68,31 +73,27 @@ export default function RegisterScreen() {
   const keyRef = useRef<HTMLInputElement>(null)
   const usernameRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const photoRef = useRef<HTMLInputElement>(null)
 
   const strength = passwordStrength(password)
 
-  const credentialIssues: Partial<Record<'email' | 'password' | 'confirmPassword' | 'activationKey', string>> =
-    {
-      email: !email.trim()
-        ? 'Email is required.'
-        : email.includes('@')
-          ? (validateEmail(email) ?? undefined)
-          : 'Enter a complete email address.',
-      password: !password
-        ? 'Password is required.'
-        : strength.score < 3
-          ? 'Choose a stronger password.'
-          : undefined,
-      confirmPassword: !confirmPassword
-        ? 'Confirm your password.'
-        : password !== confirmPassword
-          ? "Passwords don't match."
-          : undefined,
-      activationKey:
-        status.requireActivationKey && !activationKey.trim() ? 'Activation key is required.' : undefined
-    }
+  const credentialIssues: Partial<Record<FieldName, string>> = {
+    email: !email.trim()
+      ? 'Email is required.'
+      : email.includes('@')
+        ? (validateEmail(email) ?? undefined)
+        : 'Enter a complete email address.',
+    password: !password ? 'Password is required.' : strength.score < 3 ? 'Choose a stronger password.' : undefined,
+    confirmPassword: !confirmPassword
+      ? 'Confirm your password.'
+      : password !== confirmPassword
+        ? "Passwords don't match."
+        : undefined,
+    activationKey:
+      status.requireActivationKey && !activationKey.trim() ? 'Activation key is required.' : undefined
+  }
 
-  const identityIssues: Partial<Record<'username' | 'displayName', string>> = {
+  const identityIssues: Partial<Record<FieldName, string>> = {
     username: !username.trim()
       ? 'Username is required.'
       : !USERNAME_PATTERN.test(username.trim().toLowerCase())
@@ -101,14 +102,12 @@ export default function RegisterScreen() {
     displayName: displayName.trim() ? (validateName(displayName) ?? undefined) : 'Display name is required.'
   }
 
-  function shown(field: 'email' | 'password' | 'confirmPassword' | 'activationKey' | 'username' | 'displayName'): string | null {
+  const allIssues = { ...credentialIssues, ...identityIssues }
+
+  function shown(field: FieldName): string | null {
     if (serverIssue?.field === field) return serverIssue.message
     if (!attempted.has(step)) return null
-    return (
-      (credentialIssues as Record<string, string | undefined>)[field] ??
-      (identityIssues as Record<string, string | undefined>)[field] ??
-      null
-    )
+    return allIssues[field] ?? null
   }
 
   function credentialsNext(event: FormEvent<HTMLFormElement>) {
@@ -116,11 +115,13 @@ export default function RegisterScreen() {
     setAttempted((before) => new Set(before).add(1))
     setServerIssue(null)
 
-    const order: Array<['email' | 'password' | 'confirmPassword' | 'activationKey', HTMLInputElement | null]> = [
+    const order: Array<[FieldName, HTMLInputElement | null]> = [
       ['email', emailRef.current],
       ['password', passwordRef.current],
       ['confirmPassword', confirmRef.current],
-      ...(status.requireActivationKey ? ([['activationKey', keyRef.current]] as Array<['activationKey', HTMLInputElement | null]>) : [])
+      ...(status.requireActivationKey
+        ? ([['activationKey', keyRef.current]] as Array<[FieldName, HTMLInputElement | null]>)
+        : [])
     ]
 
     const first = order.find(([field]) => credentialIssues[field])
@@ -132,61 +133,88 @@ export default function RegisterScreen() {
     setStep(2)
   }
 
-  async function createAccount(event: FormEvent<HTMLFormElement>) {
+  function identityNext(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setAttempted((before) => new Set(before).add(2))
     setServerIssue(null)
 
-    if (identityIssues.username || identityIssues.displayName) {
-      if (identityIssues.username) usernameRef.current?.focus()
-      else nameRef.current?.focus()
+    if (identityIssues.username) {
+      usernameRef.current?.focus()
+      return
+    }
+    if (identityIssues.displayName) {
+      nameRef.current?.focus()
       return
     }
 
+    setStep(3)
+  }
+
+  async function pickPhoto(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0]
+    // The same input can be used again for a replacement.
+    event.target.value = ''
+    if (!file) return
+
+    setPortraitError(null)
+
+    if (!PHOTO_TYPES.includes(file.type)) {
+      setPortraitError('Choose a PNG, JPEG or WebP image.')
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPortraitError('That photo is larger than 6 MB. Pick a smaller one.')
+      return
+    }
+
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      setPhoto((previous) => {
+        if (previous) URL.revokeObjectURL(previous.url)
+        return { bytes, name: file.name, url: URL.createObjectURL(file) }
+      })
+    } catch {
+      setPortraitError('That file could not be read.')
+    }
+  }
+
+  function clearPhoto(): void {
+    setPhoto((previous) => {
+      if (previous) URL.revokeObjectURL(previous.url)
+      return null
+    })
+  }
+
+  async function createAccount(): Promise<void> {
+    setServerIssue(null)
     setPending(true)
     try {
-      const account = await signUp({
+      await signUp({
         username: username.trim().toLowerCase(),
         displayName: displayName.trim(),
         email: email.trim(),
         password,
-        activationKey: activationKey.trim() || undefined
+        activationKey: activationKey.trim() || undefined,
+        // A photo is sent as bytes; without one, the drawn choice is stored.
+        avatar: photo ? undefined : avatar,
+        avatarPhoto: photo ? { bytes: photo.bytes, name: photo.name } : undefined
       })
-      setCreated(account)
-      setStep(3)
+      // The session provider records the arrival; the app owns the four
+      // seconds after this and then opens the workspace.
     } catch (error) {
       const field = error instanceof ApiError ? error.field : undefined
       setServerIssue({ field, message: errorMessage(error) })
-      // A field the server rejected belongs to an earlier step: go back to it
-      // rather than showing an error under a form that cannot fix it.
-      if (field === 'email' || field === 'password' || field === 'activationKey') setStep(1)
-    } finally {
+      if (field === 'email' || field === 'password' || field === 'activationKey') {
+        setAttempted((before) => new Set(before).add(1))
+        setStep(1)
+      } else if (field === 'username' || field === 'displayName') {
+        setAttempted((before) => new Set(before).add(2))
+        setStep(2)
+      } else if (field === 'avatar') {
+        setPortraitError(errorMessage(error))
+      }
       setPending(false)
     }
-  }
-
-  async function finish(withPortrait: boolean): Promise<void> {
-    if (!created) return
-    setPortraitError(null)
-
-    if (withPortrait && avatar) {
-      setSavingPortrait(true)
-      try {
-        await api.auth.updateProfile({
-          displayName: created.displayName,
-          email: created.email,
-          avatar
-        })
-        await refresh()
-      } catch (error) {
-        setPortraitError(errorMessage(error))
-        setSavingPortrait(false)
-        return
-      }
-      setSavingPortrait(false)
-    }
-
-    navigate('/home', { replace: true })
   }
 
   if (!status.allowRegistration) {
@@ -211,8 +239,11 @@ export default function RegisterScreen() {
   const headings: Record<Step, { title: string; sub: string }> = {
     1: { title: 'Create account', sub: 'The details you sign in with — nothing else yet.' },
     2: { title: 'Who you are', sub: 'Your handle, and the name the people you work with will see.' },
-    3: { title: 'Your portrait', sub: 'Chosen once. It appears wherever you do.' }
+    3: { title: 'Your portrait', sub: 'A photo, a mark, or your initials — shown wherever you are.' }
   }
+
+  const previewName = displayName.trim() || 'Your name'
+  const previewPortrait = photo ? `photo:${photo.url}` : avatar
 
   return (
     <AuthLayout>
@@ -302,7 +333,7 @@ export default function RegisterScreen() {
         )}
 
         {step === 2 && (
-          <form onSubmit={createAccount} noValidate>
+          <form onSubmit={identityNext} noValidate>
             <div className="space-y-4">
               <TextField
                 ref={usernameRef}
@@ -316,7 +347,6 @@ export default function RegisterScreen() {
                 spellCheck={false}
                 autoCapitalize="none"
                 autoFocus
-                disabled={pending}
               />
 
               <TextField
@@ -328,48 +358,78 @@ export default function RegisterScreen() {
                 error={shown('displayName')}
                 placeholder="Your name"
                 autoComplete="name"
-                disabled={pending}
               />
             </div>
 
-            {serverIssue && !serverIssue.field && (
-              <div className="auth-actions auth-actions--stack">
-                <Notice>{serverIssue.message}</Notice>
-              </div>
-            )}
-
             <div className="auth-actions auth-actions--split">
-              <button type="button" className="btn btn-ghost w-auto" onClick={() => setStep(1)} disabled={pending}>
+              <button type="button" className="btn btn-ghost w-auto" onClick={() => setStep(1)}>
                 Back
               </button>
-              <Button type="submit" loading={pending}>
-                {pending ? 'Creating account…' : 'Create account'}
-              </Button>
+              <Button type="submit">Continue</Button>
             </div>
           </form>
         )}
 
-        {step === 3 && created && (
+        {step === 3 && (
           <div>
             <div className="portrait-stage">
-              <Avatar
-                name={created.displayName}
-                avatar={avatar}
-                size="xl"
-                className="portrait-preview"
-                title={`${created.displayName}'s portrait`}
-              />
+              {photo ? (
+                <span className="avatar avatar--xl portrait-preview">
+                  <img className="avatar-photo" src={photo.url} alt="" draggable={false} />
+                </span>
+              ) : (
+                <Avatar
+                  name={previewName}
+                  avatar={previewPortrait}
+                  size="xl"
+                  className="portrait-preview"
+                  title="Your portrait"
+                />
+              )}
+
               <div className="portrait-stage-text">
-                <p className="portrait-name">{created.displayName}</p>
-                <p className="portrait-handle">@{created.username}</p>
-                <p className="portrait-note">This is how the team sees you.</p>
+                <p className="portrait-name">{previewName}</p>
+                <p className="portrait-handle">@{username.trim().toLowerCase() || 'your-handle'}</p>
+
+                <div className="portrait-upload">
+                  <input
+                    ref={photoRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="portrait-file"
+                    onChange={(event) => void pickPhoto(event)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm w-auto"
+                    onClick={() => photoRef.current?.click()}
+                  >
+                    {photo ? 'Replace photo' : 'Upload photo'}
+                  </button>
+                  {photo && (
+                    <button type="button" className="link-quiet portrait-clear" onClick={clearPhoto}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="portrait-note">PNG, JPEG or WebP · up to 6 MB</p>
               </div>
+            </div>
+
+            {portraitError && (
+              <div className="auth-actions auth-actions--stack">
+                <Notice>{portraitError}</Notice>
+              </div>
+            )}
+
+            <div className="portrait-or" role="separator" aria-label="or choose a mark">
+              <span>or choose a mark</span>
             </div>
 
             <div className="portrait-grid" role="radiogroup" aria-label="Choose a portrait">
               {AVATAR_MARKS.map((mark) => {
                 const value = `mark:${mark.id}`
-                const selected = avatar === value
+                const selected = !photo && avatar === value
                 return (
                   <button
                     key={mark.id}
@@ -379,9 +439,12 @@ export default function RegisterScreen() {
                     aria-label={mark.label}
                     title={mark.label}
                     className={`portrait-choice${selected ? ' is-selected' : ''}`}
-                    onClick={() => setAvatar(value)}
+                    onClick={() => {
+                      clearPhoto()
+                      setAvatar(value)
+                    }}
                   >
-                    <Avatar name={created.displayName} avatar={value} size="lg" />
+                    <Avatar name={previewName} avatar={value} size="lg" />
                   </button>
                 )
               })}
@@ -389,24 +452,24 @@ export default function RegisterScreen() {
               <button
                 type="button"
                 role="radio"
-                aria-checked={avatar === 'initials'}
+                aria-checked={!photo && avatar === 'initials'}
                 aria-label="My initials"
                 title="My initials"
-                className={`portrait-choice portrait-choice--initials${avatar === 'initials' ? ' is-selected' : ''}`}
-                onClick={() => setAvatar('initials')}
+                className={`portrait-choice portrait-choice--initials${
+                  !photo && avatar === 'initials' ? ' is-selected' : ''
+                }`}
+                onClick={() => {
+                  clearPhoto()
+                  setAvatar('initials')
+                }}
               >
-                <Avatar name={created.displayName} avatar="initials" size="lg" />
+                <Avatar name={previewName} avatar="initials" size="lg" />
               </button>
             </div>
 
-            <p className="auth-hint">
-              Each mark is drawn in the app, not uploaded — it stays sharp at any size and costs
-              nothing to share.
-            </p>
-
-            {portraitError && (
+            {serverIssue && !serverIssue.field && (
               <div className="auth-actions auth-actions--stack">
-                <Notice>{portraitError}</Notice>
+                <Notice>{serverIssue.message}</Notice>
               </div>
             )}
 
@@ -414,13 +477,13 @@ export default function RegisterScreen() {
               <button
                 type="button"
                 className="btn btn-ghost w-auto"
-                onClick={() => void finish(false)}
-                disabled={savingPortrait}
+                onClick={() => setStep(2)}
+                disabled={pending}
               >
-                Skip
+                Back
               </button>
-              <Button type="button" loading={savingPortrait} onClick={() => void finish(true)}>
-                {savingPortrait ? 'Saving…' : 'Continue'}
+              <Button type="button" loading={pending} onClick={() => void createAccount()}>
+                {pending ? 'Creating account…' : 'Create account'}
               </Button>
             </div>
           </div>
@@ -437,14 +500,12 @@ export default function RegisterScreen() {
       )}
 
       {step === 2 && (
-        <p className="auth-foot-note">
-          You can change your handle, name and portrait later in Settings.
-        </p>
+        <p className="auth-foot-note">Your name and handle can be changed later in Settings.</p>
       )}
 
       {step === 3 && (
         <p className="auth-foot-note">
-          Nothing is uploaded. Skipping keeps your initials.
+          The photo is copied into the app on this PC. Nothing is uploaded.
         </p>
       )}
     </AuthLayout>

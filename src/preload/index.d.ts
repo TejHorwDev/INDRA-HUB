@@ -87,6 +87,7 @@ export interface IndraBridge {
     logout: () => Promise<ApiResult<null>>
     current: () => Promise<ApiResult<SessionUser | null>>
     updateProfile: (input: ProfileInput) => Promise<ApiResult<SessionUser>>
+    portraitBytes: (id: string) => Promise<ApiResult<{ bytes: Uint8Array; mime: string } | null>>
     changePassword: (input: ChangePasswordInput) => Promise<ApiResult<null>>
     deleteAccount: (input: DeleteAccountInput) => Promise<ApiResult<null>>
   }

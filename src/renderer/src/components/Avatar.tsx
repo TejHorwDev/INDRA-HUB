@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { initialsOf } from '../lib/format'
+import { usePortraitUrl } from '../lib/portraits'
 
 /**
  * A person's portrait.
@@ -141,6 +142,8 @@ export function markFor(avatar?: string | null): AvatarMark | null {
 
 export default function Avatar({ name, avatar, size, className, title }: AvatarProps) {
   const mark = markFor(avatar)
+  // Only `photo:` ids fetch anything; a mark or initials renders immediately.
+  const photo = usePortraitUrl(avatar)
   const classes = ['avatar', size && `avatar--${size}`, className].filter(Boolean).join(' ')
 
   return (
@@ -150,9 +153,11 @@ export default function Avatar({ name, avatar, size, className, title }: AvatarP
       aria-label={title}
       title={title}
       role={title ? 'img' : undefined}
-      data-mark={mark?.id}
+      data-mark={photo ? 'photo' : mark?.id}
     >
-      {mark ? (
+      {photo ? (
+        <img className="avatar-photo" src={photo} alt="" draggable={false} />
+      ) : mark ? (
         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
           {mark.draw}
         </svg>

@@ -137,6 +137,11 @@ export interface UserSummary {
   email?: string
 }
 
+export interface AvatarPhotoInput {
+  bytes: Uint8Array
+  name?: string
+}
+
 export interface RegisterInput {
   username: string
   displayName: string
@@ -144,13 +149,22 @@ export interface RegisterInput {
   password: string
   /** Required only while the administrator requires activation keys. */
   activationKey?: string
+  /** `initials` or `mark:<id>`; ignored when a photo is attached. */
+  avatar?: string
+  /** A chosen image, validated and copied into the app during registration. */
+  avatarPhoto?: AvatarPhotoInput
 }
 
 export interface ProfileInput {
   displayName: string
   email: string
-  /** `mark:<id>` or `initials`; omitted leaves the current portrait alone. */
+  /**
+   * `initials`, `mark:<id>` or `photo:<asset id>`; omitted leaves the current
+   * portrait alone. Replacing a photo forgets the file it replaced.
+   */
   avatar?: string | null
+  /** A newly chosen image; wins over `avatar` when both are sent. */
+  avatarPhoto?: AvatarPhotoInput
 }
 
 export interface ChangePasswordInput {

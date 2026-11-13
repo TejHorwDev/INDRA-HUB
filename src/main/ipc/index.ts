@@ -47,6 +47,7 @@ import {
   startOfflineWorkspace,
   updateProfile
 } from '../services/auth'
+import { readPortraitFile } from '../services/portrait'
 import { claimOfflineWork, offlineWork } from '../services/offline'
 import { myInvitations, respond, revoke } from '../services/invitations'
 import {
@@ -452,6 +453,21 @@ export function registerIpcHandlers(): void {
   /* ---------------- accounts ---------------- */
   ipcMain.handle('auth:register', (_event, input: RegisterInput) =>
     toResult(() => register(input ?? ({} as RegisterInput)))
+  )
+
+  /*
+   * A portrait is fetched by id, never by path. Any signed-in person may read
+   * one: a teammate's face is shown on the same rows as their name, and the id
+   * is only obtainable from an account row. The bytes are checked to belong to
+   * a user portrait, so this cannot be turned into a reader for the sign-in
+   * video or any other asset.
+   */
+  ipcMain.handle('auth:portrait-bytes', (_event, id: unknown) =>
+    toResult(() => {
+      requireUser()
+      const file = readPortraitFile(String(id ?? ''))
+      return file ? { bytes: file.bytes, mime: file.mime } : null
+    })
   )
 
   ipcMain.handle('auth:login', (_event, input: LoginInput) =>

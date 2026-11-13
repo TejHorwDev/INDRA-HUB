@@ -90,7 +90,7 @@ const SIGNATURES: Array<{ mime: string; extension: string; test: (head: Buffer) 
 ]
 
 /** The same test, over bytes already in memory. */
-function signatureOfBytes(bytes: Buffer): { mime: string; extension: string } | null {
+export function signatureOfBytes(bytes: Buffer): { mime: string; extension: string } | null {
   const head = bytes.subarray(0, 16)
   const match = SIGNATURES.find((entry) => entry.test(head))
   return match ? { mime: match.mime, extension: match.extension } : null

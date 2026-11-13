@@ -134,6 +134,9 @@ export const api = {
     signOut: (): Promise<null> => unwrap(bridge().auth.logout()),
     updateProfile: (input: ProfileInput): Promise<SessionUser> =>
       unwrap(bridge().auth.updateProfile(input)),
+    /** The bytes behind a `photo:` portrait, or null if it is gone. */
+    portraitBytes: (id: string): Promise<{ bytes: Uint8Array; mime: string } | null> =>
+      unwrap(bridge().auth.portraitBytes(id)),
     changePassword: (input: ChangePasswordInput): Promise<null> =>
       unwrap(bridge().auth.changePassword(input)),
     deleteAccount: (input: DeleteAccountInput): Promise<null> =>

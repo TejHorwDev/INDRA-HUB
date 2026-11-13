@@ -19,7 +19,17 @@ import { useLoginVideo } from '../lib/loginVideo'
  * be decoded, or its bytes cannot be read, the plain canvas comes back instead
  * of leaving a black hole. Everything decorative is aria-hidden.
  */
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default function AuthLayout({
+  children,
+  stage
+}: {
+  children: ReactNode
+  /**
+   * `stage` widens the column for a screen that is not a form — the opening
+   * loader — without changing the video, the veil or the transparency.
+   */
+  stage?: boolean
+}) {
   const [appearance, setAppearance] = useState<PublicAppearance | null>(null)
   const [failed, setFailed] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -114,7 +124,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         */}
       {wantsVideo && <div className="auth-veil" aria-hidden="true" />}
 
-      <div className="auth-panel stagger">{children}</div>
+      <div className={`auth-panel stagger${stage ? ' auth-panel--stage' : ''}`}>{children}</div>
     </div>
   )
 }
