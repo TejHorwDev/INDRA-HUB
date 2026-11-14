@@ -51,6 +51,10 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
 
   return (
     <>
+      <p className="eyebrow">
+        <span className="dot" data-tone="off" />
+        Infrastructure
+      </p>
       <h1>Storage</h1>
 
       <StorageSettingsCard />

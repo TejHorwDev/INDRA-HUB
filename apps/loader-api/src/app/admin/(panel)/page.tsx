@@ -2,21 +2,22 @@ import Link from 'next/link'
 import { databaseReady } from '@/lib/env'
 import { listApps, readConfig } from '@/lib/db'
 import { latestLoaderRelease } from '@/lib/github'
+import Stat from '@/components/Stat'
 
 export const dynamic = 'force-dynamic'
 
 /*
  * The control room.
  *
- * Until now the panel opened on the product list, which answered "what is in the
- * catalogue" and nothing else. The questions an operator actually asks first are
- * different: is the app publishing anything, is the film set, is the door shut, is
- * the database the one I think it is. Those are all answerable on one screen from
- * data that is already loaded, so they are on one screen.
+ * Three questions, in the order they are asked when something feels wrong:
  *
- * Every number here is read from the same tables the loader reads. Nothing is
- * cached and nothing is estimated — a dashboard that can be stale is a dashboard
- * that lies during exactly the incident it exists for.
+ *   1. How much of this is actually live — four numbers, counted up, top of the page.
+ *   2. What is the app being told right now — film, links, announcement, feed, gates.
+ *   3. What is in the catalogue — one row per product, nothing hidden behind a click.
+ *
+ * Every number here is read from the same tables the loader reads. Nothing is cached
+ * and nothing is estimated — a dashboard that can be stale is a dashboard that lies
+ * during exactly the incident it exists for.
  */
 
 function count(bytes: number): string {
@@ -29,6 +30,10 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
   if (!databaseReady()) {
     return (
       <>
+        <p className="eyebrow">
+          <span className="dot" data-tone="off" />
+          not configured
+        </p>
         <h1>Overview</h1>
         <div className="card">
           <h2>Database not configured</h2>
@@ -70,154 +75,164 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
   const maintenance = config['maintenance'] === '1' || config['maintenance'] === 'true'
   const notice = config['notice'] ?? ''
 
+  const tone = failure ? 'warn' : maintenance ? 'warn' : 'live'
+  const state = failure
+    ? 'Database unreachable'
+    : maintenance
+      ? 'Maintenance on'
+      : feed && 'version' in feed && feed.version !== 'unreachable'
+        ? `Publishing ${feed.version}`
+        : 'Publishing'
+
   return (
     <>
-      <h1>Overview</h1>
-      <p className="lede">What the loader is publishing right now, and what it is reading it from.</p>
+      <p className="eyebrow">
+        <span className="dot" data-tone={tone === 'live' ? undefined : 'warn'} />
+        {state}
+        <span style={{ color: 'var(--ink-4)' }}>/ {apps.length} products</span>
+      </p>
 
-      {failure ? (
-        <div className="notice error" style={{ marginBottom: 18 }}>
-          {failure}
-        </div>
-      ) : null}
+      <h1>Overview</h1>      <p className="lede">What the loader is publishing right now, and what it is reading it from.</p>
+
+      {failure ? <div className="notice error">{failure}</div> : null}
 
       {maintenance ? (
-        <div className="notice error" style={{ marginBottom: 18 }}>
+        <div className="notice error">
           Maintenance mode is on — the app is showing a closed sign to everyone. The catalogue is
           still published; it is simply not shown. <Link href="/admin/settings">Turn it off</Link>.
         </div>
       ) : null}
 
       <div className="stats">
-        <div className="stat">
-          <span className="stat-value">{apps.length}</span>
-          <span className="stat-label">Products</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value">{active}</span>
-          <span className="stat-label">Active</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value">{apps.length - active}</span>
-          <span className="stat-label">Locked</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value">{count(bytes)}</span>
-          <span className="stat-label">Installers</span>
-        </div>
+        <Stat value={apps.length} label="Products" index={0} share={1} />
+        <Stat value={active} label="Active" index={1} share={apps.length ? active / apps.length : 0} />
+        <Stat
+          value={apps.length - active}
+          label="Locked"
+          index={2}
+          share={apps.length ? (apps.length - active) / apps.length : 0}
+        />
+        <Stat value={count(bytes)} label="Installers" index={3} share={0.55} />
       </div>
 
-      <div className="card">
-        <h2>What the app is being told</h2>
-        <table>
-          <tbody>
-            <tr>
-              <td>Sign-in film</td>
-              <td>
+      <div className="grid cols">
+        <div className="col">
+          <div className="card" style={{ '--i': 4 } as React.CSSProperties}>
+            <h2>What the app is being told</h2>
+            <dl className="kv">
+              <dt>Sign-in film</dt>
+              <dd>
                 {video ? (
                   <>
-                    <span className="pill ok">set</span>{' '}
+                    <span className="pill ok">set</span>
                     <span className="mono">{video.split('/').pop()}</span>
                   </>
                 ) : (
                   <span className="pill off">not set — animated wash</span>
                 )}
-              </td>
-            </tr>
-            <tr>
-              <td>Website link</td>
-              <td>
-                {website ? (
-                  <span className="mono">{website}</span>
-                ) : (
-                  <span className="pill off">hidden</span>
-                )}
-              </td>
-            </tr>
-            <tr>
-              <td>Announcement</td>
-              <td>
-                {notice ? (
-                  <span>{notice}</span>
-                ) : (
-                  <span className="pill off">none</span>
-                )}
-              </td>
-            </tr>
-            <tr>
-              <td>Update feed</td>
-              <td>
+              </dd>
+
+              <dt>Website link</dt>
+              <dd>{website ? <span className="mono">{website}</span> : <span className="pill off">hidden</span>}</dd>
+
+              <dt>Announcement</dt>
+              <dd>{notice ? <span>{notice}</span> : <span className="pill off">none</span>}</dd>
+
+              <dt>Update feed</dt>
+              <dd>
                 {feed === null ? (
                   <span className="pill off">no release published</span>
                 ) : feed.version === 'unreachable' ? (
                   <span className="pill off">GitHub is not reachable from here right now</span>
                 ) : (
                   <>
-                    <span className="pill ok">{feed.version}</span>{' '}
-                    <span className="mono">{feed.tag}</span>{' '}
-                    <span className="hint">— what the app is offered at launch</span>
+                    <span className="pill ok">{feed.version}</span>
+                    <span className="mono">{feed.tag}</span>
+                    <span className="hint">offered at launch</span>
                   </>
                 )}
-              </td>
-            </tr>
-            <tr>
-              <td>Gated products</td>
-              <td>
+              </dd>
+
+              <dt>Gated products</dt>
+              <dd>
                 <span className="mono">
                   {gated} of {apps.length}
-                </span>{' '}
-                <span className="hint">— checked against INDRA Auth when the app opens</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <h2>Published catalogue</h2>
-        {apps.length === 0 ? (
-          <div className="empty">
-            Nothing published yet. <Link href="/admin/apps">Add the first product</Link>.
+                </span>
+                <span className="hint">checked against INDRA Auth when the app opens</span>
+              </dd>
+            </dl>
           </div>
-        ) : (
-          <table>
-            <tbody>
-              {apps.map((app) => (
-                <tr key={app.id}>
-                  <td>
-                    <strong>{app.name}</strong>
-                  </td>
-                  <td className="mono">{app.version}</td>
-                  <td>
-                    <span className={`pill ${app.status === 'active' ? 'ok' : 'off'}`}>{app.status}</span>
-                  </td>
-                  <td className="mono">{app.keyauth_app_id ? 'gated' : 'open'}</td>
-                  <td className="mono">{count(app.exe_bytes ?? 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
 
-      <div className="card">
-        <h2>Shortcuts</h2>
-        <p className="hint" style={{ marginBottom: 12 }}>
-          The public endpoints, for checking what a client actually receives.
-        </p>
-        <p className="mono" style={{ lineHeight: 2, fontSize: 12 }}>
-          <a href="/api/loader/config" target="_blank" rel="noreferrer">
-            /api/loader/config
-          </a>
-          <br />
-          <a href="/api/loader/apps" target="_blank" rel="noreferrer">
-            /api/loader/apps
-          </a>
-          <br />
-          <a href="/api/health" target="_blank" rel="noreferrer">
-            /api/health
-          </a>
-        </p>
+          <div className="card" style={{ '--i': 5 } as React.CSSProperties}>
+            <h2>
+              <span className="count">{String(apps.length).padStart(2, '0')}</span>
+              Published catalogue
+            </h2>
+            {apps.length === 0 ? (
+              <div className="empty">
+                Nothing published yet. <Link href="/admin/apps">Add the first product</Link>.
+              </div>
+            ) : (
+              <table>
+                <tbody>
+                  {apps.map((app) => (
+                    <tr key={app.id}>
+                      <td>
+                        <strong>{app.name}</strong>
+                      </td>
+                      <td className="mono">{app.version}</td>
+                      <td>
+                        <span className={`pill ${app.status === 'active' ? 'ok' : 'off'}`}>{app.status}</span>
+                      </td>
+                      <td className="mono">{app.keyauth_app_id ? 'gated' : 'open'}</td>
+                      <td className="mono" style={{ textAlign: 'right' }}>
+                        {count(app.exe_bytes ?? 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div className="col">
+          <div className="card" style={{ '--i': 6 } as React.CSSProperties}>
+            <h2>Jump to</h2>
+            <div className="grid" style={{ gap: 10 }}>
+              <Link href="/admin/apps" className="tile">
+                <p className="tile-title">Products</p>
+                <p className="tile-note">Add an app, replace an installer, change card artwork.</p>
+              </Link>
+              <Link href="/admin/settings" className="tile">
+                <p className="tile-title">Sign-in film</p>
+                <p className="tile-note">{video ? 'Replace the film behind the door.' : 'No film set — the wash is showing.'}</p>
+              </Link>
+              <Link href="/admin/storage" className="tile">
+                <p className="tile-title">Storage</p>
+                <p className="tile-note">Where the files live, and what is using the space.</p>
+              </Link>
+            </div>
+          </div>
+
+          <div className="card" style={{ '--i': 7 } as React.CSSProperties}>
+            <h2>Shortcuts</h2>
+            <p className="hint" style={{ marginBottom: 12 }}>
+              The public endpoints, for checking what a client actually receives.
+            </p>
+            <div className="endpoints">
+              <a href="/api/loader/config" target="_blank" rel="noreferrer">
+                /api/loader/config
+              </a>
+              <a href="/api/loader/apps" target="_blank" rel="noreferrer">
+                /api/loader/apps
+              </a>
+              <a href="/api/health" target="_blank" rel="noreferrer">
+                /api/health
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )

@@ -337,6 +337,33 @@ async function main() {
     unguarded.map((f) => relative(root, f)).join(', ')
   )
 
+  /*
+   * The look, checked as an invariant rather than as a screenshot.
+   *
+   * The panel has been asked for matte black, dark grey and white — twice, in different
+   * words, after violet gradients and then neon were both rejected. A rule that can be
+   * broken silently is a rule that will be broken, so: every colour literal in the
+   * stylesheet must be a neutral, plus the three status hues that carry meaning.
+   */
+  console.log('\nThe palette stays monochrome')
+  const css = readFileSync(join(root, 'src/app/globals.css'), 'utf8')
+  // The three status hues, and the two lighter inks used for text on their own wash.
+  const named = new Set(['57c9a1', 'e0746a', 'cfae74', 'f0b3ac', 'a4e3cd'])
+  const colours = [...new Set((css.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).map((hex) => hex.slice(1).toLowerCase()))]
+  const offPalette = colours.filter((hex) => {
+    const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex
+    if (named.has(full.slice(0, 6))) return false
+    const r = parseInt(full.slice(0, 2), 16)
+    const g = parseInt(full.slice(2, 4), 16)
+    const b = parseInt(full.slice(4, 6), 16)
+    return Math.max(r, g, b) - Math.min(r, g, b) > 12
+  })
+  check('every colour is grey, or one of the three statuses', offPalette.length === 0, offPalette.join(', '))
+  check('the type is self-hosted, so it renders offline', /geist\/font\/sans/.test(readFileSync(join(root, 'src/app/layout.tsx'), 'utf8')))
+  check('the sections slide rather than blink', /\.nav-pill/.test(css) && /translateX\(var\(--x/.test(css))
+  check('content rises on a stagger', /\.rise/.test(css) && /var\(--i/.test(css))
+  check('and any machine that asked for less motion gets none', /prefers-reduced-motion: reduce/.test(css))
+
   console.log('\nThe public surface is read-only')
   const publicRoutes = walk(join(root, 'src/app/api/loader')).filter((file) => file.endsWith('route.ts'))
   const writable = publicRoutes.filter((file) => /export async function (POST|PUT|PATCH|DELETE)/.test(readFileSync(file, 'utf8')))
