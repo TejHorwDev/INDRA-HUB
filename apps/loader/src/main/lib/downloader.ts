@@ -60,6 +60,23 @@ export function partialBytes(destination: string): number {
   }
 }
 
+/**
+ * Bytes from a previous attempt, but only if they are recent enough to trust.
+ *
+ * Resuming is worth a lot — a 20 MB installer on a bad line — but an abandoned fragment
+ * from a file that has since been replaced would produce a hash mismatch at best, and at
+ * worst a corrupted binary. A day is the line.
+ */
+export function resumableBytes(destination: string, maxAgeMs = 24 * 60 * 60 * 1000): number {
+  try {
+    const info = statSync(partPath(destination))
+    if (Date.now() - info.mtimeMs > maxAgeMs) return 0
+    return info.size
+  } catch {
+    return 0
+  }
+}
+
 export function discardPartial(destination: string): void {
   try {
     unlinkSync(partPath(destination))

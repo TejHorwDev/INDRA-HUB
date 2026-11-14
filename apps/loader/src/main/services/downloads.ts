@@ -1,7 +1,7 @@
 import { BrowserWindow, net } from 'electron'
 import { existsSync } from 'node:fs'
 import type { InstallView, LoaderApp } from '@shared/types'
-import { discardPartial, downloadToFile } from '../lib/downloader'
+import { discardPartial, downloadToFile, resumableBytes } from '../lib/downloader'
 import { loadCatalogue } from './catalog'
 import { allInstalled, downloadTarget, installed, readRegistry, record } from './installed'
 import { isRunning } from './launch'
@@ -179,21 +179,49 @@ export async function startDownload(id: string): Promise<InstallView> {
   }
 
   const target = downloadTarget(app.name)
-  discardPartial(target.exe)
 
-  const controller = new AbortController()
+  /*
+   * A fragment from an attempt that died is kept and continued, not thrown away. It is
+   * only thrown away when it is too old to be trusted, which is what `resumableBytes`
+   * decides — the server honours `Range`, so a retry costs the remainder rather than the
+   * whole file.
+   */
+  if (resumableBytes(target.exe) === 0) discardPartial(target.exe)
+
+  let controller = new AbortController()
   controllers.set(id, controller)
   set(id, { state: 'downloading', percent: 0, received: 0, total: 0, bytesPerSecond: 0, error: null })
 
-  try {
-    const result = await downloadToFile({
+  /*
+   * A transfer that stops moving is not a transfer.
+   *
+   * A connection that dies silently leaves a fetch that never resolves and never errors
+   * — the bar sits at 0% forever and the app looks broken. Thirty seconds without a
+   * single byte is not slow, it is dead: the attempt is aborted and continued from what
+   * it already has.
+   */
+  const STALL_MS = 30_000
+  const MAX_ATTEMPTS = 2
+  let lastByteAt = Date.now()
+  let stalled = false
+
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastByteAt < STALL_MS) return
+    stalled = true
+    controller.abort()
+  }, 2_000)
+
+  const runOnce = () =>
+    downloadToFile({
       url: url.toString(),
       destination: target.exe,
       signal: controller.signal,
       // Chromium's stack: system proxy, system certificates, same redirect
       // behaviour as a browser. Node's fetch ignores proxy settings entirely.
       request: (input, init) => net.fetch(input, init as never),
+      resumeFrom: resumableBytes(target.exe) || undefined,
       onProgress: (progress) => {
+        lastByteAt = Date.now()
         set(id, {
           state: 'downloading',
           received: progress.received,
@@ -203,6 +231,49 @@ export async function startDownload(id: string): Promise<InstallView> {
         })
       }
     })
+
+  try {
+    let result: Awaited<ReturnType<typeof downloadToFile>> | null = null
+    let lastMessage = ''
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        result = await runOnce()
+        break
+      } catch (error) {
+        lastMessage = error instanceof Error ? error.message : String(error)
+
+        // Somebody pressed Cancel: not a failure, and not something to retry.
+        if (!stalled && controllers.get(id)?.signal.aborted) throw error
+        if (stalled) {
+          stalled = false
+          lastByteAt = Date.now()
+        }
+
+        // A checksum disagreement means what we kept is wrong, so it cannot be continued.
+        if (/checksum/i.test(lastMessage)) discardPartial(target.exe)
+
+        if (attempt === MAX_ATTEMPTS) throw error
+
+        /*
+         * One more try, announced rather than silent — a retry the person can see is
+         * better than a bar that jumps back to zero with no explanation.
+         */
+        console.warn('[downloads] retrying', id, lastMessage)
+        controller = new AbortController()
+        controllers.set(id, controller)
+        set(id, {
+          state: 'downloading',
+          bytesPerSecond: 0,
+          error: null,
+          total: stateOf(id).total
+        })
+        lastByteAt = Date.now()
+      }
+    }
+
+    if (!result) throw new Error(lastMessage || 'the download could not be completed')
+    clearInterval(watchdog)
 
     record({
       id,
@@ -216,7 +287,7 @@ export async function startDownload(id: string): Promise<InstallView> {
     set(id, { state: 'installed', percent: 100, bytesPerSecond: 0, error: null })
     return stateOf(id)
   } catch (error) {
-    if (controller.signal.aborted) {
+    if (controller.signal.aborted && !stalled) {
       set(id, { state: 'absent', percent: 0, received: 0, bytesPerSecond: 0, error: null })
       return stateOf(id)
     }
@@ -231,10 +302,13 @@ export async function startDownload(id: string): Promise<InstallView> {
         ? 'The file arrived damaged and was discarded. Try again.'
         : /HTTP (\d+)/.test(message)
           ? `The download server answered ${message.match(/HTTP (\d+)/)?.[0]}.`
-          : 'The download could not be completed. Check the connection and try again.'
+          : stalled
+            ? 'The connection stopped responding. Download again to continue from where it stopped.'
+            : 'The download could not be completed. Check the connection and try again.'
     })
     return stateOf(id)
   } finally {
+    clearInterval(watchdog)
     controllers.delete(id)
   }
 }

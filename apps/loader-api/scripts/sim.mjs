@@ -169,6 +169,41 @@ async function main() {
 
   check('a missing object is null, not a throw', (await storage.openObject('exes/nope.exe')) === null)
 
+  /*
+   * A download that cannot be measured looks frozen, and a download that cannot be
+   * resumed starts from zero. Both come from the same missing header, so both are checked
+   * here: the object's real length, and a slice of it that matches the same bytes.
+   */
+  console.log('\nA file served with a length, and in ranges')
+  const whole = await storage.readObject(target.key)
+  check('the size is reported', whole?.size === body.length, String(whole?.size))
+  check('and the length of the response is the same', whole?.length === body.length)
+  check('with no range claimed', whole?.range === null)
+
+  const slice = await storage.readObject(target.key, { start: 1000, end: 1999 })
+  check('a range comes back as a range', slice?.range?.start === 1000 && slice?.range?.end === 1999)
+  check('its length is the slice, not the file', slice?.length === 1000)
+  check('and the total is still the whole file', slice?.size === body.length)
+
+  if (slice) {
+    const chunks = []
+    await new Promise((resolve, reject) => {
+      slice.stream.on('data', (chunk) => chunks.push(chunk))
+      slice.stream.on('end', resolve)
+      slice.stream.on('error', reject)
+    })
+    check('the bytes are the ones at that offset', Buffer.concat(chunks).equals(body.subarray(1000, 2000)))
+  }
+
+  check('a range past the end is nothing at all', (await storage.readObject(target.key, { start: body.length })) === null)
+
+  const range = await bundle('src/lib/http-range.ts', 'http-range')
+  check('`bytes=0-` is the whole file', JSON.stringify(range.parseRange('bytes=0-')) === '{"start":0}')
+  check('`bytes=5-9` is a slice', range.parseRange('bytes=5-9')?.end === 9)
+  check('a reversed range is ignored', range.parseRange('bytes=9-5') === null)
+  check('an absurd header is ignored', range.parseRange('bananas') === null)
+  check('no header means no range', range.parseRange(null) === null)
+
   /* -------------------------------------------------------------- routes -- */
 
   console.log('\nEvery admin route checks the session')

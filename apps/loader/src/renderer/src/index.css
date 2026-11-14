@@ -320,12 +320,26 @@ body {
  * tables and form fields for the whole life of the window. Loud enough to be
  * noticed, quiet enough to read over.
  */
+/*
+ * Two layers, cross-faded. `loop` would be one line, but a loop is a seek to zero and
+ * a seek is a visible freeze on a large film — so the standby layer fades in just before
+ * the playing one ends and the join is never seen.
+ *
+ * Only the front layer decodes; the other is paused on its first frame until it is
+ * needed, which keeps a 4K film from costing two decoders all the time.
+ */
 .backdrop-video {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 420ms linear;
+  will-change: opacity;
+}
+
+.backdrop-video[data-front='true'] {
   opacity: 0.42;
 }
 
@@ -431,5 +445,41 @@ html[data-mode='web'] .shell {
 @media (prefers-reduced-motion: reduce) {
   .rail[data-direction] {
     animation: none;
+  }
+}
+
+/*
+ * The indeterminate download stripe.
+ *
+ * Used only when the server sends no length, which after the range fix should be never
+ * — but an interface that shows 0% while bytes arrive is indistinguishable from a frozen
+ * one, so the fallback moves.
+ */
+.download-stripe {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 10%) 40%,
+    rgb(255 255 255 / 18%) 50%,
+    rgb(255 255 255 / 10%) 60%,
+    transparent 100%
+  );
+  animation: download-stripe 1.4s linear infinite;
+}
+
+@keyframes download-stripe {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .download-stripe {
+    animation: none;
+    width: 100%;
+    opacity: 0.35;
   }
 }

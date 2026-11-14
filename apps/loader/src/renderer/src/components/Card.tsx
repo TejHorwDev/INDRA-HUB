@@ -97,7 +97,10 @@ export default function Card({ app, available, install, onOpen }: Props): React.
 
 function label(available: boolean, install: InstallView | null): string {
   if (!available) return 'Locked'
-  if (install?.state === 'downloading') return `${install.percent}%`
+  // Without a length from the server a percentage is a lie; bytes are not.
+  if (install?.state === 'downloading') {
+    return install.total > 0 ? `${install.percent}%` : `${(install.received / 1048576).toFixed(0)} MB`
+  }
   if (install?.state === 'installed') return 'Downloaded'
   if (install?.state === 'error') return 'Download failed'
   return 'Ready'
