@@ -3,6 +3,7 @@ import { currentSession } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { body, fail, ok, serverError, text } from '@/lib/http'
 import { openObject } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 import { objectUrl } from '@/lib/url'
 
 /*
@@ -22,6 +23,7 @@ export const maxDuration = 300
 
 export async function POST(request: Request): Promise<Response> {
   if (!(await currentSession())) return fail('Not signed in.', 401)
+  await ensureStorageConfig()
 
   const payload = await body(request)
   const id = text(payload?.['id'], 60)

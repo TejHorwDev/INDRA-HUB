@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream'
 import { isObjectKey, openObject } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 
 /*
  * GET /api/files/<key>
@@ -30,6 +31,8 @@ export async function GET(
   { params }: { params: Promise<{ key: string[] }> }
 ): Promise<Response> {
   const { key } = await params
+  // The bucket may have been changed in the panel since this process started.
+  await ensureStorageConfig()
   const path = key.join('/')
 
   // No traversal, no absolute paths: the key is a name we issued.

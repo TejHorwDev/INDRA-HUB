@@ -1,12 +1,8 @@
+import StorageSettingsCard from '@/components/StorageSettings'
 import { currentSession } from '@/lib/auth'
 import { b2Endpoint, b2Ready, env, storageDriverConfigured } from '@/lib/env'
-import {
-  capFor,
-  driver,
-  formatBytes,
-  usageByKind,
-  type Kind
-} from '@/lib/storage'
+import { capFor, driver, formatBytes, usageByKind, type Kind } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +37,7 @@ const DRIVER_NOTE: Record<string, string> = {
 
 export default async function StoragePage(): Promise<React.JSX.Element> {
   if (!(await currentSession())) return <p className="hint">Not signed in.</p>
+  await ensureStorageConfig()
 
   const active = driver()
   const usage = await usageByKind()
@@ -55,6 +52,8 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
   return (
     <>
       <h1>Storage</h1>
+
+      <StorageSettingsCard />
 
       <div className="card">
         <h2>{active === 'supabase' ? 'Supabase Storage' : active.toUpperCase()}</h2>

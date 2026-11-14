@@ -1,6 +1,7 @@
 import { currentSession } from '@/lib/auth'
 import { body, fail, ok, serverError, text } from '@/lib/http'
 import { capFor, createUploadTarget, formatBytes, refusalFor, type Kind } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 
 /*
  * POST /api/admin/upload-url
@@ -14,6 +15,8 @@ import { capFor, createUploadTarget, formatBytes, refusalFor, type Kind } from '
  */
 export async function POST(request: Request): Promise<Response> {
   if (!(await currentSession())) return fail('Not signed in.', 401)
+
+  await ensureStorageConfig()
 
   const payload = await body(request)
   const kind = text(payload?.['kind'], 10) as Kind
