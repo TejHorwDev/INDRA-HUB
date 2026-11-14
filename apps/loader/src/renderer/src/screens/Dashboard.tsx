@@ -15,7 +15,26 @@ import WindowControls from '../components/WindowControls'
  * look finished, because it is what a new account actually sees.
  */
 
+/*
+ * Three squares, and nothing else.
+ *
+ * The strip is a fixed grid rather than a flexible row: three cards of one size,
+ * two gaps, inside a 732px viewport. Flexible widths were the reason two apps looked
+ * like a mistake — the row stretched to fill and the cards ended up wider than the
+ * artwork inside them.
+ *
+ * More than three means another page, not a smaller card. The catalogue grows; the
+ * card does not.
+ */
 const PAGE_SIZE = 3
+const CARD = 232
+const GAP = 18
+const RAIL_WIDTH = PAGE_SIZE * CARD + (PAGE_SIZE - 1) * GAP
+
+/** The window, from `src/main/index.ts`. The rail is centred in it. */
+const WINDOW_WIDTH = 900
+/** Where the title and the rail both start, so the page has one left edge. */
+const GUTTER = (WINDOW_WIDTH - RAIL_WIDTH) / 2
 
 interface Props {
   apps: LoaderApp[]
@@ -43,6 +62,8 @@ export default function Dashboard({
   onWebsite
 }: Props): React.JSX.Element {
   const [page, setPage] = useState(0)
+  /* Which way the next page slides in from, so the movement matches the arrow. */
+  const [direction, setDirection] = useState<'next' | 'prev'>('next')
   const pages = Math.max(1, Math.ceil(apps.length / PAGE_SIZE))
 
   // A catalogue that shrinks must never leave the view on a page that is gone.
@@ -64,8 +85,9 @@ export default function Dashboard({
         */}
       {config.notice ? (
         <div
-          className="absolute left-6 right-6 top-[46px] rounded-lg border border-[var(--color-edge)] bg-[rgba(167,155,199,0.07)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--color-ink-2)]"
+          className="absolute top-[46px] rounded-lg border border-[var(--color-edge)] bg-[rgba(167,155,199,0.07)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--color-ink-2)]"
           role="status"
+          style={{ left: GUTTER, right: GUTTER }}
         >
           {config.notice}
         </div>
@@ -99,10 +121,13 @@ export default function Dashboard({
 
       <WindowControls />
 
-      <h1 className="absolute left-[88px] top-[92px] text-[15px] font-semibold text-[var(--color-ink)]">
+      <h1
+        className="absolute top-[92px] text-[15px] font-semibold text-[var(--color-ink)]"
+        style={{ left: GUTTER }}
+      >
         Library
       </h1>
-      <p className="absolute left-[88px] top-[116px] text-[11px] text-[var(--color-ink-3)]">
+      <p className="absolute top-[116px] text-[11px] text-[var(--color-ink-3)]" style={{ left: GUTTER }}>
         {loading
           ? 'Loading your apps…'
           : apps.length === 0
@@ -111,46 +136,71 @@ export default function Dashboard({
       </p>
 
       <div
-        className="absolute flex gap-4 overflow-hidden"
-        style={{ left: 88, top: 160, width: 724, height: 296 }}
+        className="absolute overflow-hidden"
+        style={{
+          left: GUTTER,
+          top: 158,
+          width: RAIL_WIDTH,
+          height: CARD
+        }}
       >
         {loading ? (
-          <Skeleton />
+          <div className="rail flex h-full" style={{ gap: GAP }}>
+            <Skeleton />
+          </div>
         ) : apps.length === 0 ? (
           <EmptyState hasWebsite={Boolean(config.website)} onWebsite={onWebsite} />
         ) : (
-          visible.map((app) => {
-            const available = isAvailable(app, owned)
-            return (
-              <div key={app.id} className="h-full min-w-0 flex-1">
-                <Card
-                  app={app}
-                  available={available}
-                  install={installs[app.id] ?? null}
-                  onOpen={() => {
-                    if (available) onOpen(app)
-                    else onLocked(app)
-                  }}
-                />
-              </div>
-            )
-          })
+          /*
+           * The page is keyed, so React remounts the row and the entry animation
+           * plays every time — a translate of the whole track would need its width
+           * to stay constant, and the last page is often short.
+           */
+          <div
+            key={page}
+            data-direction={direction}
+            className="rail flex h-full items-stretch justify-center"
+            style={{ gap: GAP }}
+          >
+            {visible.map((app) => {
+              const available = isAvailable(app, owned)
+              return (
+                <div key={app.id} className="h-full shrink-0" style={{ width: CARD }}>
+                  <Card
+                    app={app}
+                    available={available}
+                    install={installs[app.id] ?? null}
+                    onOpen={() => {
+                      if (available) onOpen(app)
+                      else onLocked(app)
+                    }}
+                  />
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
 
       <Arrow
         side="left"
         disabled={page === 0 || apps.length <= PAGE_SIZE}
-        onClick={() => setPage((current) => Math.max(0, current - 1))}
+        onClick={() => {
+          setDirection('prev')
+          setPage((current) => Math.max(0, current - 1))
+        }}
       />
       <Arrow
         side="right"
         disabled={page >= pages - 1 || apps.length <= PAGE_SIZE}
-        onClick={() => setPage((current) => Math.min(pages - 1, current + 1))}
+        onClick={() => {
+          setDirection('next')
+          setPage((current) => Math.min(pages - 1, current + 1))
+        }}
       />
 
       {apps.length > PAGE_SIZE ? (
-        <div className="absolute left-0 right-0 flex items-center justify-center gap-1.5" style={{ top: 474 }}>
+        <div className="absolute left-0 right-0 flex items-center justify-center gap-1.5" style={{ top: 410 }}>
           {Array.from({ length: pages }).map((_, index) => (
             <button
               key={index}
@@ -188,7 +238,7 @@ function Arrow({
       disabled={disabled}
       onClick={onClick}
       className="absolute grid h-[38px] w-[38px] place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-surface)] text-[var(--color-ink-2)] transition-[color,border-color] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-25"
-      style={{ [side]: 59, top: 289 }}
+      style={{ [side]: 30, top: 158 + (CARD - 38) / 2 }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
         <path
@@ -243,8 +293,8 @@ function Skeleton(): React.JSX.Element {
       {[0, 1, 2].map((index) => (
         <div
           key={index}
-          className="h-full min-w-0 flex-1 animate-pulse border border-[var(--hairline)] bg-[var(--color-surface)]"
-          style={{ borderRadius: 14, animationDelay: `${index * 90}ms` }}
+          className="h-full shrink-0 animate-pulse border border-[var(--hairline)] bg-[var(--color-surface)]"
+          style={{ width: CARD, borderRadius: 14, animationDelay: `${index * 90}ms` }}
         />
       ))}
     </>

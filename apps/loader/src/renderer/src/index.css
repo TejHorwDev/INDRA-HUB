@@ -360,3 +360,50 @@ html[data-mode='web'] .shell {
     0 40px 120px -30px rgba(0, 0, 0, 0.9),
     0 0 0 1px rgba(255, 255, 255, 0.06);
 }
+
+/* ------------------------------------------------------------------- rail ---- */
+
+/*
+ * A page of cards arriving.
+ *
+ * Three at a time, and the rest after a slide — not three shrinking cards, because
+ * a card that is 40px narrower than the one beside it stops reading as artwork.
+ * Transform and opacity only, so this costs no layout on a machine that may be
+ * running a game behind it.
+ */
+.rail[data-direction='next'] {
+  animation: rail-from-right 300ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.rail[data-direction='prev'] {
+  animation: rail-from-left 300ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes rail-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes rail-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* A user who asked for less motion gets the page, not the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .rail[data-direction] {
+    animation: none;
+  }
+}
