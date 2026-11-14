@@ -1,0 +1,111 @@
+/**
+ * The window, checked as a window.
+ *
+ * 1.0.3 made the entire shell a drag region to fix a window that could not be
+ * moved. It fixed that and broke everything else: on Windows a drag region eats
+ * mouse input, so the slider, the buttons and every control underneath stopped
+ * answering. The app looked perfect and did nothing.
+ *
+ * That is not a mistake to make twice, and it is not one a type checker can see,
+ * so it is checked here: the drag region must be a strip, and nothing may put it
+ * back on the window.
+ *
+ *   npm run sim:ui
+ */
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const renderer = join(root, 'src/renderer/src')
+
+let failures = 0
+const check = (label, ok, detail = '') => {
+  console.log(`  ${ok ? '✓' : '✗'} ${label}${ok || !detail ? '' : ` — ${detail}`}`)
+  if (!ok) failures += 1
+}
+
+/** Every rule block in the stylesheet, as { selector, body }. */
+function rules(css) {
+  const out = []
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const pattern = /([^{}]+)\{([^{}]*)\}/g
+  let match
+  while ((match = pattern.exec(source)) !== null) {
+    out.push({ selector: match[1].trim(), body: match[2] })
+  }
+  return out
+}
+
+/**
+ * Source with comments removed.
+ *
+ * The first version of this file searched raw text and failed on its own
+ * documentation — a comment explaining that the social row was removed contains
+ * the words "social row". Prose is not behaviour.
+ */
+function code(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
+function walk(dir) {
+  const files = []
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) files.push(...walk(full))
+    else if (/\.(tsx?|css)$/.test(entry)) files.push(full)
+  }
+  return files
+}
+
+const css = readFileSync(join(renderer, 'index.css'), 'utf8')
+const blocks = rules(css)
+
+console.log('\nThe drag region')
+const dragRules = blocks.filter((rule) => /-webkit-app-region:\s*drag/.test(rule.body))
+const allowed = new Set(['.drag-strip', '.drag'])
+
+check('exists at all', dragRules.length > 0)
+for (const rule of dragRules) {
+  check(`"${rule.selector}" is a strip, not a surface`, allowed.has(rule.selector), rule.selector)
+}
+
+const strip = blocks.find((rule) => rule.selector === '.drag-strip')
+check('the strip is bounded in height', Boolean(strip && /height:\s*4\dpx/.test(strip.body)))
+check(
+  'the strip leaves the window controls clickable',
+  Boolean(strip && /right:\s*\d+px/.test(strip.body))
+)
+check(
+  'the strip sits above the screens',
+  Boolean(strip && /z-index:\s*\d+/.test(strip.body))
+)
+
+console.log('\nNothing else claims the window')
+const offenders = walk(renderer).filter((file) => {
+  if (file.endsWith('index.css')) return false
+  // A style prop or class that makes anything draggable outside the strip is the
+  // same bug wearing a different hat.
+  return /appRegion:\s*['"]drag|app-region:\s*drag/.test(code(readFileSync(file, 'utf8')))
+})
+check('no component makes itself draggable', offenders.length === 0, offenders.map((f) => relative(root, f)).join(', '))
+
+console.log('\nThe landing page')
+const landing = code(readFileSync(join(renderer, 'screens/Landing.tsx'), 'utf8'))
+check('has no social row', !/FOLLOW US|Follow us|instagram-icon|SocialMark/i.test(landing))
+check('reaches the website through one button', /Website/.test(landing))
+
+const anywhere = walk(renderer).filter((file) => /instagram|tiktok|discord/i.test(code(readFileSync(file, 'utf8'))))
+check('the app mentions no social channel', anywhere.length === 0, anywhere.map((f) => relative(root, f)).join(', '))
+
+console.log('\nThe splash')
+const app = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+const splash = app.match(/SPLASH_MS\s*=\s*([\d_]+)/)
+check('is two seconds, not four', Boolean(splash && Number(splash[1].replace(/_/g, '')) === 2000), splash?.[1])
+
+console.log(
+  failures === 0
+    ? '\n✓ The window drags from its strip, and nothing is swallowing clicks.\n'
+    : `\n✗ ${failures} check(s) failed.\n`
+)
+process.exitCode = failures === 0 ? 0 : 1

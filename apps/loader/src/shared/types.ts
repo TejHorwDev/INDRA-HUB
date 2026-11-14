@@ -84,12 +84,16 @@ export interface LaunchResult {
 }
 
 /** Always all five keys, empty string when unset. */
+/**
+ * One link.
+ *
+ * The config used to carry five — website, Instagram, TikTok, Discord, YouTube —
+ * and the app rendered them as a social row. They are gone: a loader that has
+ * already been installed does not need to send you to Instagram. The database
+ * keeps the columns for now so nothing breaks mid-flight; the app ignores them.
+ */
 export interface LoaderConfig {
   website: string
-  instagram: string
-  tiktok: string
-  discord: string
-  youtube: string
 }
 
 export interface Catalogue {

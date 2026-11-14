@@ -12,15 +12,9 @@ import type { Catalogue, LoaderApp, LoaderConfig } from '@shared/types'
 
 const API_BASE = (process.env['INDRA_LOADER_API'] ?? '').replace(/\/+$/, '')
 
-const EMPTY_CONFIG: LoaderConfig = {
-  website: '',
-  instagram: '',
-  tiktok: '',
-  discord: '',
-  youtube: ''
-}
+const EMPTY_CONFIG: LoaderConfig = { website: '' }
 
-const FIELDS: Array<keyof LoaderConfig> = ['website', 'instagram', 'tiktok', 'discord', 'youtube']
+const FIELDS: Array<keyof LoaderConfig> = ['website']
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''

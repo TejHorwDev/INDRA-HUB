@@ -46,13 +46,9 @@ export default function Settings({
   onInstall,
   onOpen
 }: Props): React.JSX.Element {
-  const links = [
-    { label: 'Website', url: config.website },
-    { label: 'Discord', url: config.discord },
-    { label: 'Instagram', url: config.instagram },
-    { label: 'TikTok', url: config.tiktok },
-    { label: 'YouTube', url: config.youtube }
-  ].filter((link) => Boolean(link.url))
+  // One link, and only if it is published. The social channels were removed from
+  // the app entirely: nothing here should send somebody to Instagram.
+  const links = config.website ? [{ label: 'Website', url: config.website }] : []
 
   return (
     <div className="absolute inset-0">

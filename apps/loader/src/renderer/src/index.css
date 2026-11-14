@@ -56,9 +56,12 @@ body {
 /*
  * The window.
  *
- * `app-region: drag` on the whole window, and `no-drag` on everything a user can
- * click (below). A frameless window that cannot be dragged by its empty space is
- * stuck wherever Windows opened it — which is exactly what this was doing.
+ * Nothing here is a drag region. Making the whole window draggable is the obvious
+ * way to get a movable frameless window and it is wrong: on Windows the drag
+ * region swallows mouse input — every button, every slider, the whole page — so
+ * the app looks fine and answers nothing.
+ *
+ * Dragging is a strip, below, and nothing else.
  */
 .shell {
   position: relative;
@@ -67,21 +70,26 @@ body {
   border-radius: var(--radius-window);
   overflow: hidden;
   background: var(--color-bg);
-  -webkit-app-region: drag;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.055),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
-/* Anything interactive takes the drag region back, or it cannot be clicked. */
-.shell button,
-.shell a,
-.shell input,
-.shell textarea,
-.shell select,
-.shell [role='button'],
-.shell .no-drag {
-  -webkit-app-region: no-drag;
+/*
+ * The drag strip.
+ *
+ * Forty pixels along the top, stopping short of the window controls so they stay
+ * clickable, and above the screens in paint order. Everything below it behaves
+ * like an ordinary window again.
+ */
+.drag-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 104px;
+  height: 40px;
+  z-index: 40;
+  -webkit-app-region: drag;
 }
 
 /*
