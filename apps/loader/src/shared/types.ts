@@ -157,6 +157,8 @@ export interface LoaderBridge {
     check: () => Promise<UpdateState>
     install: () => Promise<UpdateState>
     diagnose: () => Promise<UpdateDiagnostics>
+    /** The last few things the updater did, oldest first. */
+    log: () => Promise<string[]>
     /**
      * Tells the main process which screen is showing.
      *

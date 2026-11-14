@@ -1,6 +1,8 @@
-import type { LoaderConfig, UpdateState } from '@shared/types'
+import { useEffect, useState } from 'react'
+import type { LoaderConfig, UpdateDiagnostics, UpdateState } from '@shared/types'
 import WindowControls from '../components/WindowControls'
 import Button from '../components/Button'
+import { bridge } from '../lib/bridge'
 
 /*
  * Settings.
@@ -52,6 +54,32 @@ export default function Settings({
   // One link, and only if it is published. The social channels were removed from
   // the app entirely: nothing here should send somebody to Instagram.
   const links = config.website ? [{ label: 'Website', url: config.website }] : []
+
+  /*
+   * The update path, tested for real.
+   *
+   * "It does not update" is three different failures wearing one sentence: the feed
+   * could not be reached, the manifest could not be read, or the payload could not be
+   * downloaded. Each of them is a request, and this runs all three in order and
+   * prints what came back — so the answer is a sentence rather than another guess.
+   */
+  const [diagnosis, setDiagnosis] = useState<UpdateDiagnostics | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [log, setLog] = useState<string[]>([])
+
+  useEffect(() => {
+    void bridge.updates.log().then(setLog)
+  }, [update.phase])
+
+  async function test(): Promise<void> {
+    setTesting(true)
+    try {
+      setDiagnosis(await bridge.updates.diagnose())
+    } finally {
+      setTesting(false)
+      setLog(await bridge.updates.log())
+    }
+  }
 
   return (
     <div className="absolute inset-0">
@@ -109,6 +137,9 @@ export default function Settings({
               <Button variant="ghost" disabled={busy || !update.canCheck} onClick={onCheck}>
                 Check for updates
               </Button>
+              <Button variant="ghost" disabled={testing || !update.canCheck} onClick={() => void test()}>
+                {testing ? 'Testing…' : 'Test the connection'}
+              </Button>
               {update.canInstall ? (
                 <Button variant="solid" disabled={busy} onClick={onInstall}>
                   Restart to apply
@@ -135,6 +166,42 @@ export default function Settings({
             <p className="mt-1.5 font-mono text-[10px] leading-[15px] text-[var(--color-ink-3)]">
               {update.detail}
             </p>
+          ) : null}
+
+          {diagnosis ? (
+            <div className="mt-3 border-t border-[var(--hairline)] pt-2.5">
+              {diagnosis.steps.map((step) => (
+                <p
+                  key={step.label}
+                  className="flex gap-2 font-mono text-[10px] leading-[16px] text-[var(--color-ink-3)]"
+                >
+                  <span className={step.ok ? 'text-[var(--color-ink)]' : 'text-[var(--color-danger)]'}>
+                    {step.ok ? 'ok' : 'no'}
+                  </span>
+                  <span className="min-w-0 flex-1 break-words">
+                    {step.label}: {step.detail}
+                  </span>
+                </p>
+              ))}
+            </div>
+          ) : null}
+
+          {log.length > 0 ? (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.14em] text-[var(--color-ink-3)]">
+                What the updater did
+              </summary>
+              <div className="mt-2 space-y-[3px]">
+                {log.slice(-6).map((line) => (
+                  <p
+                    key={line}
+                    className="break-words font-mono text-[9.5px] leading-[14px] text-[var(--color-ink-3)]"
+                  >
+                    {line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s/, '')}
+                  </p>
+                ))}
+              </div>
+            </details>
           ) : null}
         </section>
 

@@ -182,6 +182,7 @@ const mock: LoaderBridge = {
     state: async () => idle,
     check: async () => idle,
     install: async () => idle,
+    log: async () => [],
     diagnose: async () => ({
       steps: [{ label: 'Preview', ok: true, detail: 'not available in the browser preview' }],
       latestVersion: null,

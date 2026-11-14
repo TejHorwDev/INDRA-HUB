@@ -28,8 +28,22 @@ import { checkForUpdates, installUpdate, noteScreen, updateState } from './servi
 const WIDTH = 340
 const HEIGHT = 300
 
-/** Past this, the app opens and the download finishes in the background. */
-const GRACE_MS = 10_000
+/*
+ * How long the card may hold the app, per stage.
+ *
+ * It used to be one flat ten seconds for everything, which meant a check against a
+ * sleeping panel — thirty to sixty seconds on a free instance — was abandoned while
+ * it was still working, and a download that had barely started was abandoned with it.
+ * The app then opened on the old build and nothing said why.
+ *
+ * A person watching a card that reads "Downloading update…" is not being kept
+ * waiting; they are being told what is happening. A person watching a spinner for a
+ * minute is. So: a check gets long enough to survive a cold start, a download gets as
+ * long as it needs — three minutes of visible progress — and anything past either
+ * budget closes the card and finishes in the background, exactly as before.
+ */
+const CHECK_GRACE_MS = 30_000
+const DOWNLOAD_GRACE_MS = 180_000
 
 export interface LaunchResult {
   card: BrowserWindow | null
@@ -150,6 +164,10 @@ export async function runLaunchCard(): Promise<LaunchResult> {
 
   const started = Date.now()
 
+  /** When the updater last changed phase, so each stage gets its own budget. */
+  let phase = updateState().phase
+  let phaseSince = started
+
   try {
     await painted
     await delay(LAUNCH_HOLD.checking)
@@ -159,7 +177,13 @@ export async function runLaunchCard(): Promise<LaunchResult> {
     void checkForUpdates(false).catch(() => undefined)
 
     for (;;) {
-      const next = stageForPhase(updateState().phase)
+      const now = updateState().phase
+      if (now !== phase) {
+        phase = now
+        phaseSince = Date.now()
+      }
+
+      const next = stageForPhase(now)
 
       if (next === 'downloading') await moveTo('downloading')
 
@@ -177,7 +201,13 @@ export async function runLaunchCard(): Promise<LaunchResult> {
       }
 
       if (next === 'done') break
-      if (Date.now() - started > GRACE_MS) break
+
+      /*
+       * Downloading is the one stage worth waiting out: the work is visible, it ends
+       * on its own, and the alternative is a restart the person has to perform.
+       */
+      const budget = now === 'available' || now === 'downloading' ? DOWNLOAD_GRACE_MS : CHECK_GRACE_MS
+      if (Date.now() - phaseSince > budget) break
       await delay(120)
     }
   } catch (error) {
