@@ -226,6 +226,18 @@ check('the stripe moves when the length is unknown', /download-stripe/.test(read
 check('a stall is detected rather than waited on', /STALL_MS/.test(service))
 check('and the transfer is continued, not restarted', /resumeFrom: resumableBytes\(target\.exe\)/.test(service))
 
+/*
+ * A fixed response cannot reach a cache written before the fix.
+ *
+ * 1.0.27 will have the old film cached for a day — a copy with no length, which cannot
+ * seek and therefore cannot loop. The cache is dropped once per version, before the
+ * window exists, or the update would appear to have changed nothing.
+ */
+const cache = code(readFileSync(join(main, 'lib/cache-version.ts'), 'utf8'))
+const entry = code(readFileSync(join(main, 'index.ts'), 'utf8'))
+check('an old cache is dropped on the first start of a new version', /previous\(\) === current\) return/.test(cache))
+check('and it is dropped before anything is fetched', /await clearCacheOnUpdate\(\)/.test(entry))
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.
