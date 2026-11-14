@@ -8,6 +8,9 @@ export default function Nav(): React.JSX.Element {
 
   return (
     <>
+      <Link href="/admin" data-active={path === '/admin'}>
+        Overview
+      </Link>
       <Link href="/admin/apps" data-active={path === '/admin/apps'}>
         Products
       </Link>

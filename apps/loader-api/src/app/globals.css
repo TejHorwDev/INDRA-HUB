@@ -399,3 +399,121 @@ td strong {
   display: block;
   margin-bottom: 22px;
 }
+
+/* --------------------------------------------------------------- overview ---- */
+
+/*
+ * Four numbers, read-only, no charts.
+ *
+ * The panel's job is to answer "is anything wrong" in the time it takes the page
+ * to paint. A sparkline would not answer it any faster and would be one more thing
+ * to be wrong about.
+ */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+}
+
+.stat-value {
+  font-size: 21px;
+  line-height: 1.1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* --------------------------------------------------------------- toolbar ---- */
+
+/*
+ * The filter row above a table. Sticky, because the list is the one thing on the
+ * page that grows without bound.
+ */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toolbar input[type='search'] {
+  flex: 1 1 220px;
+  min-width: 160px;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  outline: none;
+}
+
+.toolbar input[type='search']:focus-visible {
+  border-color: rgba(167, 155, 199, 0.55);
+}
+
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+}
+
+.seg button {
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.seg button[data-active='true'] {
+  color: var(--ink);
+  background: rgba(167, 155, 199, 0.16);
+}
+
+/* A row action that reads as a sentence, not an icon nobody recognises. */
+.row-action {
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--ink-2);
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.row-action:hover {
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.row-action[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}

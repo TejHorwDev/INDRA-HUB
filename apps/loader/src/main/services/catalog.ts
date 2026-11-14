@@ -23,9 +23,10 @@ const API_BASE = (
   typeof __LOADER_API__ === 'string' && __LOADER_API__ ? __LOADER_API__ : (process.env['INDRA_LOADER_API'] ?? '')
 ).replace(/\/+$/, '')
 
-const EMPTY_CONFIG: LoaderConfig = { website: '', video: '' }
+const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
 
-const FIELDS: Array<keyof LoaderConfig> = ['website', 'video']
+/** The text-valued settings. `maintenance` is parsed separately — it is a flag. */
+const FIELDS: Array<'website' | 'video' | 'notice'> = ['website', 'video', 'notice']
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -89,11 +90,29 @@ export async function loadCatalogue(): Promise<Catalogue> {
     ? list.map(toApp).filter((app): app is LoaderApp => app !== null)
     : []
 
-  const config = { ...EMPTY_CONFIG }
-  if (configBody && typeof configBody === 'object') {
-    const record = configBody as Record<string, unknown>
-    for (const field of FIELDS) config[field] = text(record[field])
-  }
+  return { apps, config: toConfig(configBody) }
+}
 
-  return { apps, config }
+/** The published settings, normalised. Also used on its own by the launch card. */
+export function toConfig(body: unknown): LoaderConfig {
+  const config: LoaderConfig = { ...EMPTY_CONFIG }
+  if (!body || typeof body !== 'object') return config
+
+  const record = body as Record<string, unknown>
+  for (const field of FIELDS) config[field] = text(record[field])
+  /*
+   * Maintenance is written by the panel as '1' or '0' — a string, because the
+   * config table has one column and it is text. `true` is accepted too, since a
+   * hand-written row is a reasonable thing for an operator to leave behind.
+   */
+  const flag = record['maintenance']
+  config.maintenance = flag === true || flag === '1' || flag === 'true'
+
+  return config
+}
+
+/** Just the settings, for callers that do not need the catalogue. */
+export async function readConfig(timeoutMs?: number): Promise<LoaderConfig> {
+  if (!API_BASE) return { ...EMPTY_CONFIG }
+  return toConfig(await get('/api/loader/config', timeoutMs))
 }

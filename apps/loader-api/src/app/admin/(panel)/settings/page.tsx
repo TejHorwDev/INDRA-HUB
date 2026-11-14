@@ -1,4 +1,5 @@
 import Appearance from '@/components/Appearance'
+import Broadcast from '@/components/Broadcast'
 import LinkConfig from '@/components/LinkConfig'
 import { adminReady, databaseReady } from '@/lib/env'
 import { driver } from '@/lib/storage'
@@ -28,6 +29,14 @@ export default function SettingsPage(): React.JSX.Element {
           for everyone on their next launch — no release, no update.
         </p>
         <Appearance />
+      </div>
+
+      <div className="card">
+        <h2>Announcement &amp; maintenance</h2>
+        <p className="hint" style={{ marginBottom: 14, lineHeight: 1.7 }}>
+          Two things that reach every installed copy without a release.
+        </p>
+        <Broadcast />
       </div>
 
       <div className="card">

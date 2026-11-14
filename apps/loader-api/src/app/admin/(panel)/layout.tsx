@@ -23,7 +23,7 @@ export default async function PanelLayout({
   return (
     <main className="shell">
       <div className="topbar">
-        <Link href="/admin/apps" className="wordmark">
+        <Link href="/admin" className="wordmark">
           INDRA LOADER · ADMIN
         </Link>
         <nav>

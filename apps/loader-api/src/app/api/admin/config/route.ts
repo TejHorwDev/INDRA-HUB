@@ -10,7 +10,7 @@ import { body, fail, ok, serverError } from '@/lib/http'
  * will then wonder about.
  */
 
-const KNOWN = ['website', 'video'] as const
+const KNOWN = ['website', 'video', 'notice', 'maintenance'] as const
 
 export async function GET(): Promise<Response> {
   if (!(await currentSession())) return fail('Not signed in.', 401)
@@ -31,6 +31,9 @@ export async function PUT(request: Request): Promise<Response> {
   for (const key of KNOWN) {
     const raw = payload[key]
     if (typeof raw === 'string') values[key] = raw.trim().slice(0, 500)
+    /* A flag arrives as a boolean from the panel's switch and is stored as text,
+       because the config table has one column and it is text. */
+    if (typeof raw === 'boolean') values[key] = raw ? '1' : '0'
   }
   if (Object.keys(values).length === 0) return fail('Nothing to save.')
 

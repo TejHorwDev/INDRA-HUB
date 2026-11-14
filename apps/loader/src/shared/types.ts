@@ -100,6 +100,16 @@ export interface LoaderConfig {
    * Set from the admin panel, so the film can change without a release.
    */
   video: string
+  /**
+   * A sentence the panel wants everybody to see, above their library. Empty means
+   * no banner — the app never invents an announcement to fill the space.
+   */
+  notice: string
+  /**
+   * When set, the app shows a closed sign instead of the library. For the minute
+   * you are migrating a bucket, not for a weekend.
+   */
+  maintenance: boolean
 }
 
 /** What the diagnostics button reports about the entitlement lookup. */

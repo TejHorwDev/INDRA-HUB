@@ -57,6 +57,20 @@ export default function Dashboard({
 
   return (
     <div className="absolute inset-0">
+      {/*
+        * What the panel wants to say. It sits above the strip, in the app's own
+        * voice, and it is absent entirely when there is nothing to say — a banner
+        * that reserves space for itself reads as a permanent fixture.
+        */}
+      {config.notice ? (
+        <div
+          className="absolute left-6 right-6 top-[46px] rounded-lg border border-[var(--color-edge)] bg-[rgba(167,155,199,0.07)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--color-ink-2)]"
+          role="status"
+        >
+          {config.notice}
+        </div>
+      ) : null}
+
       <div className="absolute left-6 top-[14px] max-w-[520px]">
         <div className="text-[9.5px] font-semibold uppercase tracking-[0.28em] text-[var(--color-ink-3)]">
           Indra Loader

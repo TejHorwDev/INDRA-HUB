@@ -19,7 +19,12 @@ export async function GET(): Promise<Response> {
   try {
     const config = await readConfig()
     return Response.json(
-      { website: config.website ?? '', video: config.video ?? '' },
+      {
+        website: config.website ?? '',
+        video: config.video ?? '',
+        notice: config.notice ?? '',
+        maintenance: config.maintenance === '1' || config.maintenance === 'true' ? '1' : '0'
+      },
       { headers: { 'cache-control': 'public, max-age=60, stale-while-revalidate=300' } }
     )
   } catch (error) {
