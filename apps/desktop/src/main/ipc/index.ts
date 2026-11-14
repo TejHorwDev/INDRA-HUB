@@ -1015,8 +1015,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     'admin:project:rename',
     (_event, payload: { projectId?: unknown; name?: unknown }) =>
-      toResult(() => {
-        renameProject(requireProjectId(payload?.projectId), requireText(payload?.name, 'name'))
+      toResult(async () => {
+        await renameProject(requireProjectId(payload?.projectId), requireText(payload?.name, 'name'))
         return null
       })
   )
@@ -1024,29 +1024,29 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     'admin:project:transfer',
     (_event, payload: { projectId?: unknown; ownerId?: unknown }) =>
-      toResult(() => {
-        transferProject(requireProjectId(payload?.projectId), requireUserId(payload?.ownerId))
+      toResult(async () => {
+        await transferProject(requireProjectId(payload?.projectId), requireUserId(payload?.ownerId))
         return null
       })
   )
 
   ipcMain.handle('admin:project:delete', (_event, projectId: unknown) =>
-    toResult(() => {
-      deleteProject(requireProjectId(projectId))
+    toResult(async () => {
+      await deleteProject(requireProjectId(projectId))
       return null
     })
   )
 
   ipcMain.handle('admin:document:delete', (_event, documentId: unknown) =>
-    toResult(() => {
-      deleteDocumentAsAdmin(requireRecordId(documentId))
+    toResult(async () => {
+      await deleteDocumentAsAdmin(requireRecordId(documentId))
       return null
     })
   )
 
   ipcMain.handle('admin:presentation:delete', (_event, presentationId: unknown) =>
-    toResult(() => {
-      deletePresentationAsAdmin(requireRecordId(presentationId))
+    toResult(async () => {
+      await deletePresentationAsAdmin(requireRecordId(presentationId))
       return null
     })
   )
