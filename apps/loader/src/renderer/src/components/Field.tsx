@@ -1,11 +1,15 @@
 import { forwardRef } from 'react'
 
 /*
- * A text field.
+ * A text field, drawn as a line rather than a box.
  *
- * Focus is a hairline going from 7% to 40% accent — no halo, no glow, no ring
- * outside the control. The caret is the accent colour because it is the only
- * place a caret can be.
+ * The sign-in screen sits on a film now, and a rounded rectangle is an object: three
+ * of them stacked in the middle of the window turned the page into a form on top of a
+ * picture. A hairline under the text reads as a place to type without adding anything
+ * to look at — the field is the line and the words on it.
+ *
+ * Focus is the same line getting brighter and the caret, which is already the
+ * brightest thing in an input. No halo, no ring, no glow.
  */
 
 interface Props extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -15,26 +19,27 @@ interface Props extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Field = forwardRef<HTMLInputElement, Props>(function Field(
-  { width, height = 42, trailing, className = '', ...rest },
+  { width, height = 44, trailing, className = '', ...rest },
   ref
 ) {
   return (
     <div
-      className="relative flex items-center border border-[var(--hairline)] bg-[var(--color-raised)] transition-colors duration-150 focus-within:border-[rgba(255,255,255,0.34)]"
-      style={{ width, height, borderRadius: 10 }}
+      className="relative flex items-center border-b border-[rgba(255,255,255,0.16)] transition-colors duration-200 focus-within:border-[rgba(255,255,255,0.6)]"
+      style={{ width, height }}
     >
       <input
         ref={ref}
         {...rest}
         className={[
-          'h-full w-full bg-transparent px-3.5 text-[12.5px] text-[var(--color-ink)]',
+          'h-full w-full bg-transparent pb-[3px] pr-9 pt-2 text-[13px] text-[var(--color-ink)]',
           'placeholder:text-[var(--color-ink-3)] focus:outline-none',
           'caret-[var(--color-accent)] selection:bg-[rgba(255,255,255,0.22)]',
           className
         ].join(' ')}
-        style={{ borderRadius: 10 }}
       />
-      {trailing ? <div className="absolute right-2.5 flex items-center">{trailing}</div> : null}
+      {trailing ? (
+        <div className="absolute inset-y-0 right-0 flex items-center pb-[3px]">{trailing}</div>
+      ) : null}
     </div>
   )
 })
