@@ -57,7 +57,18 @@ export async function GET(
    * they are written, and neither is secret — an installer is, and it stays proxied:
    * downloaded once, hashed, verified.
    */
-  if (path.startsWith('videos/') || path.startsWith('images/')) {
+  /*
+   * Only the film is redirected, and the reason is worth writing down because the
+   * opposite was tried.
+   *
+   * A signed address is a *different* address every time it is issued, so a browser can
+   * never reuse what it fetched — every launch, every card, downloaded again from the
+   * start, and a video that stutters while it streams what it should already have. Card
+   * artwork is small and read constantly, so it keeps one stable address and one
+   * immutable cache entry. The film is different: the loader keeps its own copy on disk,
+   * so the redirect costs nothing after the first play.
+   */
+  if (path.startsWith('videos/')) {
     const direct = await directUrl(path)
     if (direct) {
       return new Response(null, {
@@ -125,11 +136,9 @@ export async function GET(
          * cached for a year without ever serving a stale picture. That is the difference
          * between a card that paints and a card that arrives.
          */
-        'cache-control': type.startsWith('video/')
-          ? 'public, max-age=86400'
-          : type.startsWith('image/')
-            ? 'public, max-age=31536000, immutable'
-            : 'public, max-age=300',
+        'cache-control': type.startsWith('video/') || type.startsWith('image/')
+          ? 'public, max-age=31536000, immutable'
+          : 'public, max-age=300',
         'x-content-type-options': 'nosniff'
       }
     }
