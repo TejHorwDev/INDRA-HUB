@@ -50,9 +50,15 @@ export async function GET(request: Request): Promise<Response> {
      * difference between "GitHub is down" and "there is no update" is the difference
      * between waiting and believing you are current.
      */
-    console.error('[loader/update]', error instanceof Error ? error.message : error)
+    const reason = error instanceof Error ? error.message : String(error)
+    console.error('[loader/update]', reason)
+    /*
+     * The reason is returned as well as logged. Without a Render log tab open, a 503
+     * with no detail is indistinguishable from every other way this can fail, and the
+     * person who can see the JSON is the person who can fix it.
+     */
     return Response.json(
-      { error: 'The release feed is not reachable right now.' },
+      { error: 'The release feed is not reachable right now.', detail: reason.slice(0, 200) },
       { status: 503, headers: { 'cache-control': 'no-store' } }
     )
   }
