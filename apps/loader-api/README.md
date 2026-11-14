@@ -149,6 +149,26 @@ Both are public, read-only, and never return a 500: a database that is unreachab
 answers with an empty catalogue, because the loader treats a failure and an empty
 catalogue the same way and only one of them is loud.
 
+## Keeping a free instance awake
+
+`/api/health` answers `GET` and `HEAD` with a small JSON body and a 200, and it
+touches the database on every call — which also stops a free Supabase project from
+pausing for inactivity.
+
+Point an uptime monitor (UptimeRobot's free plan is 5-minute intervals) at:
+
+```
+https://<your-service>.onrender.com/api/health
+```
+
+Five minutes is well inside Render's fifteen-minute idle window, so the service
+never spins down. One monitor at that interval uses roughly 730 instance hours a
+month against the free plan's 750 — it fits, with very little room to spare.
+
+Use `?deep=1` if you would rather the monitor went red when the database is
+unreachable; without it, a database problem is reported in the body rather than as a
+failed check.
+
 ## Checking it
 
 ```bash
