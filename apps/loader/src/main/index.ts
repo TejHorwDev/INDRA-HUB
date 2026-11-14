@@ -29,6 +29,21 @@ applyIdentity()
 // window may want to play the film — so this is the earliest line that can hold it.
 registerFilmScheme()
 
+/*
+ * Video, on the GPU where there is one.
+ *
+ * Every screen in this app is a 1080p video and a composited window over it, which is the
+ * one thing a browser is genuinely good at — *if* it is allowed to use the graphics card.
+ * Chromium blocklists a lot of drivers by default, and when it does, it decodes video in
+ * software and drops frames, which reads as "the video plays slowly". These switches ask
+ * for the fast path and do not force it: a machine with no usable GPU simply keeps the
+ * software path it would have taken anyway.
+ */
+app.commandLine.appendSwitch('ignore-gpu-blocklist')
+app.commandLine.appendSwitch('enable-gpu-rasterization')
+app.commandLine.appendSwitch('enable-accelerated-video-decode')
+app.commandLine.appendSwitch('enable-zero-copy')
+
 const isDev = !app.isPackaged
 
 /*

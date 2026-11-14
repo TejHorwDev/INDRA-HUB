@@ -182,6 +182,11 @@ const mock: LoaderBridge = {
    * The browser preview has no disk and no film cache, so it points at the published
    * address like a first launch would. Nothing to listen to.
    */
+  video: {
+    // A browser tab has whatever the browser gives it; nothing to ask.
+    status: async () => ({ hardware: true, decode: 'unknown', rasterization: 'unknown', compositing: 'unknown' })
+  },
+
   media: {
     film: async () => null,
     onFilm: () => () => undefined

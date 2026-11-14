@@ -112,6 +112,23 @@ export function registerIpc(handlers: Handlers): void {
    * already knows, answered from the disk.
    */
   ipcMain.handle('media:film', () => currentFilmSource())
+
+  /*
+   * Whether this machine is decoding video with a graphics card or with its processor.
+   *
+   * Chromium knows, and it is the difference between a smooth card and a slideshow — so it
+   * is answerable in Settings instead of guessed at from a distance.
+   */
+  ipcMain.handle('app:video', () => {
+    const features = app.getGPUFeatureStatus()
+    const decode = features.video_decode ?? 'unknown'
+    return {
+      hardware: decode.startsWith('enabled'),
+      decode,
+      rasterization: features.rasterization ?? 'unknown',
+      compositing: features.gpu_compositing ?? 'unknown'
+    }
+  })
   ipcMain.handle('auth:probe', () => entitlementReport())
   ipcMain.handle('auth:owned', () => ownedProductIds())
 
