@@ -273,7 +273,15 @@ export default function App(): React.JSX.Element {
         </div>
       ) : null}
 
-      {screen === 'home' && !config.maintenance ? (
+      {/*
+        * The library steps aside while a product is open.
+        *
+        * The detail overlay used to paint over it — an opaque sheet, which is why the
+        * film stopped there. Without that sheet the two screens would be stacked on top
+        * of each other, so the one underneath is simply not rendered: the detail has the
+        * window to itself, and the film runs behind it like everywhere else.
+        */}
+      {screen === 'home' && !config.maintenance && !selected ? (
         <Dashboard
           apps={apps}
           owned={owned}
