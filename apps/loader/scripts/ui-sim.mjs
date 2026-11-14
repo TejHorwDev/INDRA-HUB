@@ -116,6 +116,20 @@ check('the rail fits inside the window with room for the arrows', span <= 900 - 
 check('nothing stretches a card to fill the row', !/min-w-0 flex-1/.test(dash))
 check('more than three becomes a page, not a smaller card', /Math\.ceil\(apps\.length \/ PAGE_SIZE\)/.test(dash))
 
+/*
+ * The shelf shows artwork and names.
+ *
+ * A version number and a line of description on a 232px square is two lines of small
+ * type where the picture should be; both live in the product's own screen, where they
+ * can be read. Asking for one of them back is a design decision, and it should have to
+ * be made on purpose rather than creep back in.
+ */
+const shelf = code(readFileSync(join(renderer, 'components/Card.tsx'), 'utf8'))
+check('the card carries no version', !/app\.version/.test(shelf))
+check('the card carries no description', !/app\.description/.test(shelf))
+check('the artwork fills the card', /absolute inset-0/.test(shelf) && !/h-\[128px\]/.test(shelf))
+check('the library is called Browse library', /Browse library/.test(dash))
+
 console.log('\nThe landing page')
 const landing = code(readFileSync(join(renderer, 'screens/Landing.tsx'), 'utf8'))
 check('has no social row', !/FOLLOW US|Follow us|instagram-icon|SocialMark/i.test(landing))
