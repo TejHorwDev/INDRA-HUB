@@ -318,6 +318,13 @@ check('it starts without a click', /autoPlay/.test(monogram) && /muted/.test(mon
 check('and loops quietly', /loop/.test(monogram) && !/controls/.test(monogram))
 check('warmed by playing, not by fetching twice', /mp4\|webm/.test(appShell))
 
+/*
+ * Artwork that cannot be drawn is worse than no artwork: a black rectangle in a grid of
+ * working cards reads as a broken app. Both paths fall back to the wash and the initial.
+ */
+check('a picture that fails falls back to the wash', /if \(usable\)/.test(monogram) && /onError=\{\(\) => setFailed\(true\)\}/.test(monogram))
+check('and so does a video', (monogram.match(/onError/g) ?? []).length === 2)
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.
