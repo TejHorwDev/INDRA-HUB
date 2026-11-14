@@ -1449,3 +1449,88 @@ export function forgetCloudIdentity(viewer: SessionUser): void {
   clearSetting(`${PROFILE_PREFIX}:${viewer.id}`)
   getDatabase().prepare('DELETE FROM cloud_saves').run()
 }
+
+/* ------------------------------------------------------------------ */
+/* The console changes a project on the server                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The cloud copy is the one other machines pull, so a console change that stops
+ * at this PC is undone by the next sync — a deleted project comes back, a
+ * rename reverts, a transfer moves nothing. Each of these runs the matching
+ * server function first; `false` means the project was never pushed, which is
+ * not an error, only a project that exists solely on this machine.
+ */
+
+async function callAdminRpc(adminId: string, fn: string, body: Record<string, unknown>): Promise<boolean> {
+  try {
+    const result = await adminCloudRequest<boolean | null>(adminId, `/rest/v1/rpc/${fn}`, {
+      method: 'POST',
+      body
+    })
+    return result === true
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (/not_an_administrator/.test(text)) {
+      throw errors.validation(
+        'The server does not recognise this account as the administrator, so nothing was changed.',
+        'code'
+      )
+    }
+    if (/no_such_owner/.test(text)) {
+      throw errors.validation('That account has no cloud profile yet, so it cannot own a project.', 'ownerId')
+    }
+    throw new Error(`The server refused: ${text}`)
+  }
+}
+
+export async function adminDeleteCloudProject(adminId: string, localProjectId: string): Promise<boolean> {
+  return callAdminRpc(adminId, 'indra_admin_delete_project', { p_id: cloudProjectId(localProjectId) })
+}
+
+export async function adminDeleteCloudDocument(adminId: string, localDocumentId: string): Promise<boolean> {
+  const row = getDatabase()
+    .prepare('SELECT project_id FROM documents WHERE id = ?')
+    .get(localDocumentId) as { project_id: string } | undefined
+  if (!row) return false
+  return callAdminRpc(adminId, 'indra_admin_delete_document', {
+    p_id: cloudDocumentId(row.project_id, localDocumentId)
+  })
+}
+
+export async function adminDeleteCloudPresentation(
+  adminId: string,
+  localPresentationId: string
+): Promise<boolean> {
+  const row = getDatabase()
+    .prepare('SELECT project_id FROM presentations WHERE id = ?')
+    .get(localPresentationId) as { project_id: string } | undefined
+  if (!row) return false
+  return callAdminRpc(adminId, 'indra_admin_delete_presentation', {
+    p_id: cloudPresentationId(row.project_id, localPresentationId)
+  })
+}
+
+export async function adminRenameCloudProject(
+  adminId: string,
+  localProjectId: string,
+  name: string,
+  description: string | null
+): Promise<boolean> {
+  return callAdminRpc(adminId, 'indra_admin_rename_project', {
+    p_id: cloudProjectId(localProjectId),
+    p_name: name,
+    p_description: description
+  })
+}
+
+export async function adminTransferCloudProject(
+  adminId: string,
+  localProjectId: string,
+  newOwnerProfileId: string
+): Promise<boolean> {
+  return callAdminRpc(adminId, 'indra_admin_transfer_project', {
+    p_id: cloudProjectId(localProjectId),
+    p_new_owner: newOwnerProfileId
+  })
+}

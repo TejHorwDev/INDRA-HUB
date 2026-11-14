@@ -3,7 +3,15 @@ import { statSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { signInAccount } from './account'
-import { adminCloudRequest, adminCloudRole } from './cloud'
+import {
+  adminCloudRequest,
+  adminCloudRole,
+  adminDeleteCloudDocument,
+  adminDeleteCloudPresentation,
+  adminDeleteCloudProject,
+  adminRenameCloudProject,
+  adminTransferCloudProject
+} from './cloud'
 import type {
   AdminAccount,
   AdminAccountRow,
@@ -864,10 +872,14 @@ function requireProjectRow(projectId: string): { id: string; name: string; owner
   return row
 }
 
-export function renameProject(projectId: string, name: string): void {
+export async function renameProject(projectId: string, name: string): Promise<void> {
   const admin = requireAdmin()
   const project = requireProjectRow(projectId)
   const { name: clean } = validateProjectInput({ name })
+
+  // The cloud name is what other machines read; a rename that stops here is
+  // undone by the next pull.
+  await adminRenameCloudProject(admin.id, projectId, clean, null).catch(() => false)
 
   getDatabase()
     .prepare('UPDATE projects SET name = ?, updated_at = ? WHERE id = ?')
@@ -875,7 +887,7 @@ export function renameProject(projectId: string, name: string): void {
   audit('project_renamed', `Project "${project.name}" renamed to "${clean}".`, admin.id)
 }
 
-export function transferProject(projectId: string, ownerId: string): void {
+export async function transferProject(projectId: string, ownerId: string): Promise<void> {
   const admin = requireAdmin()
   const project = requireProjectRow(projectId)
   const target = requireUserRow(ownerId)
@@ -885,6 +897,18 @@ export function transferProject(projectId: string, ownerId: string): void {
   }
   if (target.suspended_at) {
     throw errors.validation('Restore the account before making it a project owner.', 'ownerId')
+  }
+
+  /*
+   * The cloud row is keyed on the profile id, not the local one, so the transfer
+   * is done there first and with that id. An account with no cloud profile has
+   * nothing up there to own a project, and the server says so.
+   */
+  const profile = getDatabase()
+    .prepare('SELECT cloud_profile_id FROM users WHERE id = ?')
+    .get(ownerId) as { cloud_profile_id: string | null } | undefined
+  if (profile?.cloud_profile_id) {
+    await adminTransferCloudProject(admin.id, projectId, profile.cloud_profile_id)
   }
 
   const db = getDatabase()
@@ -913,9 +937,15 @@ export function transferProject(projectId: string, ownerId: string): void {
   )
 }
 
-export function deleteProject(projectId: string): void {
+export async function deleteProject(projectId: string): Promise<void> {
   const admin = requireAdmin()
   const project = requireProjectRow(projectId)
+
+  /*
+   * The cloud copy goes first. Deleting only here looked finished until the next
+   * sync pulled the project back — with its documents, decks and members.
+   */
+  await adminDeleteCloudProject(admin.id, projectId)
 
   getDatabase().prepare('DELETE FROM projects WHERE id = ?').run(projectId)
   audit('project_deleted', `Project "${project.name}" deleted with all its content.`, admin.id)
@@ -925,7 +955,7 @@ export function deleteProject(projectId: string): void {
 /* Content                                                             */
 /* ------------------------------------------------------------------ */
 
-export function deleteDocument(documentId: string): void {
+export async function deleteDocument(documentId: string): Promise<void> {
   const admin = requireAdmin()
   const row = getDatabase()
     .prepare(
@@ -935,6 +965,8 @@ export function deleteDocument(documentId: string): void {
     )
     .get(documentId) as { title: string; project_name: string } | undefined
   if (!row) throw errors.notFound('That document no longer exists.')
+
+  await adminDeleteCloudDocument(admin.id, documentId)
 
   const db = getDatabase()
   db.exec('BEGIN')
@@ -953,7 +985,7 @@ export function deleteDocument(documentId: string): void {
   audit('document_deleted', `Document "${row.title}" deleted from "${row.project_name}".`, admin.id)
 }
 
-export function deletePresentation(presentationId: string): void {
+export async function deletePresentation(presentationId: string): Promise<void> {
   const admin = requireAdmin()
   const row = getDatabase()
     .prepare(
@@ -963,6 +995,8 @@ export function deletePresentation(presentationId: string): void {
     )
     .get(presentationId) as { title: string; project_name: string } | undefined
   if (!row) throw errors.notFound('That presentation no longer exists.')
+
+  await adminDeleteCloudPresentation(admin.id, presentationId)
 
   getDatabase().prepare('DELETE FROM presentations WHERE id = ?').run(presentationId)
   audit(
