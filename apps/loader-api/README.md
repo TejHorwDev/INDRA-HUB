@@ -65,7 +65,18 @@ The same rows keep working; only new uploads land somewhere else.
 If you leave `PUBLIC_BASE_URL` empty, files are served through `/api/files/<key>`
 and the bucket stays private. That is the default and the safer one.
 
-## Setup
+## Deploying it
+
+**Render** — the repository has a `render.yaml` at the root. New → Blueprint → pick
+this repository → Render creates the service and asks for the three secrets once.
+Wait for the build, then open `https://<service>.onrender.com/admin`.
+
+**Vercel** — import the repository, set the root directory to `apps/loader-api`, and
+add the same variables. The panel is a Next.js app with no build-time secrets, so it
+builds first time.
+
+**Anything else** — `npm install && npm run build && npm start`, port 5280 by
+default.
 
 ### 1. Environment
 
