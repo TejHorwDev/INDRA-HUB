@@ -63,8 +63,8 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
       </button>
 
       <h2
-        className="wordmark fade-up absolute left-0 right-0 text-center text-[23px] leading-none"
-        style={{ top: 112 }}
+        className="fade-up absolute left-0 right-0 text-center text-[23px] leading-none"
+        style={{ top: 112, color: '#ffffff', fontWeight: 600, letterSpacing: '0.01em' }}
       >
         Sign in
       </h2>
@@ -76,11 +76,25 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
         Use the username and password you registered.
       </p>
 
-      {/* The form sits on its own plane over the motion. */}
+      {/*
+        * No box.
+        *
+        * It was a rounded panel of translucent black with a border and a lift, and
+        * the effect was a form pasted onto a picture. What is here instead is light:
+        * one soft ellipse of shadow behind the fields, no edge to find and no corner
+        * to read as a card. The video keeps going behind the whole screen.
+        */}
       <div
         aria-hidden
-        className="absolute border border-[var(--hairline)] bg-[#08080a]/55 backdrop-blur-[3px]"
-        style={{ left: 297, top: 168, width: 306, height: 214, borderRadius: 16, boxShadow: 'var(--sheen)' }}
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          top: 96,
+          width: 520,
+          height: 360,
+          background:
+            'radial-gradient(58% 62% at 50% 52%, rgba(6,6,8,0.72) 0%, rgba(6,6,8,0.55) 46%, transparent 78%)',
+          pointerEvents: 'none'
+        }}
       />
 
       <div className="absolute" style={{ left: 317, top: 188 }}>

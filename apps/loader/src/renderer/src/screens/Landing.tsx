@@ -23,7 +23,7 @@ const WEBSITE = 'https://indra-cheats.com'
 
 /** The composition, in the window's own coordinates. */
 const TITLE_TOP = 186
-const TITLE_SIZE = 46
+const TITLE_SIZE = 42
 const BUTTONS_TOP = 300
 
 interface Props {
@@ -63,7 +63,7 @@ export default function Landing({ onStart, onExternal }: Props): React.JSX.Eleme
           top: TITLE_TOP,
           fontSize: TITLE_SIZE,
           fontWeight: 600,
-          letterSpacing: '0.015em',
+          letterSpacing: '0.01em',
           color: '#ffffff'
         }}
       >
