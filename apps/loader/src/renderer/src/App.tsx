@@ -49,7 +49,6 @@ const LAUNCHED_BY_CARD = new URLSearchParams(window.location.search).get('card')
 export default function App(): React.JSX.Element {
   const [screen, setScreen] = useState<Screen>(LAUNCHED_BY_CARD ? 'landing' : 'splash')
   const [error, setError] = useState<string | null>(null)
-  const [username, setUsername] = useState<string | null>(null)
 
   const [apps, setApps] = useState<LoaderApp[]>([])
   const [owned, setOwned] = useState<string[]>([])
@@ -166,7 +165,6 @@ export default function App(): React.JSX.Element {
           return
         }
 
-        setUsername(result.username)
         setScreen('home')
         await loadLibrary()
       })()
@@ -281,7 +279,6 @@ export default function App(): React.JSX.Element {
           owned={owned}
           installs={installs}
           config={config}
-          username={username}
           loading={loading}
           onSettings={() => setScreen('settings')}
           onOpen={open}

@@ -41,7 +41,6 @@ interface Props {
   owned: string[]
   installs: Record<string, InstallView>
   config: LoaderConfig
-  username: string | null
   loading: boolean
   onSettings: () => void
   onOpen: (app: LoaderApp) => void
@@ -54,7 +53,6 @@ export default function Dashboard({
   owned,
   installs,
   config,
-  username,
   loading,
   onSettings,
   onOpen,
@@ -93,14 +91,14 @@ export default function Dashboard({
         </div>
       ) : null}
 
-      <div className="absolute left-6 top-[14px] max-w-[520px]">
-        <div className="text-[9.5px] font-semibold uppercase tracking-[0.28em] text-[var(--color-ink-3)]">
-          Indra Loader
-        </div>
-        {username ? (
-          <div className="mt-[3px] truncate text-[11px] text-[var(--color-ink-2)]">{username}</div>
-        ) : null}
-      </div>
+      {/*
+        * No corner label.
+        *
+        * "INDRA LOADER" over the account name sat in the top-left of every visit — the
+        * name of the app you are already looking at, and the name of the person who
+        * just signed in. Neither is information; both are furniture. The window's own
+        * title bar and the Settings screen already answer who is signed in.
+        */}
 
       <button
         type="button"
