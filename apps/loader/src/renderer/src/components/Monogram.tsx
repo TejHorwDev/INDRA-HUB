@@ -7,6 +7,8 @@
  * sit behind content.
  */
 
+import { useState } from 'react'
+
 const WASHES = [
   /*
    * The placeholder behind a product with no artwork: one soft light from a corner,
@@ -54,7 +56,18 @@ export default function Monogram({
   className = '',
   initialClassName = 'text-[38px]'
 }: Props): React.JSX.Element {
-  if (image) {
+  /*
+   * Artwork that cannot be drawn is worse than no artwork.
+   *
+   * A card whose file was deleted, or whose video the machine's codecs refuse, used to be
+   * a black rectangle — indistinguishable from a broken app in a grid of working ones.
+   * The wash and the initial are already the honest fallback for "no artwork yet", so a
+   * failure lands there instead of on a void.
+   */
+  const [failed, setFailed] = useState(false)
+  const usable = image && !failed
+
+  if (usable) {
     return (
       /*
        * A video card: muted, inline, looping — a moving picture where a still one would be,
@@ -71,6 +84,7 @@ export default function Monogram({
           preload="auto"
           tabIndex={-1}
           disablePictureInPicture
+          onError={() => setFailed(true)}
           className={`h-full w-full object-cover ${className}`}
         />
       ) : (
@@ -84,6 +98,7 @@ export default function Monogram({
           alt=""
           draggable={false}
           decoding="async"
+          onError={() => setFailed(true)}
           className={`h-full w-full object-cover ${className}`}
         />
       )
