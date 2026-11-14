@@ -57,8 +57,13 @@ export default function Dashboard({
 
   return (
     <div className="absolute inset-0">
-      <div className="absolute left-6 top-4 max-w-[520px] truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-3)]">
-        {username ? `Signed in as ${username}` : 'Signed in'}
+      <div className="absolute left-6 top-[14px] max-w-[520px]">
+        <div className="text-[9.5px] font-semibold uppercase tracking-[0.28em] text-[var(--color-ink-3)]">
+          Indra Loader
+        </div>
+        {username ? (
+          <div className="mt-[3px] truncate text-[11px] text-[var(--color-ink-2)]">{username}</div>
+        ) : null}
       </div>
 
       <button

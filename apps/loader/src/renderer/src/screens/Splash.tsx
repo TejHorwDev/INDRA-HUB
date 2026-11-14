@@ -1,9 +1,12 @@
 /*
  * Splash.
  *
- * "INDRA CHEATS LOADER" at 24px, each glyph arriving 35ms after the one before
- * it, then a hairline that sweeps out from the first letter. Four seconds, no
- * spinner, no progress bar — there is nothing being waited on.
+ * "INDRA CHEATS LOADER" at 24px, each glyph arriving 22ms after the one before it,
+ * then a hairline that sweeps out from the first letter.
+ *
+ * Two seconds, not four. Four was long enough to feel like something was loading,
+ * and nothing is: the app is already running, and the splash is the window
+ * arriving rather than a wait.
  */
 
 const TITLE = 'INDRA CHEATS LOADER'
@@ -16,7 +19,7 @@ export default function Splash(): React.JSX.Element {
           <span
             key={`${glyph}-${index}`}
             className="glyph wordmark"
-            style={{ animationDelay: `${index * 35}ms` }}
+            style={{ animationDelay: `${index * 22}ms` }}
           >
             {glyph === ' ' ? '\u00A0' : glyph}
           </span>
@@ -25,7 +28,7 @@ export default function Splash(): React.JSX.Element {
 
       <div
         className="rule mt-4 w-[196px]"
-        style={{ animationDelay: `${TITLE.length * 35 + 60}ms` }}
+        style={{ animationDelay: `${TITLE.length * 22 + 40}ms` }}
       />
     </div>
   )
