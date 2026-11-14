@@ -39,7 +39,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   if (Object.keys(patch).length === 0) return fail('Nothing to change.')
 
   try {
-    const { error } = await db().from('apps').update(patch).eq('id', id)
+    const { error } = await db().from('loader_apps').update(patch).eq('id', id)
     if (error) throw new Error(error.message)
     const row = await getApp(id)
     if (!row) return fail('That product no longer exists.', 404)
@@ -54,7 +54,7 @@ export async function DELETE(_request: Request, { params }: Params): Promise<Res
 
   const { id } = await params
   try {
-    const { error } = await db().from('apps').delete().eq('id', id)
+    const { error } = await db().from('loader_apps').delete().eq('id', id)
     if (error) throw new Error(error.message)
     return ok({ ok: true })
   } catch (error) {

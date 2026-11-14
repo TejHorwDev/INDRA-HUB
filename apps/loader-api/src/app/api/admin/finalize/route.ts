@@ -51,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
         ? { image_url: `/api/files/${key}` }
         : { exe_url: `/api/files/${key}`, exe_sha256: sha256, exe_bytes: bytes }
 
-    const { error } = await db().from('apps').update(patch).eq('id', id)
+    const { error } = await db().from('loader_apps').update(patch).eq('id', id)
     if (error) throw new Error(error.message)
 
     return ok({ sha256, bytes, url: `/api/files/${key}` })

@@ -36,7 +36,7 @@ export const env = {
     region: text('B2_REGION') || 'us-west-004'
   },
 
-  supabaseBucket: text('SUPABASE_BUCKET') || 'indra-loader',
+  supabaseBucket: text('SUPABASE_BUCKET') || 'loader-files',
 
   publicBaseUrl: text('PUBLIC_BASE_URL').replace(/\/+$/, '')
 } as const
