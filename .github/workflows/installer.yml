@@ -25,6 +25,11 @@ jobs:
     name: Custom installer
     runs-on: windows-latest
     timeout-minutes: 30
+    # The app lives in apps/desktop; the paths an action reads are written from
+    # the repository root.
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Check out the repository
@@ -35,6 +40,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
 
       - name: Read the version being wrapped
         id: version
@@ -64,18 +70,18 @@ jobs:
         run: npm pkg set "version=${{ steps.version.outputs.value }}" --prefix installer
 
       - name: Install the installer's own dependencies
-        working-directory: installer
+        working-directory: apps/desktop/installer
         run: npm install --no-audit --no-fund
 
       - name: Build the custom installer
-        working-directory: installer
+        working-directory: apps/desktop/installer
         run: npx electron-builder --win --publish never
 
       - name: Keep the artifact
         uses: actions/upload-artifact@v4
         with:
           name: INDRA-HUB-Setup-custom-${{ steps.version.outputs.value }}
-          path: installer/dist/*.exe
+          path: apps/desktop/installer/dist/*.exe
           if-no-files-found: error
           retention-days: 14
 

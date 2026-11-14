@@ -30,6 +30,12 @@ jobs:
     name: Windows installer
     runs-on: windows-latest
     timeout-minutes: 30
+    # The app lives one level down now, so every command runs there and only
+    # the paths that a GitHub action reads (files:, path:, cache) are written
+    # from the repository root.
+    defaults:
+      run:
+        working-directory: apps/desktop
 
     steps:
       - name: Check out the repository
@@ -40,6 +46,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -134,11 +141,11 @@ jobs:
           npm pkg set "version=${{ steps.version.outputs.value }}" --prefix installer
 
       - name: Install the installer's own dependencies
-        working-directory: installer
+        working-directory: apps/desktop/installer
         run: npm install --no-audit --no-fund
 
       - name: Build the custom installer
-        working-directory: installer
+        working-directory: apps/desktop/installer
         run: npx electron-builder --win --publish never
 
       - name: Move it beside the stock installer
@@ -179,11 +186,11 @@ jobs:
           # the blockmaps make the download incremental. Without them the
           # installer works but nothing can update itself.
           files: |
-            release/*.exe
-            release/latest.yml
-            release/*.blockmap
-            release/INDRA-HUB-Payload-*.asar
-            release/payload.json
+            apps/desktop/release/*.exe
+            apps/desktop/release/latest.yml
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/INDRA-HUB-Payload-*.asar
+            apps/desktop/release/payload.json
           generate_release_notes: true
           fail_on_unmatched_files: true
 
@@ -193,8 +200,8 @@ jobs:
         with:
           name: indra-hub-windows
           path: |
-            release/*.exe
-            release/*.yml
-            release/INDRA-HUB-Payload-*.asar
-            release/payload.json
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.yml
+            apps/desktop/release/INDRA-HUB-Payload-*.asar
+            apps/desktop/release/payload.json
           if-no-files-found: error

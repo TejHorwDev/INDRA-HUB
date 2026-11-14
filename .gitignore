@@ -16,6 +16,14 @@ dist/
 release/
 
 # the custom installer: built output and the payload it wraps
-installer/node_modules/
-installer/dist/
-installer/payload/
+apps/desktop/installer/node_modules/
+apps/desktop/installer/dist/
+apps/desktop/installer/payload/
+
+# every app under apps/ keeps its own build output out of Git
+apps/*/node_modules/
+apps/*/out/
+apps/*/dist/
+apps/*/release/
+apps/*/.next/
+apps/*/.vercel/
