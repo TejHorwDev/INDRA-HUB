@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { databaseReady } from '@/lib/env'
 import { listApps, readConfig } from '@/lib/db'
+import { latestLoaderRelease } from '@/lib/github'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,17 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
       </>
     )
   }
+
+  /*
+   * The update feed, read the same way the app reads it.
+   *
+   * If this row says a version, the app can see it too — the panel and the updater
+   * go through one function on purpose, so this is a real answer rather than a
+   * hopeful one.
+   */
+  const feed = await latestLoaderRelease()
+    .then((release) => (release ? { version: release.version, tag: release.tag } : null))
+    .catch(() => ({ version: 'unreachable', tag: '' }))
 
   let apps: Awaited<ReturnType<typeof listApps>> = []
   let config: Record<string, string> = {}
@@ -129,6 +141,22 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
                   <span>{notice}</span>
                 ) : (
                   <span className="pill off">none</span>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <td>Update feed</td>
+              <td>
+                {feed === null ? (
+                  <span className="pill off">no release published</span>
+                ) : feed.version === 'unreachable' ? (
+                  <span className="pill off">GitHub is not reachable from here right now</span>
+                ) : (
+                  <>
+                    <span className="pill ok">{feed.version}</span>{' '}
+                    <span className="mono">{feed.tag}</span>{' '}
+                    <span className="hint">— what the app is offered at launch</span>
+                  </>
                 )}
               </td>
             </tr>

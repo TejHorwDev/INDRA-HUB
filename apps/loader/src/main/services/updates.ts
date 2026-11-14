@@ -15,6 +15,7 @@ import {
   writePending
 } from '../lib/payload'
 import { compareVersions } from '../lib/version'
+import { apiBase } from './catalog'
 import {
   manifestUrl,
   releaseListUrl,
@@ -95,6 +96,25 @@ function readGuard(): { target: string; at: number } | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Has a restart for this version already been tried and not taken?
+ *
+ * If the app came back on the old payload after claiming to install a new one, the
+ * payload did not load. Trying again on the next launch would be a restart loop that
+ * looks like a crash on startup, so the version is left alone until a different one
+ * is published or the guard expires.
+ */
+function restartAlreadyTried(version: string): boolean {
+  const guard = readGuard()
+  if (!guard) return false
+  if (guard.target !== version) return false
+  if (Date.now() - guard.at > RESTART_GUARD_MS * 6) {
+    clearGuard()
+    return false
+  }
+  return true
 }
 
 function clearGuard(): void {
@@ -242,6 +262,77 @@ async function diagnose(): Promise<{ text: string; verdict: string | null }> {
   return { text, verdict: null }
 }
 
+/*
+ * The panel first, GitHub second.
+ *
+ * GitHub serves release assets from `release-assets.githubusercontent.com`, which is
+ * filtered on a lot of networks — sometimes by an ISP, sometimes by an antivirus web
+ * shield, sometimes by a router nobody remembers configuring. When that host is
+ * blocked, the direct path cannot update and cannot explain itself.
+ *
+ * Our own service has to be reachable anyway: it is where the catalogue comes from.
+ * So it is asked first, it answers with the version, the hash and a payload URL on
+ * its own domain, and the download never touches GitHub at all. The direct path
+ * stays as the fallback for the day the panel is down but GitHub is not.
+ */
+
+/** What the panel says the newest loader is, or throws if the panel cannot answer. */
+async function latestViaPanel(): Promise<{ release: SelectedRelease; manifest: Manifest } | null> {
+  const base = apiBase()
+  if (!base) throw new Error('no catalogue address')
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), MANIFEST_TIMEOUT_MS)
+  try {
+    const response = await request(`${base}/api/loader/update`, {
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: { accept: 'application/json' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+    const body = (await response.json()) as {
+      update?: {
+        version?: unknown
+        tag?: unknown
+        publishedAt?: unknown
+        file?: unknown
+        sha256?: unknown
+        size?: unknown
+        url?: unknown
+      } | null
+    }
+
+    const update = body.update
+    if (!update) return null
+
+    const version = typeof update.version === 'string' ? update.version : ''
+    const file = typeof update.file === 'string' ? update.file : ''
+    const sha256 = typeof update.sha256 === 'string' ? update.sha256.toLowerCase() : ''
+
+    if (!version || !file.endsWith('.asar') || !/^[a-f0-9]{64}$/.test(sha256)) {
+      throw new Error('the panel sent an update that is not usable')
+    }
+
+    return {
+      release: {
+        tag: typeof update.tag === 'string' ? update.tag : `loader-v${version}`,
+        version,
+        publishedAt: typeof update.publishedAt === 'string' ? update.publishedAt : ''
+      },
+      manifest: {
+        version,
+        file,
+        sha256,
+        size: Number(update.size) || 0,
+        url: typeof update.url === 'string' ? update.url : undefined
+      }
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Asks GitHub which release is this app's newest. `null` when there is none. */
 async function latestRelease(): Promise<SelectedRelease | null> {
   const controller = new AbortController()
@@ -308,6 +399,27 @@ async function fetchManifest(release: SelectedRelease): Promise<Manifest> {
 }
 
 /** One immediate retry for anything that is not a plain 4xx. */
+/**
+ * The newest build, and where to get it.
+ *
+ * Panel first, GitHub second, and the answer says which — because when an update
+ * fails the first question is which half of the path was missing.
+ */
+async function resolveNewest(): Promise<{ release: SelectedRelease; manifest: Manifest } | null> {
+  try {
+    const viaPanel = await latestViaPanel()
+    if (viaPanel) return viaPanel
+    // The panel answered and there is no release: that is an answer, not a failure.
+    return null
+  } catch (error) {
+    console.warn('[updates] panel lookup failed, asking github directly', technical(error))
+  }
+
+  const release = await latestRelease()
+  if (!release) return null
+  return { release, manifest: await fetchManifestWithRetry(release) }
+}
+
 async function fetchManifestWithRetry(release: SelectedRelease): Promise<Manifest> {
   try {
     return await fetchManifest(release)
@@ -419,14 +531,40 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
 
   running = true
   lastAttempt = Date.now()
+
+  /*
+   * A payload already on disk beats anything the network has to say.
+   *
+   * It was downloaded and verified on an earlier run; the only thing it is waiting
+   * for is a restart. Requiring a successful check first meant that an update could
+   * sit there forever on a machine whose update feed had become unreachable — the
+   * app would rather be out of date than restart into a build it already had.
+   */
+  const staged = readVerifiedPending()
+  if (
+    staged &&
+    compareVersions(staged.version, runningVersion()) > 0 &&
+    !restartAlreadyTried(staged.version)
+  ) {
+    setState({
+      phase: 'ready',
+      version: staged.version,
+      percent: 100,
+      canInstall: true,
+      detail: null,
+      checkedAt: new Date().toISOString(),
+      message: `Version ${staged.version} is ready. Restart to apply it.`
+    })
+    running = false
+    maybeAutoRestart()
+    return updateState()
+  }
+
   setState({ phase: 'checking', message: manual ? 'Checking for updates…' : null, detail: null })
 
   try {
-    const release = await latestRelease()
-
-    // No release of *this* app exists yet. That is not a failure: the hub's
-    // releases are present and correctly ignored.
-    if (!release) {
+    const resolved = await resolveNewest()
+    if (!resolved) {
       setState({
         phase: 'up-to-date',
         version: null,
@@ -438,8 +576,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
       })
       return updateState()
     }
-
-    const manifest = await fetchManifestWithRetry(release)
+    const { release, manifest } = resolved
     const current = runningVersion()
 
     if (compareVersions(manifest.version, current) <= 0) {
@@ -588,6 +725,23 @@ function maybeAutoRestart(): void {
 export function installUpdate(): UpdateState {
   if (state.phase !== 'ready') return updateState()
 
+  /*
+   * One restart per version. If a previous launch claimed to install this build and
+   * came back on the old one, the payload does not load — restarting again would be
+   * an app that closes itself every time it opens.
+   */
+  const staged = readVerifiedPending()
+  if (staged && restartAlreadyTried(staged.version)) {
+    restartBlocked = true
+    setState({
+      phase: 'error',
+      canInstall: false,
+      message: `Version ${staged.version} did not start last time, so it will not be tried again. Reinstall from the website if the app is out of date.`,
+      detail: `guard: ${staged.version} at ${new Date(readGuard()?.at ?? Date.now()).toISOString()}`
+    })
+    return updateState()
+  }
+
   if (!readVerifiedPending()) {
     setState({
       phase: 'up-to-date',
@@ -636,25 +790,26 @@ export async function diagnoseConnection(): Promise<UpdateDiagnostics> {
     }
   }
 
-  await run('Release list', async () => {
-    const release = await latestRelease()
-    if (!release) return 'reachable — no release of this app has been published yet'
-    latestVersion = release.version
-    return `newest release is ${release.tag}`
+  await run('Update feed', async () => {
+    const viaPanel = await latestViaPanel()
+    if (!viaPanel) return 'the panel is reachable — no release of this app has been published yet'
+    const { release, manifest } = viaPanel
+    latestVersion = manifest.version
+    return `the panel says ${release.tag}, ${Math.round(manifest.size / 1024)} KB`
   })
 
   await run('Update manifest', async () => {
-    const release = await latestRelease()
-    if (!release) throw new Error('no release of this app has been published yet')
-    const manifest = await fetchManifest(release)
+    const resolved = await resolveNewest()
+    if (!resolved) throw new Error('no release of this app has been published yet')
+    const { release, manifest } = resolved
     if (!latestVersion) latestVersion = manifest.version
-    return `version ${manifest.version}, payload ${Math.round(manifest.size / 1024)} KB`
+    return `version ${manifest.version} from ${release.tag}`
   })
 
   await run('Payload download', async () => {
-    const release = await latestRelease()
-    if (!release) throw new Error('no release of this app has been published yet')
-    const manifest = await fetchManifest(release)
+    const resolved = await resolveNewest()
+    if (!resolved) throw new Error('no release of this app has been published yet')
+    const { release, manifest } = resolved
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15_000)
     try {
