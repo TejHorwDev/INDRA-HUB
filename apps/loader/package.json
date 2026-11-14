@@ -1,7 +1,7 @@
 {
   "name": "indra-loader",
   "productName": "INDRA LOADER",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "INDRA LOADER \u2014 app launcher and catalogue",
   "author": "TejHorwDev",

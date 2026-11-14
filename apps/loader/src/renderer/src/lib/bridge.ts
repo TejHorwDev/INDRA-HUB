@@ -1,4 +1,4 @@
-import type { LoaderBridge, SessionInfo, UpdateState } from '@shared/types'
+import type { Catalogue, LoaderBridge, SessionInfo, UpdateState } from '@shared/types'
 
 /*
  * The bridge, or a stand-in for it.
@@ -33,6 +33,56 @@ function wait(ms: number): Promise<void> {
 
 let mockSession: SessionInfo | null = null
 
+/*
+ * Staged catalogue for the preview.
+ *
+ * These are not demo apps shipped in the product — the installed app reads
+ * `INDRA_LOADER_API` and shows a real, empty state until something is published.
+ * They exist so the composition, the paging and the two lock states can be judged
+ * in a browser before the API exists.
+ */
+const staged: Catalogue = {
+  apps: [
+    {
+      id: 'mock-aurora',
+      name: 'Aurora',
+      description: 'Visual overhaul and quality-of-life layer. Free for every member.',
+      version: '2.4.1',
+      image: '',
+      fileUrl: 'https://example.invalid/aurora.exe',
+      keyauthAppId: '',
+      status: 'active'
+    },
+    {
+      id: 'mock-nova',
+      name: 'Nova',
+      description: 'Movement and aim assistance for ranked play. Licensed separately.',
+      version: '1.9.0',
+      image: '',
+      fileUrl: 'https://example.invalid/nova.exe',
+      keyauthAppId: 'mock-nova',
+      status: 'active'
+    },
+    {
+      id: 'mock-vantage',
+      name: 'Vantage',
+      description: 'Under maintenance while the season changes over.',
+      version: '0.8.3',
+      image: '',
+      fileUrl: 'https://example.invalid/vantage.exe',
+      keyauthAppId: '',
+      status: 'locked'
+    }
+  ],
+  config: {
+    website: 'https://indra-cheats.com',
+    instagram: 'https://instagram.com/indra',
+    tiktok: 'https://tiktok.com/@indra',
+    discord: 'https://discord.gg/indra',
+    youtube: 'https://youtube.com/@indra'
+  }
+}
+
 const mock: LoaderBridge = {
   version: async () => ({ running: '1.0.0', installed: '1.0.0', packaged: false }),
 
@@ -49,7 +99,12 @@ const mock: LoaderBridge = {
     onState: () => () => undefined
   },
 
+  catalogue: {
+    load: async () => staged
+  },
+
   auth: {
+    owned: async () => ['mock-nova'],
     login: async (username, password) => {
       // Long enough to see the verifying screen, and honest about failures: the
       // word "wrong" in the password fails the way the server would.

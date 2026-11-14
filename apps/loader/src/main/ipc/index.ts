@@ -1,6 +1,8 @@
 import { app, ipcMain, shell } from 'electron'
 import { runningVersion } from '../lib/payload'
 import { currentSession, login, logout } from '../services/auth'
+import { loadCatalogue } from '../services/catalog'
+import { ownedProductIds } from '../services/entitlement'
 import {
   checkForUpdates,
   diagnoseConnection,
@@ -44,6 +46,11 @@ export function registerIpc(handlers: Handlers): void {
   })
   ipcMain.handle('auth:logout', () => logout())
   ipcMain.handle('auth:session', () => currentSession())
+
+  // The catalogue and its links. Public data, fetched in the main process so the
+  // renderer still has no network of its own.
+  ipcMain.handle('catalogue:load', () => loadCatalogue())
+  ipcMain.handle('auth:owned', () => ownedProductIds())
 
   /*
    * Links open in the real browser, and only https links do. The renderer cannot

@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AuthResult, LoaderBridge, SessionInfo, UpdateDiagnostics, UpdateState } from '@shared/types'
+import type {
+  AuthResult,
+  Catalogue,
+  LoaderBridge,
+  SessionInfo,
+  UpdateDiagnostics,
+  UpdateState
+} from '@shared/types'
 
 /*
  * The only surface the renderer has.
@@ -24,9 +31,14 @@ const bridge: LoaderBridge = {
     }
   },
 
+  catalogue: {
+    load: (): Promise<Catalogue> => ipcRenderer.invoke('catalogue:load')
+  },
+
   auth: {
     login: (username: string, password: string): Promise<AuthResult> =>
       ipcRenderer.invoke('auth:login', username, password),
+    owned: (): Promise<string[]> => ipcRenderer.invoke('auth:owned'),
     logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
     session: (): Promise<SessionInfo | null> => ipcRenderer.invoke('auth:session')
   },
