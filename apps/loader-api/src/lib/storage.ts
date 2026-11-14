@@ -125,14 +125,17 @@ export async function createUploadTarget(
     const { data, error } = await supabase.storage.from(env.supabaseBucket).createSignedUploadUrl(key)
     if (error || !data) throw new Error(error?.message ?? 'could not sign an upload')
 
-    const { data: signed } = await supabase.storage.from(env.supabaseBucket).createSignedUrl(key, 60 * 60 * 24 * 30)
-
+    /*
+     * Not a signed URL. A signed URL expires, and what is stored in the row has to
+     * work in a year; the API serves the object instead, and keeps working because
+     * it signs every read.
+     */
     return {
       uploadUrl: data.signedUrl,
       method: 'PUT',
       headers: { 'content-type': contentType },
       key,
-      publicUrl: env.publicBaseUrl ? publicUrlFor(key) : (signed?.signedUrl ?? publicUrlFor(key))
+      publicUrl: publicUrlFor(key)
     }
   }
 

@@ -1,0 +1,42 @@
+# One-click deploy on Render.
+#
+# Render reads this file when a Blueprint is created from the repository, so the
+# panel is a service rather than a set of instructions. The three secrets are
+# marked `sync: false`: Render asks for them once and stores them, which is the
+# only place they should live.
+#
+# Vercel works just as well without this file — import the repo, set the root
+# directory to apps/loader-api, add the same variables.
+
+services:
+  - type: web
+    name: indra-loader-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: apps/loader-api
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath:  /api/loader/config
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+
+      # Database — already migrated, nothing to run.
+      - key: SUPABASE_URL
+        value: https://cztyznuoferktewdhyji.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # Storage — the bucket is created; this is where new uploads land.
+      - key: SUPABASE_BUCKET
+        value: loader-files
+
+      # The panel's only account.
+      - key: ADMIN_USERNAME
+        value: tej
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        sync: false
