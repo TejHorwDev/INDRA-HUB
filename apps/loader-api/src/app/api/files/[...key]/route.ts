@@ -49,14 +49,15 @@ export async function GET(
   }
 
   /*
-   * A film goes straight to the bucket.
+   * A film and a card image go straight to the bucket.
    *
-   * Streaming it through this process puts two hops and a free-tier server between the
-   * person and the video, which is how a backdrop arrives several seconds after the
-   * window. Everything else stays proxied: an installer is downloaded once and verified,
-   * and keeping it private is worth the read.
+   * Streaming them through this process puts two hops and a free-tier server between the
+   * person and the picture, which is how a backdrop arrives several seconds after the
+   * window and a library of cards paints one by one. Both are read far more often than
+   * they are written, and neither is secret — an installer is, and it stays proxied:
+   * downloaded once, hashed, verified.
    */
-  if (path.startsWith('videos/')) {
+  if (path.startsWith('videos/') || path.startsWith('images/')) {
     const direct = await directUrl(path)
     if (direct) {
       return new Response(null, {
@@ -119,10 +120,15 @@ export async function GET(
          * A film is fetched once per person and then cached; ranges matter for it,
          * which is why the response is a stream and not a buffered body.
          */
+        /*
+         * An image keeps its key for life — every upload makes a new one — so it can be
+         * cached for a year without ever serving a stale picture. That is the difference
+         * between a card that paints and a card that arrives.
+         */
         'cache-control': type.startsWith('video/')
           ? 'public, max-age=86400'
           : type.startsWith('image/')
-            ? 'public, max-age=3600'
+            ? 'public, max-age=31536000, immutable'
             : 'public, max-age=300',
         'x-content-type-options': 'nosniff'
       }

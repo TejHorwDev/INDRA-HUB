@@ -121,8 +121,14 @@ const MB = 1024 * 1024
 export function capFor(kind: Kind): number {
   const active = driver()
   if (active === 'local') return 2048 * MB
-  if (active === 'supabase') return kind === 'image' ? 10 * MB : 48 * MB
-  return kind === 'image' ? 20 * MB : kind === 'video' ? 400 * MB : 2048 * MB
+  /*
+   * An animated card is not a card. A GIF or a WebP that moves is several megabytes for
+   * a few seconds of motion, and the 10 MB this used to allow refused most of them
+   * without explaining why — so the allowance is for what an image *is* now, not for what
+   * a JPEG used to be. Supabase's own ceiling is 50 MB per file.
+   */
+  if (active === 'supabase') return kind === 'image' ? 25 * MB : 48 * MB
+  return kind === 'image' ? 25 * MB : kind === 'video' ? 400 * MB : 2048 * MB
 }
 
 export function formatBytes(bytes: number): string {
