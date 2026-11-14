@@ -3,9 +3,13 @@
 /*
  * Design tokens.
  *
- * Matte black, one muted accent, hairline borders, depth from shadow rather than
- * glow. The accent is the silk violet already in the heading gradient; nothing
- * else in the app is allowed to be a colour.
+ * Matte black, white, and the greys between them. Nothing else.
+ *
+ * The accent used to be a violet — the one colour in an otherwise monochrome app,
+ * which made every dot, focus ring and progress bar read as decoration. It is white
+ * now: hierarchy comes from size, weight and the amount of light on a surface, which
+ * is what the black is for. A single colour in an interface like this stops being an
+ * accent and becomes a theme, and a theme is a thing to argue with.
  */
 @theme {
   /* Deeper than the first pass: matte black is near-black, not dark grey. */
@@ -15,8 +19,8 @@
   --color-ink: #f4f2f8;
   --color-ink-2: rgba(242, 240, 246, 0.62);
   --color-ink-3: rgba(242, 240, 246, 0.38);
-  --color-accent: #a79bc7;
-  --color-accent-deep: #8f86b8;
+  --color-accent: #ededf0;
+  --color-accent-deep: #b6b6bb;
   --color-success: #34c395;
   --color-danger: #e2695e;
 
@@ -105,10 +109,10 @@ body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(120% 90% at 18% 0%, rgba(167, 155, 199, 0.13), transparent 55%),
-    radial-gradient(100% 80% at 92% 12%, rgba(143, 134, 184, 0.12), transparent 60%),
-    radial-gradient(140% 120% at 50% 118%, rgba(120, 112, 160, 0.1), transparent 62%),
-    radial-gradient(90% 70% at 50% 50%, rgba(0, 0, 0, 0.35), transparent 70%);
+    radial-gradient(120% 90% at 18% 0%, rgba(255, 255, 255, 0.05), transparent 55%),
+    radial-gradient(100% 80% at 92% 12%, rgba(255, 255, 255, 0.03), transparent 60%),
+    radial-gradient(140% 120% at 50% 118%, rgba(255, 255, 255, 0.022), transparent 62%),
+    radial-gradient(90% 70% at 50% 50%, rgba(0, 0, 0, 0.4), transparent 70%);
   pointer-events: none;
 }
 
@@ -130,7 +134,7 @@ body {
 }
 
 .wordmark {
-  background: linear-gradient(96deg, #f4f2fa 0%, #cfc8e6 52%, #8f86b8 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f2f2f4 58%, #cfcfd4 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -169,7 +173,7 @@ body {
 .rule {
   height: 1px;
   transform-origin: left center;
-  background: linear-gradient(90deg, rgba(167, 155, 199, 0.55), transparent);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.5), transparent);
   animation: rule-in 600ms var(--ease-silk) both;
 }
 

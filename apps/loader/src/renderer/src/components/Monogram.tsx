@@ -8,10 +8,15 @@
  */
 
 const WASHES = [
-  'radial-gradient(120% 120% at 20% 0%, rgba(167,155,199,0.22), rgba(20,20,23,1) 62%)',
-  'radial-gradient(120% 120% at 80% 10%, rgba(143,134,184,0.20), rgba(20,20,23,1) 64%)',
-  'radial-gradient(120% 120% at 50% 100%, rgba(120,112,160,0.20), rgba(20,20,23,1) 66%)',
-  'radial-gradient(120% 120% at 10% 90%, rgba(167,155,199,0.18), rgba(20,20,23,1) 60%)'
+  /*
+   * The placeholder behind a product with no artwork: one soft light from a corner,
+   * falling into the card's own black. Four variants, so a library of unknown
+   * products does not look like four copies of the same rectangle.
+   */
+  'radial-gradient(120% 120% at 20% 0%, rgba(255,255,255,0.13), rgba(16,16,19,1) 62%)',
+  'radial-gradient(120% 120% at 80% 10%, rgba(255,255,255,0.1), rgba(16,16,19,1) 64%)',
+  'radial-gradient(120% 120% at 50% 100%, rgba(255,255,255,0.11), rgba(16,16,19,1) 66%)',
+  'radial-gradient(120% 120% at 10% 90%, rgba(255,255,255,0.09), rgba(16,16,19,1) 60%)'
 ]
 
 function hash(value: string): number {

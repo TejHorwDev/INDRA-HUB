@@ -13,8 +13,8 @@
   --ink: #f4f2f8;
   --ink-2: rgba(244, 242, 248, 0.62);
   --ink-3: rgba(244, 242, 248, 0.38);
-  --accent: #a79bc7;
-  --accent-2: #8f86b8;
+  --accent: #ededf0;
+  --accent-2: #b6b6bb;
   --success: #34c395;
   --danger: #e2695e;
   --hairline: rgba(255, 255, 255, 0.07);
@@ -39,7 +39,7 @@ body {
 
 body {
   /* One soft wash, the same one the app has, so the panel is not a flat sheet. */
-  background-image: radial-gradient(120% 80% at 50% -20%, rgba(167, 155, 199, 0.07), transparent 60%);
+  background-image: radial-gradient(120% 80% at 50% -20%, rgba(255, 255, 255, 0.04), transparent 60%);
   background-repeat: no-repeat;
 }
 
@@ -173,7 +173,7 @@ input:focus,
 textarea:focus,
 select:focus {
   border-color: var(--hairline-strong);
-  box-shadow: 0 0 0 3px rgba(167, 155, 199, 0.1);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
 }
 
 .hint {
@@ -362,7 +362,7 @@ td strong {
 .dropzone:hover,
 .dropzone[data-active='true'] {
   border-color: var(--accent-2);
-  background: rgba(167, 155, 199, 0.04);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .progress {
@@ -468,7 +468,7 @@ td strong {
 }
 
 .toolbar input[type='search']:focus-visible {
-  border-color: rgba(167, 155, 199, 0.55);
+  border-color: rgba(255, 255, 255, 0.55);
 }
 
 .seg {
@@ -492,7 +492,7 @@ td strong {
 
 .seg button[data-active='true'] {
   color: var(--ink);
-  background: rgba(167, 155, 199, 0.16);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 /* A row action that reads as a sentence, not an icon nobody recognises. */

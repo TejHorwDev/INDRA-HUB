@@ -119,7 +119,7 @@ export default function SlideButton({
           }
         }}
         className={
-          'absolute top-1 grid place-items-center rounded-[8px] bg-gradient-to-b from-[#b8aed6] to-[#8f86b8] ' +
+          'absolute top-1 grid place-items-center rounded-[8px] bg-gradient-to-b from-[#ffffff] to-[#d6d6db] ' +
           'text-[#0b0a0f] shadow-[0_2px_8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.35)] ' +
           'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] ' +
           (locked ? 'cursor-default opacity-60' : dragging ? 'cursor-grabbing' : 'cursor-grab')
