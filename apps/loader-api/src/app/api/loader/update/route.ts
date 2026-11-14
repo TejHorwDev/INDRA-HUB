@@ -1,4 +1,4 @@
-import { latestLoaderRelease } from '@/lib/github'
+import { latestLoaderRelease, lookupNotes } from '@/lib/github'
 import { originOf } from '@/lib/url'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +20,7 @@ export async function GET(request: Request): Promise<Response> {
 
     if (!release) {
       return Response.json(
-        { update: null },
+        { update: null, debug: new URL(request.url).searchParams.get('debug') ? lookupNotes() : undefined },
         { headers: { 'cache-control': 'no-store' } }
       )
     }
@@ -30,6 +30,7 @@ export async function GET(request: Request): Promise<Response> {
 
     return Response.json(
       {
+        debug: new URL(request.url).searchParams.get('debug') ? lookupNotes() : undefined,
         update: {
           version: release.version,
           tag: release.tag,
