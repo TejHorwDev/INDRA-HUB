@@ -1,29 +1,77 @@
 /*
  * The panel's stylesheet.
  *
- * Plain CSS, no framework: this is nine screens' worth of table and form, and a
- * design system for it would be more code than the panel. Same tokens as the
- * desktop app so the two look like one product.
+ * One idea, held throughout: this is an instrument, not a website. Matte black, dark
+ * grey, white — no colour anywhere except the two status hues, and those are desaturated
+ * until they read as ink rather than as decoration.
+ *
+ * Motion is the other half of the design. Everything that appears rises into place on a
+ * stagger, the nav indicator slides rather than jumps, buttons catch light as the pointer
+ * crosses them, and the whole surface breathes a single slow current of light behind the
+ * content. None of it is decorative noise: a thing that arrives tells you it is new, and
+ * a thing that slides tells you where it went.
+ *
+ * Plain CSS. A design system for nine screens of table and form would be more code than
+ * the panel itself; two hundred tokens are enough.
  */
 
+/* ---------------------------------------------------------------- tokens ---- */
+
 :root {
-  --bg: #070708;
-  --surface: #0c0c0f;
-  --raised: #131317;
-  --ink: #f4f2f8;
-  --ink-2: rgba(244, 242, 248, 0.62);
-  --ink-3: rgba(244, 242, 248, 0.38);
+  /* Matte, not black-black: #08090a still has a little lift so hairlines can be seen. */
+  --bg: #08090a;
+  --bg-deep: #050506;
+  --surface: #0d0f10;
+  --surface-2: #111314;
+  --raised: #171a1b;
+  --raised-2: #1e2122;
+
+  --ink: #f6f7f7;
+  --ink-2: rgba(246, 247, 247, 0.66);
+  --ink-3: rgba(246, 247, 247, 0.42);
+  --ink-4: rgba(246, 247, 247, 0.24);
+
+  --white: #ffffff;
   --accent: #ededf0;
-  --accent-2: #b6b6bb;
-  --success: #34c395;
-  --danger: #e2695e;
-  --hairline: rgba(255, 255, 255, 0.07);
-  --hairline-strong: rgba(255, 255, 255, 0.14);
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --accent-2: #b9bbbd;
+
+  --success: #57c9a1;
+  --danger: #e0746a;
+  --warn: #cfae74;
+
+  /* Old names, kept because a few inline styles still say hairline. */
+  --hairline: var(--line);
+  --hairline-strong: var(--line-2);
+
+  --line: rgba(255, 255, 255, 0.065);
+  --line-2: rgba(255, 255, 255, 0.11);
+  --line-3: rgba(255, 255, 255, 0.19);
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  /* Expo-out for entrances and hovers: fast to leave, slow to settle. */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-io: cubic-bezier(0.65, 0.05, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --shadow-lift: 0 24px 48px -32px rgba(0, 0, 0, 0.9);
+  --shadow-deep: 0 40px 90px -50px rgba(0, 0, 0, 1);
+
+  --font: var(--font-geist-sans), 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'Cascadia Mono', Menlo, monospace;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scrollbar-color: #2c2f31 transparent;
+  scrollbar-width: thin;
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -33,100 +81,622 @@ body {
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font);
+  font-feature-settings: 'ss01' on, 'cv01' on;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  /* One soft wash, the same one the app has, so the panel is not a flat sheet. */
-  background-image: radial-gradient(120% 80% at 50% -20%, rgba(255, 255, 255, 0.04), transparent 60%);
+  /* Two lifts: a cold wash at the top edge and a warm-bottom fade so the page has a floor. */
+  background-image:
+    radial-gradient(130% 70% at 50% -30%, rgba(255, 255, 255, 0.055), transparent 62%),
+    linear-gradient(180deg, transparent 60%, rgba(255, 255, 255, 0.012));
   background-repeat: no-repeat;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #26292b;
+  border: 3px solid var(--bg);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #363a3c;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.9);
+  color: #08090a;
 }
 
 a {
-  color: var(--accent);
+  color: var(--ink);
   text-decoration: none;
+  transition: color 160ms var(--ease), opacity 160ms var(--ease);
 }
 
-/* --------------------------------------------------------------- layout ---- */
+a:hover {
+  color: var(--white);
+}
+
+:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --------------------------------------------------------------- ambience ---- */
+
+/*
+ * Light that follows the pointer, and a grain that never quite sits still.
+ *
+ * Both are fixed, both are behind everything, and both are one compositor layer each.
+ * The point is not a glow — it is that a matte surface stops looking like a flat
+ * screenshot when the light moves across it.
+ */
+.ambience {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ambience::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(
+    520px circle at var(--mx, 50%) var(--my, 20%),
+    rgba(255, 255, 255, 0.055),
+    rgba(255, 255, 255, 0.018) 40%,
+    transparent 68%
+  );
+  transition: background 220ms linear;
+}
+
+.ambience::after {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background:
+    radial-gradient(38% 34% at 22% 18%, rgba(255, 255, 255, 0.03), transparent 70%),
+    radial-gradient(42% 38% at 78% 72%, rgba(255, 255, 255, 0.022), transparent 70%);
+  animation: drift 44s var(--ease-io) infinite alternate;
+  will-change: transform;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 3%, 0) scale(1.08);
+  }
+}
+
+/*
+ * The grain. An inline SVG turbulence tile, one pixel of noise, and it steps position
+ * every seventh of a second — slow enough not to strobe, fast enough to feel alive.
+ */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.032;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.9'/></svg>");
+  background-size: 140px 140px;
+  animation: grain 900ms steps(5) infinite;
+  will-change: transform;
+}
+
+@keyframes grain {
+  0% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-2%, 1%, 0); }
+  40% { transform: translate3d(1%, -2%, 0); }
+  60% { transform: translate3d(-1%, 2%, 0); }
+  80% { transform: translate3d(2%, 1%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+/* How far down the page you are: one hairline, white, filling from the left. */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.9);
+  transform: scaleX(var(--p, 0));
+  transform-origin: 0 50%;
+  transition: transform 90ms linear;
+}
+
+/* ---------------------------------------------------------------- layout ---- */
 
 .shell {
-  max-width: 1080px;
+  position: relative;
+  z-index: 2;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 28px 24px 80px;
+  padding: 0 28px 120px;
 }
 
-.topbar {
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 -28px 44px;
+  padding: 0 28px;
+  background: rgba(8, 9, 10, 0.68);
+  backdrop-filter: blur(22px) saturate(0.4);
+  -webkit-backdrop-filter: blur(22px) saturate(0.4);
+  border-bottom: 1px solid var(--line);
+  animation: bar-in 700ms var(--ease) both;
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.bar-inner {
+  height: 62px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--hairline);
-  margin-bottom: 26px;
+  gap: 20px;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+/*
+ * The mark: two concentric squares, the inner one turning slowly. Pure CSS, one element,
+ * and it is the only thing on the page that is never quite still.
+ */
+.brand-mark {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border: 1px solid var(--line-3);
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.brand-mark::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 3px;
+  animation: mark-turn 9s var(--ease-io) infinite;
+}
+
+.brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.14), transparent 55%);
+}
+
+@keyframes mark-turn {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(90deg) scale(0.82);
+    opacity: 0.55;
+  }
 }
 
 .wordmark {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.34em;
-  color: var(--ink-3);
-  text-transform: uppercase;
-}
-
-.topbar nav {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.topbar nav a {
-  font-size: 12px;
+  letter-spacing: 0.3em;
   color: var(--ink-2);
-  padding: 6px 10px;
-  border-radius: 8px;
-  transition: background 150ms var(--ease), color 150ms var(--ease);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 200ms var(--ease), letter-spacing 300ms var(--ease);
 }
 
-.topbar nav a:hover {
-  background: rgba(255, 255, 255, 0.05);
+.brand:hover .wordmark {
+  color: var(--white);
+  letter-spacing: 0.34em;
+}
+
+.wordmark em {
+  font-style: normal;
+  color: var(--ink-4);
+}
+
+/* ------------------------------------------------------------------ nav ---- */
+
+.nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+/* The sliding pill. Its transform is driven from Nav.tsx so it moves between items. */
+.nav-pill {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: calc(100% - 6px);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 18px -12px #000;
+  transform: translateX(var(--x, 0));
+  width: var(--w, 0);
+  transition:
+    transform 520ms var(--ease),
+    width 420ms var(--ease),
+    opacity 200ms linear;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nav-pill[data-ready='true'] {
+  opacity: 1;
+}
+
+.nav a {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--ink-3);
+  white-space: nowrap;
+  transition: color 260ms var(--ease);
+}
+
+.nav a:hover {
   color: var(--ink);
 }
 
-.topbar nav a[data-active='true'] {
-  background: var(--raised);
+.nav a[data-active='true'] {
   color: var(--ink);
 }
+
+/* A two-pixel dot under the current item, so the state survives at a glance. */
+.nav a[data-active='true']::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: var(--white);
+  animation: dot-in 460ms var(--ease-spring) both;
+}
+
+@keyframes dot-in {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+.bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-user {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+@media (min-width: 1080px) {
+  .bar-user {
+    display: inline;
+  }
+}
+
+/* -------------------------------------------------------------- typography ---- */
 
 h1 {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0 0 6px;
+  font-size: clamp(30px, 4.2vw, 46px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  margin: 0 0 12px;
+  color: var(--ink);
+  animation: rise 800ms var(--ease) both;
+}
+
+h1 .thin {
+  color: var(--ink-4);
+  font-weight: 300;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin: 0 0 18px;
+  animation: rise 700ms var(--ease) both;
+}
+
+.eyebrow::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  background: var(--line-3);
+}
+
+.eyebrow .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 0 rgba(87, 201, 161, 0.5);
+  animation: pulse 2.6s var(--ease-io) infinite;
+}
+
+.eyebrow .dot[data-tone='warn'] {
+  background: var(--warn);
+  animation-name: pulse-warn;
+}
+
+.eyebrow .dot[data-tone='off'] {
+  background: var(--ink-4);
+  animation: none;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(87, 201, 161, 0.4); }
+  70% { box-shadow: 0 0 0 7px rgba(87, 201, 161, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(87, 201, 161, 0); }
+}
+
+@keyframes pulse-warn {
+  0% { box-shadow: 0 0 0 0 rgba(207, 174, 116, 0.4); }
+  70% { box-shadow: 0 0 0 7px rgba(207, 174, 116, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(207, 174, 116, 0); }
 }
 
 .lede {
-  margin: 0 0 22px;
-  font-size: 12.5px;
-  line-height: 1.65;
+  margin: 0 0 34px;
+  font-size: 13.5px;
+  line-height: 1.72;
   color: var(--ink-3);
   max-width: 62ch;
+  animation: rise 800ms var(--ease) 60ms both;
 }
 
+/* ---------------------------------------------------------------- motion ---- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/*
+ * Any block can join the stagger by carrying `style={{ ['--i']: n }}`. Forty-five
+ * milliseconds apart is quick enough to read as one gesture and slow enough to see.
+ */
+.rise {
+  animation: rise 780ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 90ms);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- cards ---- */
+
 .card {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
-  padding: 18px;
-  margin-bottom: 16px;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0.006)),
+    var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-lift);
+  transition:
+    border-color 400ms var(--ease),
+    transform 500ms var(--ease),
+    box-shadow 500ms var(--ease);
+  animation: rise 820ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 90ms);
+}
+
+/* The top edge catches light where the gradient starts — the difference between a box
+ * and a panel. It fades at both ends so it never looks like a border. */
+.card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  opacity: 0.75;
+  transition: opacity 400ms var(--ease);
+  pointer-events: none;
+}
+
+.card:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--shadow-deep);
+}
+
+.card:hover::before {
+  opacity: 1;
 }
 
 .card h2 {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  margin: 0 0 14px;
+  letter-spacing: 0.01em;
+  margin: 0 0 18px;
   color: var(--ink);
+}
+
+.card h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line-2), transparent);
+}
+
+.card h2 .count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-4);
+  letter-spacing: 0.1em;
+  order: -1;
+}
+
+.card > .hint:first-of-type {
+  margin-top: -8px;
+}
+
+/*
+ * A panel that behaves like a link: the whole surface is the target, the arrow slides.
+ */
+.tile {
+  display: block;
+  position: relative;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent), var(--surface);
+  overflow: hidden;
+  transition:
+    border-color 400ms var(--ease),
+    transform 560ms var(--ease),
+    background 400ms var(--ease);
+}
+
+.tile:hover {
+  border-color: var(--line-3);
+  transform: translateY(-2px);
+}
+
+.tile::after {
+  content: '↗';
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  font-size: 12px;
+  color: var(--ink-4);
+  transition: transform 500ms var(--ease), color 300ms var(--ease);
+}
+
+.tile:hover::after {
+  transform: translate(2px, -2px);
+  color: var(--ink);
+}
+
+.tile .tile-title {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+.tile .tile-note {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- grids ---- */
+
+.grid {
+  display: grid;
+  gap: 18px;
+}
+
+.grid.cols {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 940px) {
+  .grid.cols {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .grid.cols > .col {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .grid.cols > .col > .card {
+    margin-bottom: 0;
+  }
 }
 
 /* ---------------------------------------------------------------- forms ---- */
@@ -134,116 +704,280 @@ h1 {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 13px;
+  gap: 7px;
+  margin-bottom: 15px;
 }
 
 .label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--ink-4);
+  transition: color 240ms var(--ease);
+}
+
+.field:focus-within .label {
+  color: var(--ink-2);
 }
 
 input[type='text'],
 input[type='password'],
 input[type='url'],
+input[type='search'],
+input[type='number'],
 textarea,
 select {
   width: 100%;
-  background: var(--raised);
-  border: 1px solid var(--hairline);
-  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   color: var(--ink);
   font: inherit;
   font-size: 13px;
-  padding: 9px 11px;
+  padding: 11px 13px;
   outline: none;
-  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+  transition:
+    border-color 240ms var(--ease),
+    background 240ms var(--ease),
+    box-shadow 300ms var(--ease);
 }
 
-textarea {
-  min-height: 84px;
-  resize: vertical;
-  line-height: 1.55;
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-4);
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: var(--line-2);
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: var(--hairline-strong);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 0 4px rgba(255, 255, 255, 0.045);
+}
+
+input:disabled,
+textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'><path d='M1 1l4 4 4-4' stroke='%23f6f7f7' stroke-opacity='.45' stroke-width='1.2'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  padding-right: 34px;
+}
+
+input[type='file'] {
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+input[type='file']::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 200ms var(--ease), border-color 200ms var(--ease);
+}
+
+input[type='file']::file-selector-button:hover {
+  background: var(--raised-2);
+  border-color: var(--line-3);
+}
+
+input[type='checkbox'] {
+  appearance: none;
+  width: 34px;
+  height: 19px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.04);
+  position: relative;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 300ms var(--ease), border-color 300ms var(--ease);
+}
+
+input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  transition: transform 340ms var(--ease-spring), background 300ms var(--ease);
+}
+
+input[type='checkbox']:checked {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: transparent;
+}
+
+input[type='checkbox']:checked::after {
+  transform: translateX(15px);
+  background: #0a0b0c;
 }
 
 .hint {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--ink-3);
-  line-height: 1.5;
+  line-height: 1.62;
+}
+
+.hint .mono {
+  color: var(--ink-2);
 }
 
 /* --------------------------------------------------------------- buttons ---- */
 
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 9px;
-  border: 1px solid var(--hairline);
-  background: var(--raised);
+  gap: 7px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--ink);
   font: inherit;
   font-size: 12px;
   font-weight: 500;
+  letter-spacing: 0.005em;
   cursor: pointer;
-  transition: background 150ms var(--ease), border-color 150ms var(--ease), opacity 150ms var(--ease);
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    background 260ms var(--ease),
+    border-color 260ms var(--ease),
+    transform 260ms var(--ease),
+    opacity 200ms var(--ease),
+    box-shadow 300ms var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--hairline-strong);
-  background: #17171c;
+  background: rgba(255, 255, 255, 0.075);
+  border-color: var(--line-3);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -18px #000;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 90ms;
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
 }
 
+/* A band of light that crosses the face of the button on hover. Subtle, once. */
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.18) 48%,
+    transparent 76%
+  );
+  transform: translateX(-130%);
+  transition: transform 700ms var(--ease);
+}
+
+.btn:hover:not(:disabled)::after {
+  transform: translateX(130%);
+}
+
 .btn.primary {
-  /* The accent, flat. No glow, no gradient. */
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #14111c;
+  background: var(--white);
+  border-color: var(--white);
+  color: #08090a;
   font-weight: 600;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 12px 30px -18px rgba(255, 255, 255, 0.45);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: #b3a8cf;
-  border-color: #b3a8cf;
+  background: #ffffff;
+  border-color: #ffffff;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 16px 38px -16px rgba(255, 255, 255, 0.35);
+}
+
+.btn.primary::after {
+  background: linear-gradient(
+    100deg,
+    transparent 18%,
+    rgba(0, 0, 0, 0.14) 48%,
+    transparent 78%
+  );
 }
 
 .btn.ghost {
   background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--line);
+  color: var(--ink);
 }
 
 .btn.danger {
   color: var(--danger);
-  border-color: rgba(226, 105, 94, 0.28);
+  border-color: rgba(224, 116, 106, 0.26);
   background: transparent;
 }
 
 .btn.danger:hover:not(:disabled) {
-  background: rgba(226, 105, 94, 0.1);
+  background: rgba(224, 116, 106, 0.09);
+  border-color: rgba(224, 116, 106, 0.44);
 }
 
 .btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 11px;
-  border-radius: 7px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  border-radius: var(--r-sm);
+}
+
+.btn.block {
+  width: 100%;
 }
 
 .row {
@@ -263,24 +997,31 @@ table {
 
 th {
   text-align: left;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink-3);
-  padding: 0 10px 10px;
-  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-4);
+  padding: 0 12px 11px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 
 td {
-  padding: 12px 10px;
-  border-bottom: 1px solid var(--hairline);
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line);
   color: var(--ink-2);
   vertical-align: middle;
+  transition: background 220ms var(--ease), color 220ms var(--ease);
 }
 
-tr:last-child td {
+tbody tr:last-child td {
   border-bottom: none;
+}
+
+tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.022);
 }
 
 td strong {
@@ -288,209 +1029,526 @@ td strong {
   font-weight: 500;
 }
 
+/*
+ * Some tables use th inside the body as a row label. It should read as an ordinary
+ * cell, not as a column heading with its caps and its rule.
+ */
+tbody th {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-3);
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+tbody tr:last-child th {
+  border-bottom: none;
+}
+
+tbody tr:hover th {
+  background: rgba(255, 255, 255, 0.022);
+  color: var(--ink-2);
+  transition: background 220ms var(--ease), color 220ms var(--ease);
+}
+
+/* A code block, for the one place the panel asks you to paste JSON. */
+pre {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  overflow: auto;
+  line-height: 1.65;
+  margin: 12px 0;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* The label column of a two-column key/value table reads as a hairline label. */
+.card table td:first-child:not(:only-child) {
+  color: var(--ink-3);
+  font-size: 12px;
+  width: 34%;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 20px;
-  padding: 0 8px;
+  gap: 6px;
+  height: 21px;
+  padding: 0 9px;
   border-radius: 999px;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
   font-weight: 500;
-  border: 1px solid var(--hairline);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  border: 1px solid var(--line-2);
   color: var(--ink-2);
+  white-space: nowrap;
+  transition: border-color 260ms var(--ease), color 260ms var(--ease), background 260ms var(--ease);
+}
+
+.pill::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.9;
 }
 
 .pill.ok {
   color: var(--success);
-  border-color: rgba(52, 195, 149, 0.3);
+  border-color: rgba(87, 201, 161, 0.26);
+  background: rgba(87, 201, 161, 0.055);
 }
 
 .pill.off {
   color: var(--danger);
-  border-color: rgba(226, 105, 94, 0.3);
+  border-color: rgba(224, 116, 106, 0.26);
+  background: rgba(224, 116, 106, 0.05);
 }
 
-/*
- * A row that points at a file the bucket does not have. It is not an error state — the
- * panel did nothing wrong, the file was deleted somewhere else — so it reads as a note,
- * and it is deliberately not the same red as a failure.
- */
 .pill.warn {
-  color: var(--warn, #d8b26a);
-  border-color: rgba(216, 178, 106, 0.32);
+  color: var(--warn);
+  border-color: rgba(207, 174, 116, 0.28);
+  background: rgba(207, 174, 116, 0.05);
 }
 
 .mono {
-  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10.5px;
+  letter-spacing: 0.01em;
   color: var(--ink-3);
+  word-break: break-all;
 }
 
 .empty {
-  padding: 34px 10px;
+  padding: 44px 12px;
   text-align: center;
   color: var(--ink-3);
   font-size: 12.5px;
-  line-height: 1.7;
+  line-height: 1.8;
+}
+
+.empty::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 16px;
+  border: 1px dashed var(--line-3);
+  border-radius: 8px;
+  animation: mark-turn 12s var(--ease-io) infinite;
 }
 
 /* --------------------------------------------------------------- notices ---- */
 
 .notice {
-  border-radius: 10px;
-  border: 1px solid var(--hairline);
-  background: var(--raised);
-  padding: 11px 13px;
+  position: relative;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 13px 15px;
   font-size: 11.5px;
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--ink-2);
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  animation: notice-in 460ms var(--ease) both;
+}
+
+/* A light that sweeps once across the notice as it arrives: you cannot miss a result. */
+.notice::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.07), transparent 70%);
+  transform: translateX(-100%);
+  animation: sweep 1200ms var(--ease) 120ms both;
+  pointer-events: none;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes sweep {
+  to {
+    transform: translateX(100%);
+  }
 }
 
 .notice.error {
-  border-color: rgba(226, 105, 94, 0.3);
-  color: #f0b0a9;
+  border-color: rgba(224, 116, 106, 0.3);
+  background: rgba(224, 116, 106, 0.055);
+  color: #f0b3ac;
 }
 
 .notice.ok {
-  border-color: rgba(52, 195, 149, 0.28);
-  color: #9be0c8;
+  border-color: rgba(87, 201, 161, 0.28);
+  background: rgba(87, 201, 161, 0.05);
+  color: #a4e3cd;
+}
+
+.notice a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
 }
 
 /* ------------------------------------------------------------- uploader ---- */
 
 .dropzone {
-  border: 1px dashed var(--hairline-strong);
-  border-radius: 12px;
-  padding: 22px;
+  position: relative;
+  border: 1px dashed var(--line-3);
+  border-radius: var(--r-md);
+  padding: 24px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 150ms var(--ease), background 150ms var(--ease);
+  background: rgba(255, 255, 255, 0.012);
+  transition:
+    border-color 300ms var(--ease),
+    background 300ms var(--ease),
+    transform 300ms var(--ease);
 }
 
 .dropzone:hover,
 .dropzone[data-active='true'] {
-  border-color: var(--accent-2);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
 }
 
 .progress {
   height: 3px;
   border-radius: 999px;
-  background: var(--raised);
+  background: rgba(255, 255, 255, 0.07);
   overflow: hidden;
-  margin-top: 10px;
+  margin-top: 12px;
+  position: relative;
 }
 
 .progress > span {
   display: block;
   height: 100%;
-  background: var(--accent);
-  transition: width 200ms linear;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.55), #ffffff);
+  transition: width 260ms var(--ease-io);
+  position: relative;
+}
+
+/* A travelling highlight on the filled part: motion even when the percentage is still. */
+.progress > span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.35), transparent);
+  animation: progress-sheen 1400ms linear infinite;
+}
+
+@keyframes progress-sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 
 /* ----------------------------------------------------------------- login ---- */
 
+/*
+ * The door.
+ *
+ * No card, no box. The wordmark is set enormous and half-lit, the form floats on the
+ * matte, and two hairlines cross the frame behind it — the same idea as the desktop
+ * app's sign-in, where the film is the room and the form is glass.
+ */
 .center {
+  position: relative;
+  z-index: 2;
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 32px;
+  overflow: hidden;
+}
+
+.center::before,
+.center::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  animation: cross 12s var(--ease-io) infinite alternate;
+}
+
+.center::before {
+  top: 34%;
+}
+
+.center::after {
+  bottom: 30%;
+  animation-delay: -6s;
+}
+
+@keyframes cross {
+  from {
+    transform: translateX(-8%) scaleX(0.85);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(8%) scaleX(1.1);
+    opacity: 1;
+  }
 }
 
 .login {
+  position: relative;
   width: 100%;
-  max-width: 340px;
+  max-width: 372px;
+  animation: rise 900ms var(--ease) both;
 }
 
-.login .wordmark {
+.login-mark {
+  display: grid;
+  place-items: center;
+  margin-bottom: 26px;
+}
+
+.login-mark .brand-mark {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 12px;
+  border-color: var(--line-2);
+}
+
+.login-mark .brand-mark::before {
+  width: 16px;
+  height: 16px;
+}
+
+.login-title {
   text-align: center;
-  display: block;
-  margin-bottom: 22px;
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  animation: rise 800ms var(--ease) 80ms both;
+}
+
+.login-sub {
+  text-align: center;
+  margin: 0 0 30px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  animation: rise 800ms var(--ease) 140ms both;
+}
+
+.login form {
+  animation: rise 800ms var(--ease) 200ms both;
+}
+
+.login .card {
+  background: rgba(255, 255, 255, 0.024);
+  border-color: var(--line-2);
+  backdrop-filter: blur(12px);
+  padding: 26px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-deep);
+}
+
+.login-foot {
+  margin-top: 22px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  animation: fade 1200ms var(--ease) 500ms both;
+}
+
+/* A wrong guess shakes the panel. It is the only error that moves. */
+.shake {
+  animation: shake 420ms var(--ease-io) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+
+/* A button that is working: three dots, walking. */
+.working {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.working i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: walk 900ms var(--ease-io) infinite;
+}
+
+.working i:nth-child(2) {
+  animation-delay: 130ms;
+}
+
+.working i:nth-child(3) {
+  animation-delay: 260ms;
+}
+
+@keyframes walk {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
 }
 
 /* --------------------------------------------------------------- overview ---- */
 
-/*
- * Four numbers, read-only, no charts.
- *
- * The panel's job is to answer "is anything wrong" in the time it takes the page
- * to paint. A sparkline would not answer it any faster and would be one more thing
- * to be wrong about.
- */
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 10px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
 }
 
 .stat {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
+  gap: 10px;
+  padding: 18px 20px 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.004)),
+    var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  transition:
+    border-color 400ms var(--ease),
+    transform 500ms var(--ease),
+    box-shadow 500ms var(--ease);
+  animation: rise 820ms var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 140ms);
+}
+
+.stat:hover {
+  border-color: var(--line-2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
 }
 
 .stat-value {
-  font-size: 21px;
-  line-height: 1.1;
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.035em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.stat-value small {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-4);
+  font-weight: 400;
 }
 
 .stat-label {
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--ink-4);
+}
+
+/* The hairline under a stat fills on arrival: a bar with nothing to compare to, but it
+ * makes the number feel measured rather than printed. */
+.stat-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.stat-bar > i {
+  display: block;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.7);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--v, 0));
+  animation: bar-grow 1200ms var(--ease) 300ms both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 /* --------------------------------------------------------------- toolbar ---- */
 
-/*
- * The filter row above a table. Sticky, because the list is the one thing on the
- * page that grows without bound.
- */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 9px;
+  margin-bottom: 16px;
 }
 
 .toolbar input[type='search'] {
   flex: 1 1 220px;
   min-width: 160px;
-  padding: 8px 11px;
-  font: inherit;
+  padding: 9px 13px;
   font-size: 12.5px;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hairline);
-  border-radius: 9px;
-  outline: none;
-}
-
-.toolbar input[type='search']:focus-visible {
-  border-color: rgba(255, 255, 255, 0.55);
+  border-radius: 10px;
 }
 
 .seg {
   display: inline-flex;
-  padding: 2px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hairline);
-  border-radius: 9px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.022);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
 .seg button {
-  padding: 5px 11px;
+  padding: 6px 13px;
   font: inherit;
   font-size: 11.5px;
   color: var(--ink-3);
@@ -498,32 +1556,285 @@ td strong {
   border: 0;
   border-radius: 7px;
   cursor: pointer;
+  transition: color 240ms var(--ease), background 300ms var(--ease);
+}
+
+.seg button:hover {
+  color: var(--ink);
 }
 
 .seg button[data-active='true'] {
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.14);
+  color: #08090a;
+  background: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
 }
 
-/* A row action that reads as a sentence, not an icon nobody recognises. */
 .row-action {
-  padding: 3px 9px;
+  padding: 4px 10px;
   font: inherit;
   font-size: 11px;
   color: var(--ink-2);
-  background: none;
-  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
   border-radius: 7px;
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    color 200ms var(--ease),
+    border-color 240ms var(--ease),
+    background 240ms var(--ease),
+    transform 240ms var(--ease);
 }
 
 .row-action:hover {
   color: var(--ink);
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--line-3);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.row-action.danger {
+  color: var(--danger);
+  border-color: rgba(224, 116, 106, 0.22);
+}
+
+.row-action.danger:hover {
+  color: #f0b3ac;
+  border-color: rgba(224, 116, 106, 0.45);
+  background: rgba(224, 116, 106, 0.08);
 }
 
 .row-action[disabled] {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
+  transform: none;
+}
+
+/* ------------------------------------------------------------------ misc ---- */
+
+/*
+ * The endpoints at the bottom of the overview. Each is a copyable-looking line that
+ * lifts on hover, because the only thing anyone does with them is click.
+ */
+.endpoints {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -10px;
+}
+
+.endpoints a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  transition: background 240ms var(--ease), color 240ms var(--ease), padding 300ms var(--ease);
+}
+
+.endpoints a::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  transition: background 240ms var(--ease), transform 300ms var(--ease-spring);
+}
+
+.endpoints a::after {
+  content: 'GET';
+  margin-left: auto;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: var(--ink-4);
+}
+
+.endpoints a:hover {
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--ink);
+  padding-left: 14px;
+}
+
+.endpoints a:hover::before {
+  background: var(--white);
+  transform: scale(1.6);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 1px;
+  margin: 0 -10px;
+}
+
+@media (max-width: 620px) {
+  .kv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.kv > dt,
+.kv > dd {
+  margin: 0;
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.kv > dt {
+  color: var(--ink-3);
+  transition: color 240ms var(--ease);
+}
+
+.kv > dd {
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.kv > dt:last-of-type,
+.kv > dd:last-of-type {
+  border-bottom: none;
+}
+
+.kv > dt:hover {
+  color: var(--ink);
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+  margin: 18px 0;
+}
+
+/* ------------------------------------------------------------- responsive ---- */
+
+/*
+ * Under 860px the bar gives up its wordmark before it gives up its nav: the mark and
+ * the four sections still fit a phone, and a two-line header would defeat the point of
+ * a sticky one.
+ */
+@media (max-width: 860px) {
+  .shell {
+    padding: 0 18px 90px;
+  }
+
+  .bar {
+    margin: 0 -18px 32px;
+    padding: 0 18px;
+  }
+
+  .bar-inner {
+    height: 56px;
+    gap: 12px;
+  }
+
+  .wordmark em {
+    display: none;
+  }
+
+  .wordmark {
+    font-size: 9.5px;
+    letter-spacing: 0.22em;
+  }
+
+  .nav a {
+    padding: 0 11px;
+    font-size: 11.5px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .wordmark {
+    display: none;
+  }
+
+  .nav {
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  .nav a {
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .btn.ghost.small {
+    padding: 0 8px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+}
+
+/* ---------------------------------------------------------------- skeleton ---- */
+
+/*
+ * While the catalogue is being fetched. Three bars that breathe, at the height of the
+ * rows they will become — so the page does not jump when the data lands.
+ */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.skeleton span {
+  display: block;
+  height: 44px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(255, 255, 255, 0.055) 40%,
+    rgba(255, 255, 255, 0.02) 80%
+  );
+  background-size: 220% 100%;
+  animation: breathe 1.6s var(--ease-io) infinite;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+
+.skeleton span:last-child {
+  border-bottom: none;
+}
+
+@keyframes breathe {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -40% 0;
+  }
+}
+
+/* ------------------------------------------------------------------ reduced ---- */
+
+/*
+ * Anyone who has asked their machine to stop moving things gets none of it — not a
+ * slower version, none. Every animation above is decoration over a static design.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .grain,
+  .ambience::after {
+    display: none;
+  }
 }

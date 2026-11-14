@@ -310,7 +310,13 @@ export default function Products(): React.JSX.Element {
         ) : null}
 
         {loading ? (
-          <div className="empty">Loading…</div>
+          /* Bars at the height of the rows they will become, so nothing jumps when the
+             catalogue lands. */
+          <div className="skeleton" aria-label="Loading products">
+            {[0, 1, 2, 3].map((row) => (
+              <span key={row} style={{ '--i': row } as React.CSSProperties} />
+            ))}
+          </div>
         ) : apps.length === 0 ? (
           <div className="empty">
             Nothing published yet.
@@ -363,7 +369,7 @@ export default function Products(): React.JSX.Element {
                     <div className="row" style={{ justifyContent: 'flex-end' }}>
                       {app.exe_missing ? (
                         <button
-                          className="btn small"
+                          className="row-action"
                           disabled={busy}
                           title="The file is gone from the bucket. Forget it so the row stops claiming it."
                           onClick={() => void removeFile(app, 'exe')}
@@ -372,16 +378,16 @@ export default function Products(): React.JSX.Element {
                         </button>
                       ) : null}
                       <button
-                        className="btn small"
+                        className="row-action"
                         disabled={busy}
                         onClick={() => void patch(app.id, { status: app.status === 'active' ? 'locked' : 'active' })}
                       >
                         {app.status === 'active' ? 'Lock' : 'Unlock'}
                       </button>
-                      <button className="btn small" onClick={() => setSelected(app.id === selected ? null : app.id)}>
+                      <button className="row-action" onClick={() => setSelected(app.id === selected ? null : app.id)}>
                         {app.id === selected ? 'Close' : 'Edit'}
                       </button>
-                      <button className="btn small danger" disabled={busy} onClick={() => void remove(app.id)}>
+                      <button className="row-action danger" disabled={busy} onClick={() => void remove(app.id)}>
                         Remove
                       </button>
                     </div>
@@ -517,7 +523,7 @@ export default function Products(): React.JSX.Element {
               {current.exe_url ? (
                 <button
                   type="button"
-                  className="btn small danger"
+                  className="row-action danger"
                   disabled={busy}
                   onClick={() => void removeFile(current, 'exe')}
                 >
@@ -578,7 +584,7 @@ export default function Products(): React.JSX.Element {
               <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
                 <button
                   type="button"
-                  className="btn small danger"
+                  className="row-action danger"
                   disabled={busy}
                   onClick={() => void removeFile(current, 'image')}
                 >

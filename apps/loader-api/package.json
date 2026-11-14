@@ -2,7 +2,7 @@
   "name": "indra-loader-api",
   "version": "1.0.0",
   "private": true,
-  "description": "INDRA LOADER \u2014 catalogue API and the web admin panel",
+  "description": "INDRA LOADER — catalogue API and the web admin panel",
   "scripts": {
     "dev": "next dev -p 5280",
     "build": "next build",
@@ -14,6 +14,7 @@
     "@aws-sdk/client-s3": "^3.700.0",
     "@aws-sdk/s3-request-presigner": "^3.700.0",
     "@supabase/supabase-js": "^2.47.0",
+    "geist": "^1.9.2",
     "jose": "^5.9.6",
     "next": "^15.1.6",
     "react": "^19.0.0",

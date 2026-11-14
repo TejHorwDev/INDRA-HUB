@@ -5,6 +5,10 @@ export const dynamic = 'force-dynamic'
 export default function AppsPage(): React.JSX.Element {
   return (
     <>
+      <p className="eyebrow">
+        <span className="dot" data-tone="off" />
+        Catalogue
+      </p>
       <h1>Products</h1>
       <p className="lede">
         What the loader shows. A product appears in the app as soon as it has a name; it can be
