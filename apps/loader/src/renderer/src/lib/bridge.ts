@@ -178,6 +178,15 @@ function filesMock(): LoaderBridge['files'] {
 const mock: LoaderBridge = {
   version: async () => ({ running: '1.0.0', installed: '1.0.0', packaged: false }),
 
+  /*
+   * The browser preview has no disk and no film cache, so it points at the published
+   * address like a first launch would. Nothing to listen to.
+   */
+  media: {
+    film: async () => null,
+    onFilm: () => () => undefined
+  },
+
   updates: {
     state: async () => idle,
     check: async () => idle,
