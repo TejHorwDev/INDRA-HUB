@@ -364,7 +364,21 @@ export function writeTreatment(input: { blur: number; dim: number }): LoginAppea
   const dim = clamp(Number(input.dim), 0, MAX_DIM)
   writeSetting('login_background_blur', String(blur))
   writeSetting('login_background_dim', String(dim))
+  /*
+   * Durable, unlike the push's own in-memory flag: this survives the push being
+   * skipped or refused, which is exactly when the shared row is stale and would
+   * otherwise reassert its numbers over these.
+   */
+  writeSetting('login_treatment_pending', '1')
   return readLoginAppearance()
+}
+
+export function treatmentPending(): boolean {
+  return readSetting('login_treatment_pending', '') === '1'
+}
+
+export function clearTreatmentPending(): void {
+  writeSetting('login_treatment_pending', '')
 }
 
 export const APPEARANCE_LIMITS = { maxBlur: MAX_BLUR, maxDim: MAX_DIM, maxVideoBytes: MAX_BYTES }
