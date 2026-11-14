@@ -2,6 +2,7 @@ import { BrowserWindow, app, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { LAUNCH_HOLD, isForward, stageForPhase, type LaunchStage } from './launch-stages'
 import { cachedVideo, rememberVideo } from './lib/backdrop-cache'
+import { ensureFilm, filmSource } from './lib/film'
 import { APP_NAME } from './lib/identity'
 import { readConfig } from './services/catalog'
 import { checkForUpdates, installUpdate, noteScreen, updateState } from './services/updates'
@@ -133,7 +134,10 @@ export async function runLaunchCard(): Promise<LaunchResult> {
        * corrected a second later if the answer has changed.
        */
       const remembered = cachedVideo()
-      if (remembered) card.webContents.send('launch:video', remembered)
+      // From the disk when it is there. The card is the first thing anybody sees, and a
+      // card that waits for a bucket is a card that shows nothing.
+      const source = remembered ? filmSource(remembered) : null
+      if (source) card.webContents.send('launch:video', source)
       resolve()
     }
     ipcMain.on('launch:ready', onReady)
@@ -149,7 +153,15 @@ export async function runLaunchCard(): Promise<LaunchResult> {
   void readConfig(2500)
     .then((config) => {
       const film = config.video.trim()
-      if (!film || film === cachedVideo()) return
+      if (!film) return
+      // Fetch it for every launch after this one, whether or not it changed.
+      void ensureFilm(film)
+      if (film === cachedVideo()) {
+        // Same film: still show it, from somewhere that does not need the network.
+        const source = filmSource(film)
+        if (source && !card.isDestroyed()) card.webContents.send('launch:video', source)
+        return
+      }
       rememberVideo(film)
       if (!card.isDestroyed()) card.webContents.send('launch:video', film)
     })

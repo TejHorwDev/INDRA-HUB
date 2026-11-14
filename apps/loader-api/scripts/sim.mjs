@@ -236,6 +236,17 @@ async function main() {
   const after = await storage.keySet('exe')
   check('a file deleted outside the app leaves the set', after.has(target.key) === false)
 
+  /*
+   * A film must not be streamed through the API on its first play: that is two hops and a
+   * free-tier server between a person and the first frame. Everything else stays proxied.
+   */
+  console.log('\nA film takes the short way')
+  check('local disk has no second address to offer', (await storage.directUrl('videos/a.mp4')) === null)
+
+  const filesRoute = readFileSync(join(root, 'src/app/api/files/[...key]/route.ts'), 'utf8')
+  check('only a film is redirected', /path\.startsWith\('videos\/'\)/.test(filesRoute))
+  check('and the redirect is short-lived', /directUrl\(path\)/.test(filesRoute))
+
   const range = await bundle('src/lib/http-range.ts', 'http-range')
   check('`bytes=0-` is the whole file', JSON.stringify(range.parseRange('bytes=0-')) === '{"start":0}')
   check('`bytes=5-9` is a slice', range.parseRange('bytes=5-9')?.end === 9)

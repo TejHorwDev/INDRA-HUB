@@ -158,6 +158,19 @@ export interface LoaderBridge {
       updated?: string | null
     }>
 
+  media: {
+    /**
+     * What to point the backdrop at, right now.
+     *
+     * `indra-film://…` when the published film is already on disk, the remote address
+     * when it is not, and null before anything has been published. Asked at mount so the
+     * film can start with the first paint instead of after a network round trip.
+     */
+    film: () => Promise<string | null>
+    /** A new film was published, or the one on disk is ready. */
+    onFilm: (listener: (source: string) => void) => () => void
+  }
+
   updates: {
     state: () => Promise<UpdateState>
     check: () => Promise<UpdateState>
