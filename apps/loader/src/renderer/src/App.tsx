@@ -10,6 +10,7 @@ import Verifying from './screens/Verifying'
 import Dashboard from './screens/Dashboard'
 import AppDetail from './screens/AppDetail'
 import Settings from './screens/Settings'
+import Backdrop from './components/Backdrop'
 import Dialog from './components/Dialog'
 import Toasts, { type Toast } from './components/Toasts'
 import UpdatePill from './components/UpdatePill'
@@ -115,6 +116,21 @@ export default function App(): React.JSX.Element {
     return () => clearInterval(timer)
   }, [selected])
 
+  /*
+   * What the catalogue says about itself — the website link and the backdrop film.
+   *
+   * Loaded on mount, before anybody signs in, because both of them belong to the
+   * screens that come *before* the library. Fetching them after a successful login
+   * meant the sign-in page never had a video to play: the setting arrived one screen
+   * too late, which is exactly how a working feature looks broken.
+   */
+  useEffect(() => {
+    void bridge.catalogue.load().then((catalogue) => {
+      setApps(catalogue.apps)
+      setConfig(catalogue.config)
+    })
+  }, [])
+
   /** Catalogue, then entitlement. Both before the library is shown as loaded. */
   const loadLibrary = useCallback(async () => {
     setLoading(true)
@@ -207,6 +223,16 @@ export default function App(): React.JSX.Element {
 
   return (
     <div className="silk shell">
+      {/*
+        * The film belongs to the window, not to a screen.
+        *
+        * It was on the sign-in page only, which meant somebody looking at the
+        * landing page — or the library, or settings — saw a plain background and
+        * concluded the video was broken. One layer, under everything, for the whole
+        * life of the window.
+        */}
+      <Backdrop video={config.video || undefined} />
+
       {screen === 'splash' ? <Splash /> : null}
 
       {screen === 'landing' ? (
@@ -221,7 +247,6 @@ export default function App(): React.JSX.Element {
 
       {screen === 'signin' ? (
         <SignIn
-          video={config.video}
           onSubmit={submit}
           error={error}
           busy={false}

@@ -32,7 +32,7 @@ export default function Backdrop({ video, poster }: Props): React.JSX.Element {
   const showVideo = Boolean(video) && !failed
 
   return (
-    <div className="backdrop" aria-hidden>
+    <div className="backdrop" data-video={showVideo ? 'true' : 'false'} aria-hidden>
       <span className="wash-a" />
       <span className="wash-b" />
       <span className="wash-c" />
