@@ -238,6 +238,22 @@ const entry = code(readFileSync(join(main, 'index.ts'), 'utf8'))
 check('an old cache is dropped on the first start of a new version', /previous\(\) === current\) return/.test(cache))
 check('and it is dropped before anything is fetched', /await clearCacheOnUpdate\(\)/.test(entry))
 
+/*
+ * The film starts with the window, not after it.
+ *
+ * It used to be: catalogue round trip → bucket → first frame, every launch. Now the
+ * backdrop asks the process for a local file at mount, and the published address is only
+ * the fallback for the one launch that has never had one.
+ */
+const appShell = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+const filmCache = code(readFileSync(join(main, 'lib/film.ts'), 'utf8'))
+check('the backdrop asks for the film before fetching anything', /bridge\.media\s*\.\s*film\(\)/.test(appShell))
+check('the cached source wins over the published address', /video=\{film \|\| config\.video/.test(appShell))
+check('the film is served from disk, not the network', /protocol\.handle\(SCHEME/.test(filmCache))
+check('and it is fetched once, for next time', /export function ensureFilm/.test(filmCache))
+check('an old film is not kept forever', /const KEEP = 2/.test(filmCache))
+check('the scheme is allowed by the policy', /media-src 'self' blob: https: indra-film:/.test(readFileSync(join(main, 'index.ts'), 'utf8')))
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.

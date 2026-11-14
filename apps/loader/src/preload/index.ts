@@ -67,6 +67,19 @@ const bridge: LoaderBridge = {
     }
   },
 
+  media: {
+    /*
+     * The film, from the disk when it has been fetched once. Null on the very first
+     * launch, which is the only launch where the network is the only answer.
+     */
+    film: (): Promise<string | null> => ipcRenderer.invoke('media:film'),
+    onFilm: (listener: (source: string) => void): (() => void) => {
+      const handler = (_event: unknown, source: string): void => listener(source)
+      ipcRenderer.on('media:film', handler)
+      return () => ipcRenderer.removeListener('media:film', handler)
+    }
+  },
+
   links: {
     open: async (url: string): Promise<void> => ipcRenderer.invoke('links:open', url)
   },

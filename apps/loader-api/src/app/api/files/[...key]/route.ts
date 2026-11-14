@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream'
 import { parseRange } from '@/lib/http-range'
-import { isObjectKey, readObject } from '@/lib/storage'
+import { directUrl, isObjectKey, readObject } from '@/lib/storage'
 import { ensureStorageConfig } from '@/lib/storage-config'
 
 /*
@@ -46,6 +46,24 @@ export async function GET(
   // No traversal, no absolute paths: the key is a name we issued.
   if (!isObjectKey(path)) {
     return new Response('Not found', { status: 404 })
+  }
+
+  /*
+   * A film goes straight to the bucket.
+   *
+   * Streaming it through this process puts two hops and a free-tier server between the
+   * person and the video, which is how a backdrop arrives several seconds after the
+   * window. Everything else stays proxied: an installer is downloaded once and verified,
+   * and keeping it private is worth the read.
+   */
+  if (path.startsWith('videos/')) {
+    const direct = await directUrl(path)
+    if (direct) {
+      return new Response(null, {
+        status: 302,
+        headers: { location: direct, 'cache-control': 'no-store' }
+      })
+    }
   }
 
   /*

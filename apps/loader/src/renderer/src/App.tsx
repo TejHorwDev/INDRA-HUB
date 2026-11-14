@@ -70,6 +70,15 @@ export default function App(): React.JSX.Element {
   const [apps, setApps] = useState<LoaderApp[]>([])
   const [owned, setOwned] = useState<string[]>([])
   const [config, setConfig] = useState<LoaderConfig>(EMPTY_CONFIG)
+  /*
+   * The film, as the backdrop should play it.
+   *
+   * Separate from `config.video`, which is the address the panel published. When the film
+   * has been fetched once it lives on disk, and this is the `indra-film://` address for
+   * that file — no network, no waiting. It is asked for at mount, before anything is
+   * fetched from the network, so the first paint can already have a picture behind it.
+   */
+  const [film, setFilm] = useState('')
   const [loading, setLoading] = useState(true)
 
   const [selected, setSelected] = useState<LoaderApp | null>(null)
@@ -178,6 +187,22 @@ export default function App(): React.JSX.Element {
    * meant the sign-in page never had a video to play: the setting arrived one screen
    * too late, which is exactly how a working feature looks broken.
    */
+  /*
+   * First: the film from the disk. One IPC round trip against a local file, which is
+   * fast enough to beat the first frame.
+   */
+  useEffect(() => {
+    void bridge.media
+      .film()
+      .then((cached) => {
+        if (cached) setFilm(cached)
+      })
+      .catch(() => undefined)
+
+    // A new film was published, or the one being downloaded has landed.
+    return bridge.media.onFilm((source) => setFilm(source))
+  }, [])
+
   useEffect(() => {
     void bridge.catalogue
       .load()
@@ -299,7 +324,12 @@ export default function App(): React.JSX.Element {
         * concluded the video was broken. One layer, under everything, for the whole
         * life of the window.
         */}
-      <Backdrop video={config.video || undefined} />
+      {/*
+        * The cached film first, the published address only as a fallback for the launch
+        * that has never had one. Reading `config.video` alone meant the backdrop waited
+        * for the catalogue, and then for a bucket, before a single frame appeared.
+        */}
+      <Backdrop video={film || config.video || undefined} />
 
       {screen === 'splash' ? <Splash /> : null}
 

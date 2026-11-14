@@ -1,8 +1,9 @@
-import { app, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { installed } from '../services/installed'
 import { runningVersion } from '../lib/payload'
 import { currentSession, login, logout } from '../services/auth'
 import { rememberVideo } from '../lib/backdrop-cache'
+import { currentFilmSource, ensureFilm, filmSource } from '../lib/film'
 import { loadCatalogue } from '../services/catalog'
 import { entitlementReport, ownedProductIds } from '../services/entitlement'
 import { cancelDownload, startDownload, states, uninstall } from '../services/downloads'
@@ -80,10 +81,37 @@ export function registerIpc(handlers: Handlers): void {
   // renderer still has no network of its own.
   ipcMain.handle('catalogue:load', async () => {
     const catalogue = await loadCatalogue()
+    const film = catalogue.config.video
     // The launch card cannot fetch, so every read leaves a note for next time.
-    rememberVideo(catalogue.config.video)
+    rememberVideo(film)
+
+    /*
+     * The film is fetched once and then played from the disk, which is the whole
+     * difference between a backdrop that appears with the window and one that appears
+     * four seconds later after a trip through a free-tier server.
+     *
+     * The download runs in the background and the renderer is told only once it is on
+     * disk — switching a playing video's source mid-film would restart it, so a change is
+     * announced between launches, not during one. What is announced here is a change of
+     * film.
+     */
+    void ensureFilm(film).then((cached) => {
+      if (!cached) return
+      const source = filmSource(film)
+      if (!source) return
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send('media:film', source)
+      }
+    })
+
     return catalogue
   })
+
+  /*
+   * What to point at before anything has been fetched. One question to the process that
+   * already knows, answered from the disk.
+   */
+  ipcMain.handle('media:film', () => currentFilmSource())
   ipcMain.handle('auth:probe', () => entitlementReport())
   ipcMain.handle('auth:owned', () => ownedProductIds())
 

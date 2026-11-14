@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import { APP_NAME, applyIdentity } from './lib/identity'
 import { clearCacheOnUpdate } from './lib/cache-version'
+import { registerFilmScheme, serveFilm } from './lib/film'
 import { markHealthy } from './lib/payload'
 import { forgetStoredSession } from './services/auth'
 import { registerIpc } from './ipc'
@@ -23,6 +24,10 @@ import { runLaunchCard } from './splash'
 
 // Before anything reads a path or groups a taskbar button.
 applyIdentity()
+
+// Electron only accepts a privileged scheme before the app is ready, and the very first
+// window may want to play the film — so this is the earliest line that can hold it.
+registerFilmScheme()
 
 const isDev = !app.isPackaged
 
@@ -68,7 +73,9 @@ const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: https:",
   // The sign-in film, served from the panel's storage. `https:` because the
   // admin panel sets it and it lives in a bucket, not in the installer.
-  "media-src 'self' blob: https:",
+  // https: for the film before it is cached; indra-film: once it is, which is a
+  // local file served by this process and needs no network at all.
+  "media-src 'self' blob: https: indra-film:",
   "font-src 'self'",
   "connect-src 'none'",
   "base-uri 'none'",
@@ -210,6 +217,10 @@ app.whenReady().then(async () => {
    * disk can be repaired by the server.
    */
   await clearCacheOnUpdate()
+
+  // The film, straight off the disk. Registered before any window exists, so the first
+  // paint can already ask for it.
+  serveFilm()
 
   /*
    * A token from a release that remembered sessions is deleted, not ignored.

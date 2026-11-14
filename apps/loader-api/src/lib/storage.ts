@@ -521,6 +521,38 @@ export async function readObject(
   }
 }
 
+/**
+ * An address the client can fetch the object from itself.
+ *
+ * The API is a proxy: bytes come out of a bucket into this process and then out to the
+ * browser, which is right for an installer (private, hashed, one hop is enough) and wrong
+ * for a video, which is streamed twice and buffered twice by a free-tier server that is
+ * not a CDN. A signed address is handed out instead, so the film comes from the bucket
+ * edge on the first play — after which the loader keeps its own copy and asks for
+ * nothing at all.
+ *
+ * Short-lived on purpose: the value is used immediately, by the request that asked for it.
+ * Local disk has no second address, so a deployment on it simply streams as before.
+ */
+export async function directUrl(key: string, expiresIn = 300): Promise<string | null> {
+  const active = driver()
+  if (active === 'local') return null
+
+  try {
+    if (active === 'supabase') {
+      const supabase = createClient(env.supabaseUrl, env.supabaseServiceKey, {
+        auth: { persistSession: false }
+      })
+      const { data } = await supabase.storage.from(env.supabaseBucket).createSignedUrl(key, expiresIn)
+      return data?.signedUrl ?? null
+    }
+
+    return await getSignedUrl(s3(), new GetObjectCommand({ Bucket: bucket(), Key: key }), { expiresIn })
+  } catch {
+    return null
+  }
+}
+
 /** Local only: the bytes of a direct upload. */
 export async function localWrite(key: string, body: Readable): Promise<void> {
   const path = join(LOCAL_ROOT, key)
