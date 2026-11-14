@@ -96,6 +96,50 @@ async function newest(): Promise<Release | null> {
   return best?.release ?? null
 }
 
+/**
+ * The newest tag, read from the release feed instead of the API.
+ *
+ * `api.github.com` is rate limited by address, and a datacentre address is shared
+ * with strangers. When it answers 403 the panel was reduced to whatever it happened
+ * to remember — which is fine for a day and wrong for a release.
+ *
+ * `releases.atom` is the same information GitHub has published as a feed since
+ * forever: no authentication, no per-address budget, and one entry per release with
+ * its tag in the link. It is the difference between a feature that needs an operator
+ * and one that maintains itself.
+ */
+async function newestFromFeed(): Promise<string | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 12_000)
+  try {
+    const response = await fetch(`https://github.com/${REPO}/releases.atom`, {
+      signal: controller.signal,
+      cache: 'no-store',
+      redirect: 'follow',
+      headers: { accept: 'application/atom+xml', 'user-agent': 'indra-loader-api' }
+    })
+    if (!response.ok) throw new Error(`GitHub answered HTTP ${response.status}`)
+
+    const xml = await response.text()
+    let best: string | null = null
+    let bestVersion: string | null = null
+
+    for (const match of xml.matchAll(/releases\/tag\/([^"']+)/g)) {
+      const tag = decodeURIComponent(match[1])
+      const version = versionFromTag(tag)
+      if (!version) continue
+      if (!bestVersion || compareVersions(version, bestVersion) > 0) {
+        best = tag
+        bestVersion = version
+      }
+    }
+
+    return best
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** The release's own manifest, which is the authority on file, hash and size. */
 async function manifestOf(tag: string, version: string): Promise<LoaderManifest> {
   const body = await json<Partial<LoaderManifest>>(
@@ -157,22 +201,29 @@ export async function latestLoaderRelease(): Promise<LatestRelease | null> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.value
 
   try {
-    const release = await newest()
-    if (!release) {
+    let tag: string | null = null
+    let publishedAt = ''
+
+    const release = await newest().catch(() => null)
+    if (release) {
+      tag = release.tag_name as string
+      publishedAt = release.published_at ?? ''
+    }
+
+    /*
+     * The API did not answer — the feed still can. Two independent ways of asking the
+     * same question, and only the manifest itself is a hard requirement.
+     */
+    if (!tag) tag = await newestFromFeed()
+    if (!tag) {
       cache = { at: Date.now(), value: null }
       return null
     }
 
-    const tag = release.tag_name as string
     const version = versionFromTag(tag) as string
     const manifest = await manifestOf(tag, version)
 
-    const value: LatestRelease = {
-      version,
-      tag,
-      publishedAt: release.published_at ?? '',
-      manifest
-    }
+    const value: LatestRelease = { version, tag, publishedAt, manifest }
     cache = { at: Date.now(), value }
     return value
   } catch (error) {
