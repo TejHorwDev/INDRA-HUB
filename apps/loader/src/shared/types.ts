@@ -41,6 +41,35 @@ export interface UpdateDiagnostics {
   summary: string
 }
 
+/* ---------------------------------------------------------------- catalogue */
+
+export interface LoaderApp {
+  id: string
+  name: string
+  description: string
+  version: string
+  /** Absolute URL of the card image. Empty is valid: the card draws a monogram. */
+  image: string
+  fileUrl: string
+  /** The product's id in INDRA Auth. Empty means the app is not gated. */
+  keyauthAppId: string
+  status: 'active' | 'locked'
+}
+
+/** Always all five keys, empty string when unset. */
+export interface LoaderConfig {
+  website: string
+  instagram: string
+  tiktok: string
+  discord: string
+  youtube: string
+}
+
+export interface Catalogue {
+  apps: LoaderApp[]
+  config: LoaderConfig
+}
+
 /* --------------------------------------------------------------------- auth */
 
 export interface AuthSuccess {
@@ -78,8 +107,17 @@ export interface LoaderBridge {
   auth: {
     /** The token never leaves the main process — this returns who, not what. */
     login: (username: string, password: string) => Promise<AuthResult>
+    /**
+     * The product ids this account owns, from INDRA Auth. The single source of
+     * entitlement; empty means "nothing owned", never "unknown".
+     */
+    owned: () => Promise<string[]>
     logout: () => Promise<void>
     session: () => Promise<SessionInfo | null>
+  }
+
+  catalogue: {
+    load: () => Promise<Catalogue>
   }
 
   /** Opens a URL in the real browser. The main process allows https only. */

@@ -56,7 +56,8 @@ const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  // Product images are served from the storage bucket; nothing else is remote.
+  "img-src 'self' data: https:",
   "font-src 'self'",
   "connect-src 'none'",
   "base-uri 'none'",

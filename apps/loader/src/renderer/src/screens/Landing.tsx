@@ -1,6 +1,6 @@
 import SlideButton from '../components/SlideButton'
 import WindowControls from '../components/WindowControls'
-import { bridge } from '../lib/bridge'
+
 
 /*
  * The landing page.
@@ -23,7 +23,13 @@ const SOCIALS = [
   { label: 'YouTube', url: 'https://youtube.com/@indra', path: 'youtube' }
 ] as const
 
-export default function Landing({ onStart }: { onStart: () => void }): React.JSX.Element {
+interface Props {
+  onStart: () => void
+  /** Leaving the app is confirmed, never a surprise click. */
+  onExternal: (url: string) => void
+}
+
+export default function Landing({ onStart, onExternal }: Props): React.JSX.Element {
   return (
     <div className="absolute inset-0">
       <WindowControls />
@@ -49,7 +55,7 @@ export default function Landing({ onStart }: { onStart: () => void }): React.JSX
 
         <button
           type="button"
-          onClick={() => void bridge.links.open(WEBSITE)}
+          onClick={() => onExternal(WEBSITE)}
           className="grid h-10 place-items-center border border-[var(--hairline)] bg-[var(--color-raised)] text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
           style={{ width: 147, borderRadius: 10 }}
         >
@@ -73,7 +79,7 @@ export default function Landing({ onStart }: { onStart: () => void }): React.JSX
             key={social.label}
             type="button"
             aria-label={social.label}
-            onClick={() => void bridge.links.open(social.url)}
+            onClick={() => onExternal(social.url)}
             className="grid h-7 w-7 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)] text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
           >
             <SocialMark name={social.path} />
