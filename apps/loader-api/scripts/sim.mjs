@@ -247,9 +247,18 @@ async function main() {
 
   const filesRoute = readFileSync(join(root, 'src/app/api/files/[...key]/route.ts'), 'utf8')
   check('a film is redirected', /path\.startsWith\('videos\/'\)/.test(filesRoute))
-  check('and so is a card image', /path\.startsWith\('images\/'\)/.test(filesRoute))
-  // An image keeps its key for life, so it can be cached for one.
-  check('an image is cached as immutable', /max-age=31536000, immutable/.test(filesRoute))
+  /*
+   * And artwork is deliberately *not* redirected. A signed address is different every
+   * time it is issued, so a browser can never reuse the bytes it already has — which is
+   * exactly how a card video ends up downloaded again on every launch and stuttering
+   * while it streams what it should have kept. One stable address, cached for a year.
+   */
+  check(
+    'artwork keeps one address',
+    /if \(path\.startsWith\('videos\/'\)\) \{/.test(filesRoute) &&
+      !/startsWith\('videos\/'\) \|\| path\.startsWith\('images\/'\)/.test(filesRoute)
+  )
+  check('an image is cached as immutable', /type\.startsWith\('video\/'\) \|\| type\.startsWith\('image\/'\)[\s\S]{0,80}immutable/.test(filesRoute))
   // A GIF is a picture the browser animates by itself; nothing in the app has to know.
   check('every image type is served with a type', ['gif', 'webp', 'png', 'jpg'].every((ext) => new RegExp(`${ext}: 'image/`).test(filesRoute)))
   // A card can be a short loop, stored as artwork and served as a film.
