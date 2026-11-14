@@ -151,6 +151,50 @@ function writeSettingValue(key: string, value: string): void {
     .run(key, value, new Date().toISOString())
 }
 
+/**
+ * The workspace's session, taken from the account signed in to this PC.
+ *
+ * This is read straight out of the sealed account store, synchronously, so the
+ * answer to "is there a publisher?" is the same in a status read as it is in a
+ * publish. The separate workspace sign-in survives only as the fallback for a
+ * machine where nobody has signed in at all.
+ */
+function accountBackedSession(): Session | null {
+  const stored = readStoredAccount().session
+  if (!stored?.uid || !stored.refreshToken) return null
+  return {
+    accessToken: stored.accessToken,
+    refreshToken: stored.refreshToken,
+    expiresAt: stored.expiresAt,
+    email: stored.email,
+    uid: stored.uid
+  }
+}
+
+/** True when the session in hand came from the account, not the panel's form. */
+function accountBacked(): boolean {
+  const stored = readStoredAccount().session
+  return Boolean(stored?.uid && stored.refreshToken)
+}
+
+/**
+ * Points `session` at the person signed in to this PC. Cheap enough to run on
+ * every read: it is one row, and it changes nothing when the token is the same.
+ */
+function syncSession(): void {
+  const account = accountBackedSession()
+  if (!account) return
+  if (
+    session &&
+    session.uid === account.uid &&
+    session.accessToken === account.accessToken &&
+    session.expiresAt === account.expiresAt
+  ) {
+    return
+  }
+  session = account
+}
+
 function loadSession(): Session | null {
   const stored = readState(SESSION_KEY)
   if (!stored) return null
@@ -526,6 +570,7 @@ export async function applyRemote(next: RemoteWorkspace): Promise<string | null>
 /* ------------------------------------------------------------------ */
 
 export function workspaceState(): WorkspaceState {
+  syncSession()
   const credentials = readBackendCredentials()
   const appliedRevision = Number(readSettingValue(REVISION_KEY) ?? '') || null
 
@@ -598,8 +643,13 @@ async function reconcileOnce(): Promise<void> {
   if (!readBackendCredentials()) return
 
   try {
-    await adoptAccountSession()
-    if (session && session.expiresAt - 60_000 < Date.now()) await refreshSession()
+    syncSession()
+    if (session && session.expiresAt - 60_000 < Date.now()) {
+      // An account-owned session is refreshed through the account store, so the
+      // rotated refresh token ends up in one place instead of two that disagree.
+      if (accountBacked()) await adoptAccountSession()
+      else await refreshSession()
+    }
     const next = await fetchRemote()
     if (!next) {
       lastError = 'The workspace row is missing. Run supabase/workspace.sql in the project.'
@@ -699,6 +749,7 @@ async function adoptAccountSession(): Promise<boolean> {
  * change that has been waiting for a publisher is sent straight away.
  */
 export async function adoptSignedInAccount(): Promise<WorkspaceState> {
+  syncSession()
   const before = session?.uid ?? null
   const changed = await adoptAccountSession()
   if (!session) return workspaceState()
@@ -721,7 +772,8 @@ export function queuePush(): void {
    * session is taken from the account that is signed in, not from a separate
    * workspace sign-in that might never have happened.
    */
-  if (!session && !readStoredAccount().session) return
+  syncSession()
+  if (!session) return
   pending = true
   broadcastWorkspaceChange()
   if (pushTimer) clearTimeout(pushTimer)
@@ -735,7 +787,8 @@ export async function push(): Promise<WorkspaceState> {
   if (!pending || pushing) return workspaceState()
   // The person signed in to this PC is the workspace's account; take their
   // session before deciding anything, so no publish needs a second sign-in.
-  await adoptAccountSession()
+  syncSession()
+  if (!session) await adoptAccountSession()
   if (!session) {
     pending = false
     return workspaceState()
@@ -743,7 +796,14 @@ export async function push(): Promise<WorkspaceState> {
 
   pushing = true
   try {
-    if (session.expiresAt - 60_000 < Date.now()) await refreshSession()
+    if (session.expiresAt - 60_000 < Date.now()) {
+      if (accountBacked()) await adoptAccountSession()
+      else await refreshSession()
+    }
+    if (!session) {
+      pending = false
+      return workspaceState()
+    }
     if (!remote) remote = await fetchRemote()
     if (!remote?.owned_by_me) {
       // Signed in, but not the account that owns the row: this machine keeps
@@ -1260,6 +1320,7 @@ export function startWorkspaceSync(): void {
   if (started) return
   started = true
   session = loadSession()
+  syncSession()
   // The account session survives a restart; the workspace's own copy is a
   // fallback for a PC where nobody has signed in.
   void adoptAccountSession().then(() => {
@@ -1288,5 +1349,6 @@ export function stopWorkspaceSync(): void {
 
 /** True when a local administrator change should also be published. */
 export function shouldPublish(): boolean {
+  syncSession()
   return Boolean(session && remote?.owned_by_me)
 }

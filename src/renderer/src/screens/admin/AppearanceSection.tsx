@@ -66,29 +66,52 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
    */
   useEffect(() => {
     let live = true
-    void api.workspace
-      .state()
-      .then((state) => {
+    /*
+     * Read twice: at first paint the account session may still be being taken
+     * up, and "not signed in" is a serious thing to say about a machine that is
+     * signed in. Only a second reading, 1.5 s later, is allowed to say it.
+     */
+    async function read(attempt: number): Promise<void> {
+      try {
+        // One reconcile, so `owner` is answered by the server rather than by
+        // "nothing has been read yet".
+        if (attempt === 0) void api.workspace.sync().catch(() => undefined)
+        const state = await api.workspace.state()
         if (!live) return
-        if (!state.signedIn) {
-          setShare({
-            tone: 'bad',
-            text: 'Not signed in to the shared workspace: changes stay on this PC.'
-          })
-        } else if (!state.owner) {
+        if (!state.signedIn || (state.revision === null && attempt < 2)) {
+          if (attempt < 2) {
+            setTimeout(() => void read(attempt + 1), 1500)
+            return
+          }
+          setShare(
+            state.signedIn
+              ? { tone: 'bad', text: 'The shared workspace could not be reached, so this change is only on this PC for now.' }
+              : {
+                  tone: 'bad',
+                  text: 'No server account is signed in on this PC, so changes stay on this PC. Sign in with your email to publish.'
+                }
+          )
+          return
+        }
+        if (!state.owner) {
           setShare({
             tone: 'bad',
             text: `Signed in as ${state.email ?? 'an account'} which does not own the shared workspace, so changes stay on this PC.`
           })
-        } else {
-          setShare({ tone: 'good', text: `Publishing as ${state.email ?? 'your account'}.` })
+          return
         }
-      })
-      .catch(() => undefined)
+        setShare({ tone: 'good', text: `Publishing as ${state.email ?? 'your account'}.` })
+      } catch {
+        if (live && attempt < 2) setTimeout(() => void read(attempt + 1), 1500)
+      }
+    }
+    void read(0)
     return () => {
       live = false
     }
   }, [appearance.blur, appearance.dim])
+
+
 
   // The preview plays exactly what the sign-in screen plays: the same bytes,
   // through the same Blob, so a black rectangle here is a real problem and not
