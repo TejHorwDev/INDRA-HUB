@@ -465,7 +465,7 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
           )}
 
           <p className="admin-hint">
-            MP4 (H.264) or WebM, up to 96 MB. Keep it short and it loops seamlessly — a ten second
+            MP4 (H.264) or WebM, up to 300 MB. Keep it short and it loops seamlessly — a ten second
             clip at 1080p is plenty. H.265 / HEVC files are refused when you pick them, because this
             app cannot decode them and they would only ever show a black screen. The file is copied
             into the app&apos;s media folder and recorded in the database; the original on your disk is

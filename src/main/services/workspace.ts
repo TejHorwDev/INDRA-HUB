@@ -192,6 +192,13 @@ function syncSession(): void {
   ) {
     return
   }
+  /*
+   * A different person is signed in, so the row's ownership answer that is
+   * being held is about somebody else. Publishing on that cached answer is how
+   * the panel came to say "does not own" to the account that owns it, while a
+   * reconcile a second later wrote the change anyway.
+   */
+  if (session?.uid !== account.uid) remote = null
   session = account
 }
 
@@ -980,6 +987,9 @@ export async function publishNow(): Promise<WorkspaceState> {
   syncSession()
   if (!session) await adoptAccountSession()
   if (!session) return workspaceState()
+  // Ask the server who this is now, rather than trusting an answer that may
+  // have been read before the account was signed in.
+  remote = null
   pending = true
   await push()
   return workspaceState()
