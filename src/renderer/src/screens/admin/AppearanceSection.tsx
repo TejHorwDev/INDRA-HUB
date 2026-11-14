@@ -59,6 +59,37 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
 
   const dirty = blur !== appearance.blur || dim !== appearance.dim
 
+  /*
+   * Who the shared row will be written as, shown before anything is saved.
+   * "Saved" and "published" are different things, and the difference is the
+   * only reason a setting can look applied and still be gone tomorrow.
+   */
+  useEffect(() => {
+    let live = true
+    void api.workspace
+      .state()
+      .then((state) => {
+        if (!live) return
+        if (!state.signedIn) {
+          setShare({
+            tone: 'bad',
+            text: 'Not signed in to the shared workspace: changes stay on this PC.'
+          })
+        } else if (!state.owner) {
+          setShare({
+            tone: 'bad',
+            text: `Signed in as ${state.email ?? 'an account'} which does not own the shared workspace, so changes stay on this PC.`
+          })
+        } else {
+          setShare({ tone: 'good', text: `Publishing as ${state.email ?? 'your account'}.` })
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [appearance.blur, appearance.dim])
+
   // The preview plays exactly what the sign-in screen plays: the same bytes,
   // through the same Blob, so a black rectangle here is a real problem and not
   // a difference between two code paths.
