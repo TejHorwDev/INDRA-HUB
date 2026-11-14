@@ -259,7 +259,13 @@ async function patchRemote(patch: Record<string, unknown>, revision: number): Pr
 
 async function uploadBackground(path: string, bytes: Buffer, mime: string): Promise<void> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 120_000)
+  /*
+   * A background video is the largest thing this app ever sends. Two minutes
+   * was not enough for a full-length 4K clip on an ordinary connection, and the
+   * abort arrived as "the video could not be uploaded" on a publish that would
+   * otherwise have worked.
+   */
+  const timer = setTimeout(() => controller.abort(), 300_000)
   const credentials = readBackendCredentials()
   if (!credentials) throw new Error('No workspace is configured on this machine.')
   try {
@@ -691,6 +697,8 @@ export async function push(): Promise<WorkspaceState> {
     const current = await fetchRemote()
     if (!current) throw new Error('The workspace row is missing.')
 
+    /* Set when the video could not go up; the rest of the patch still does. */
+    let videoWarning: string | null = null
     const patch: Record<string, unknown> = {
       allow_registration: settings.allowRegistration,
       maintenance: settings.maintenanceMode,
@@ -757,15 +765,27 @@ export async function push(): Promise<WorkspaceState> {
       patch.background_bytes = 0
       patch.background_path = null
     } else if (background.id !== current.background_asset_id) {
-      const file = readLoginBackgroundFile()
-      if (!file) throw new Error('The installed video could not be read back for upload.')
-      if (file.bytes.length > WORKSPACE_MAX_VIDEO_BYTES) throw new Error('That video is too large to share.')
-      const path = `background/${background.id}${extensionFor(file.mime)}`
-      await uploadBackground(path, file.bytes, file.mime)
-      patch.background_asset_id = background.id
-      patch.background_mime = file.mime
-      patch.background_bytes = file.bytes.length
-      patch.background_path = path
+      /*
+       * The video is the one part of a push that can fail on its own — too
+       * large, a slow link that outlasts the timeout, a refused object — and
+       * it used to take the whole publish down with it: blur, dim and every
+       * setting queued alongside it were dropped because the upload threw
+       * first. A video that cannot go up is a problem with the video, not a
+       * reason to keep the rest of the administrator's changes on one PC.
+       */
+      try {
+        const file = readLoginBackgroundFile()
+        if (!file) throw new Error('The installed video could not be read back for upload.')
+        if (file.bytes.length > WORKSPACE_MAX_VIDEO_BYTES) throw new Error('That video is too large to share.')
+        const path = `background/${background.id}${extensionFor(file.mime)}`
+        await uploadBackground(path, file.bytes, file.mime)
+        patch.background_asset_id = background.id
+        patch.background_mime = file.mime
+        patch.background_bytes = file.bytes.length
+        patch.background_path = path
+      } catch (error) {
+        videoWarning = messageOf(error)
+      }
     }
 
     const updated = await patchRemote(patch, current.revision)
@@ -808,7 +828,8 @@ export async function push(): Promise<WorkspaceState> {
     writeSettingValue(APPLIED_AT_KEY, new Date().toISOString())
     lastError = null
     lastSyncAt = new Date().toISOString()
-    if (background) lastError = (await applyRemote(updated)) ?? null
+    if (background) lastError = (await applyRemote(updated)) ?? videoWarning
+    else if (videoWarning) lastError = videoWarning
     if (photo) {
       setDeveloperPhotoCloud(true)
       broadcastAboutChange()

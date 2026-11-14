@@ -43,6 +43,8 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [probe, setProbe] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
   const [videoError, setVideoError] = useState<string | null>(null)
+  /** Whether the saved numbers actually left this PC, in plain words. */
+  const [share, setShare] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
   const previewRef = useRef<HTMLVideoElement>(null)
 
   const [blur, setBlur] = useState(appearance.blur)
@@ -129,6 +131,31 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
     try {
       await api.admin.updateAppearanceTreatment({ blur, dim })
       toast.success('Background treatment saved.')
+      /*
+       * Saving is local: the numbers are on this PC the moment this returns.
+       * Whether the shared row took them is a different question, and it is
+       * the one that decides if the change survives a restart anywhere else —
+       * so it is asked, out loud, instead of being assumed.
+       */
+      try {
+        const state = await api.workspace.state()
+        if (!state.signedIn) {
+          setShare({ tone: 'bad', text: 'Saved on this PC only: the workspace account is not signed in.' })
+        } else if (!state.owner) {
+          setShare({
+            tone: 'bad',
+            text: `Saved on this PC only: ${state.email ?? 'this account'} does not own the shared workspace, so nothing was published.`
+          })
+        } else if (state.lastError) {
+          setShare({ tone: 'bad', text: `Saved here, but publishing failed: ${state.lastError}` })
+        } else if (state.pending) {
+          setShare({ tone: 'bad', text: 'Saved here, still being published to the shared workspace.' })
+        } else {
+          setShare({ tone: 'good', text: 'Saved and published to the shared workspace.' })
+        }
+      } catch {
+        setShare(null)
+      }
       await refresh()
     } catch (caught) {
       setError(errorMessage(caught))
@@ -439,6 +466,12 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
               {busy === 'save' ? 'Saving…' : 'Save treatment'}
             </button>
           </div>
+
+          {share && (
+            <p className={share.tone === 'good' ? 'admin-hint' : 'admin-error'} role="status">
+              {share.text}
+            </p>
+          )}
         </div>
       </section>
 
