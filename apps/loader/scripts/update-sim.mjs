@@ -206,6 +206,23 @@ async function main() {
   check('never before the payload is ready', ask({ phase: 'downloading' }) === false)
   check('never in development', ask({ packaged: false }) === false)
 
+  /* --------------------------------------------------------- the launch card */
+
+  const stages = await bundle('src/main/launch-stages.ts', join(work, 'launch-stages.mjs'))
+
+  console.log('')
+  check('the card starts by checking', stages.stageForPhase('idle') === 'checking')
+  check('a download is the downloading stage', stages.stageForPhase('downloading') === 'downloading')
+  check('a ready payload is the restarting stage', stages.stageForPhase('ready') === 'restarting')
+  check('being current ends the card', stages.stageForPhase('up-to-date') === 'done')
+  check('a failure ends the card too', stages.stageForPhase('error') === 'done')
+  check('a stage never goes backwards', stages.isForward('downloading', 'checking') === false)
+  check('and does move forwards', stages.isForward('checking', 'downloading') === true)
+  // A payload this size downloads in under a second; without a floor the card
+  // would flash its sentences and read as a glitch.
+  const holds = Object.values(stages.LAUNCH_HOLD)
+  check('every sentence is held long enough to read', holds.every((ms) => ms >= 800), holds.join('/'))
+
   console.log(
     failures === 0
       ? '\n✓ The updater picks the right release, adopts only a payload it can trust, and restarts only when nobody is looking.\n'

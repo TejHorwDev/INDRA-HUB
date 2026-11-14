@@ -4,6 +4,8 @@ import { APP_NAME, applyIdentity } from './lib/identity'
 import { markHealthy } from './lib/payload'
 import { registerIpc } from './ipc'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
+import { startWithLaunchCard } from './launch'
+import { runLaunchCard } from './splash'
 
 /*
  * INDRA LOADER.
@@ -11,6 +13,10 @@ import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
  * A 900x550 fixed window that draws its own frame: frameless, transparent only
  * at the four corner arcs, radius 18. The app is a single page, so there is one
  * BrowserWindow and it is created once.
+ *
+ * The installed app opens behind a launch card — the small dark window that says
+ * what the updater is doing, the same one the hub shows — and the card is closed
+ * only once the app is on screen. See `launch.ts` for why the order matters.
  */
 
 // Before anything reads a path or groups a taskbar button.
@@ -80,7 +86,7 @@ function applyContentSecurityPolicy(): void {
   })
 }
 
-function createWindow(): void {
+function createWindow(options: { deferred?: boolean } = {}): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 900,
     height: 550,
@@ -107,7 +113,12 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  /*
+   * A deferred window is created before the launch card finishes and revealed by
+   * the caller once the card is done. It must not show itself: the whole point is
+   * that the card is what is on screen.
+   */
+  if (!options.deferred) mainWindow.once('ready-to-show', () => mainWindow?.show())
 
   // Coming back to the app is a natural moment to ask whether it is current.
   mainWindow.on('focus', () => checkForUpdatesOnFocus())
@@ -142,6 +153,13 @@ function createWindow(): void {
 
   if (devServerUrl) {
     void mainWindow.loadURL(devServerUrl)
+  } else if (options.deferred) {
+    /*
+     * `card=1` tells the renderer the launch card has already been the splash, so
+     * it opens on the landing page instead of replaying its own two-second
+     * opening. Two waits in a row is one wait too many.
+     */
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'), { query: { card: '1' } })
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
@@ -149,6 +167,24 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  return mainWindow
+}
+
+/** Shows the app window, whether or not it has finished loading. */
+function revealWindow(window: BrowserWindow): void {
+  if (window.isDestroyed()) return
+
+  const show = (): void => {
+    if (window.isDestroyed()) return
+    window.show()
+    window.focus()
+  }
+
+  // `ready-to-show` has already fired for a window that finished while the card
+  // was up, so wait on it only while there is still something to wait for.
+  if (window.webContents.isLoading()) window.once('ready-to-show', show)
+  else show()
 }
 
 app.whenReady().then(() => {
@@ -157,8 +193,6 @@ app.whenReady().then(() => {
     closeWindow: () => mainWindow?.close(),
     minimizeWindow: () => mainWindow?.minimize()
   })
-  createWindow()
-
   /*
    * A payload only counts as healthy once the app is genuinely up. The bootstrap
    * counted this start as an attempt; reaching here clears the count, so a
@@ -166,9 +200,32 @@ app.whenReady().then(() => {
    */
   setTimeout(() => markHealthy(), 5_000)
 
-  // Two seconds after the window, never during start-up: an update check must
-  // never be the reason the app feels slow to open.
-  setTimeout(() => initUpdates(), 2_000)
+  if (isDev) {
+    // No card in development: there is no update to find, and a spinner before
+    // Vite's server is ready would only be in the way.
+    createWindow()
+    setTimeout(() => initUpdates(), 2_000)
+  } else {
+    void startWithLaunchCard({
+      createAppWindow: () => createWindow({ deferred: true }),
+      runSplash: runLaunchCard,
+      reveal: revealWindow,
+      // If the app somehow never paints, showing it anyway beats leaving a
+      // person with a card that has faded out.
+      scheduleFallback: (reveal) => setTimeout(reveal, 6_000)
+    })
+      .then((window) => {
+        // `null` means the process is relaunching into a new payload. No window.
+        if (!window) return
+        // The card has already asked; do not ask again two seconds later.
+        initUpdates(true)
+      })
+      .catch((error) => {
+        console.error('[launch] startup failed', error)
+        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        initUpdates()
+      })
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

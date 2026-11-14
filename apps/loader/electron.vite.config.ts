@@ -13,7 +13,16 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        // The launch card has its own preload: two windows, two surfaces.
+        input: {
+          index: resolve('src/preload/index.ts'),
+          splash: resolve('src/preload/splash.ts')
+        }
+      }
+    }
   },
   renderer: {
     resolve: {
@@ -28,7 +37,11 @@ export default defineConfig({
       target: 'esnext',
       sourcemap: false,
       rollupOptions: {
-        input: { index: resolve('src/renderer/index.html') }
+        input: {
+          index: resolve('src/renderer/index.html'),
+          // The launch card is its own page, built and copied beside the app.
+          splash: resolve('src/renderer/splash.html')
+        }
       }
     },
     server: {

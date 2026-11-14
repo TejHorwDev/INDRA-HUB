@@ -683,8 +683,14 @@ export async function diagnoseConnection(): Promise<UpdateDiagnostics> {
   }
 }
 
-/** Called once at startup, after the window and IPC are ready. */
-export function initUpdates(): void {
+/**
+ * Called once at startup, after the window and IPC are ready.
+ *
+ * `skipFirstCheck` is set when the launch card has already asked — the answer is
+ * on screen before this runs, and a second manifest fetch seconds later would
+ * only spend a request to learn the same thing.
+ */
+export function initUpdates(skipFirstCheck = false): void {
   if (!packaged) return
 
   startedAt = Date.now()
@@ -721,8 +727,10 @@ export function initUpdates(): void {
     })
   }
 
-  firstCheck = setTimeout(() => void checkForUpdates(false), FIRST_CHECK_DELAY_MS)
-  firstCheck.unref()
+  if (!skipFirstCheck) {
+    firstCheck = setTimeout(() => void checkForUpdates(false), FIRST_CHECK_DELAY_MS)
+    firstCheck.unref()
+  }
 
   // A payload left over from last session is applied by the bootstrap before this
   // file runs, so `runningVersion()` already answers with it. Nothing to do here

@@ -92,6 +92,17 @@ jobs:
       - name: Prove the window still answers
         run: npm run sim:ui
 
+      # The launch card is a second window with its own page and preload. If
+      # either is missing from the build, the installer ships an app that opens
+      # to a blank card, which no type checker will notice.
+      - name: Prove the launch card is in the build
+        shell: bash
+        run: |
+          test -f out/renderer/splash.html || { echo "splash.html missing"; exit 1; }
+          test -f out/preload/splash.js || { echo "splash preload missing"; exit 1; }
+          grep -q 'splash-' out/renderer/splash.html || { echo "splash assets not linked"; exit 1; }
+          echo "launch card is built and linked" 
+
       # The shim has to exist as its own file: it is what package.json points
       # at, and without it an installed copy could never apply an update.
       - name: Confirm the startup shim was produced

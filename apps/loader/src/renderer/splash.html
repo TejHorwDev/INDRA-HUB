@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>INDRA LOADER</title>
+    <!--
+      The card's own page. Not the app's index.html: this paints before any app
+      code runs, in a 340x300 window, and must look finished in the first frame.
+    -->
+  </head>
+  <body>
+    <div class="card">
+      <div class="wordmark">INDRA LOADER</div>
+
+      <div class="ring">
+        <svg viewBox="0 0 54 54" aria-hidden="true">
+          <circle class="track" cx="27" cy="27" r="22" />
+          <circle class="arc" cx="27" cy="27" r="22" />
+        </svg>
+      </div>
+
+      <p class="line" id="stage">Checking for updates…</p>
+    </div>
+
+    <script type="module" src="./src/splash.ts"></script>
+  </body>
+</html>
