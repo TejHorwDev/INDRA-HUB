@@ -300,8 +300,15 @@ export async function startDownload(id: string): Promise<InstallView> {
       bytesPerSecond: 0,
       error: /checksum/i.test(message)
         ? 'The file arrived damaged and was discarded. Try again.'
-        : /HTTP (\d+)/.test(message)
-          ? `The download server answered ${message.match(/HTTP (\d+)/)?.[0]}.`
+        : /HTTP (404|410)/.test(message)
+          ? /*
+             * The row exists and the file does not — deleted from the panel, or from the
+             * bucket by hand. Saying "404" would send somebody to look at their
+             * connection.
+             */
+            'This file is no longer on the server. Ask the admin to upload it again.'
+          : /HTTP (\d+)/.test(message)
+            ? `The download server answered ${message.match(/HTTP (\d+)/)?.[0]}.`
           : stalled
             ? 'The connection stopped responding. Download again to continue from where it stopped.'
             : 'The download could not be completed. Check the connection and try again.'

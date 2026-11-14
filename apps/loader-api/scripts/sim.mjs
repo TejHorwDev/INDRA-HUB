@@ -197,6 +197,45 @@ async function main() {
 
   check('a range past the end is nothing at all', (await storage.readObject(target.key, { start: body.length })) === null)
 
+  /*
+   * The gap between a row and the bucket.
+   *
+   * A product stores an address; the bytes live in a bucket somebody can empty from
+   * another tab. Deleting the object in the Supabase console used to leave the panel
+   * reporting an installer that could not be downloaded — the address was true and the
+   * file was gone. `keyFromUrl` is how the two are compared, so it is checked against
+   * every shape a row can hold.
+   */
+  console.log('\nFrom a stored address back to a key')
+  const urls = await bundle('src/lib/url.ts', 'url')
+
+  check('our own url yields its key', urls.keyFromUrl('https://x.onrender.com/api/files/exes/a.exe') === 'exes/a.exe')
+  check('a public base yields its key', urls.keyFromUrl(`${process.env.PUBLIC_BASE_URL ?? 'https://cdn.test'}/exes/b.exe`) !== undefined)
+  check('a query string is not part of the key', urls.keyFromUrl('https://x/api/files/images/c.png?v=2') === 'images/c.png')
+  check('a percent-encoded name decodes', urls.keyFromUrl('https://x/api/files/exes/my%2Eexe') === 'exes/my.exe')
+  // Keys are sanitised on the way in, so a space cannot be in one — and must not be
+  // laundered into one by decoding.
+  check('a space is refused, because a key never has one', urls.keyFromUrl('https://x/api/files/exes/my%20app.exe') === null)
+  check('an escaped key is refused', urls.keyFromUrl('https://x/api/files/exes/../../secret') === null)
+  check('a github asset is not ours', urls.keyFromUrl('https://github.com/o/r/releases/download/v1/a.exe') === null)
+  check('an empty address is nothing', urls.keyFromUrl('') === null)
+  check('a key names its kind', urls.kindOfKey('videos/a.mp4') === 'video')
+  check('and an unknown folder names nothing', urls.kindOfKey('secrets/a.txt') === null)
+
+  /*
+   * The listing is what makes "missing" possible, and it must notice a deletion made
+   * outside the panel — which is exactly what the local driver can demonstrate.
+   */
+  const listed = await storage.listObjects('exe')
+  check('the listing finds what was uploaded', listed.some((object) => object.key === target.key))
+  check('and knows how big it is', listed.find((object) => object.key === target.key)?.bytes === body.length)
+
+  const keys = await storage.keySet('exe')
+  check('a key that is there is in the set', keys.has(target.key))
+  await storage.removeObject(target.key)
+  const after = await storage.keySet('exe')
+  check('a file deleted outside the app leaves the set', after.has(target.key) === false)
+
   const range = await bundle('src/lib/http-range.ts', 'http-range')
   check('`bytes=0-` is the whole file', JSON.stringify(range.parseRange('bytes=0-')) === '{"start":0}')
   check('`bytes=5-9` is a slice', range.parseRange('bytes=5-9')?.end === 9)
