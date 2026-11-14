@@ -46,6 +46,7 @@ npm run dev            # window + hot reload
 npm run typecheck
 npm run build          # out/main (incl. bootstrap.js), out/preload, out/renderer
 npm run sim:update     # release selection + payload adoption, no network
+npm run sim:download   # atomic commit, resume, hash rejection, cancel
 npm run sim:isolation  # this app and INDRA HUB share no identity value
 npm run dist           # Windows installer (CI does this for real)
 ```
@@ -64,8 +65,19 @@ packs and verifies the payload, and publishes the release. A manual run without
 a tag builds the same installer as a downloadable run artifact and publishes
 nothing.
 
+## Downloads and launching
+
+`lib/downloader.ts` is the whole of it, with no Electron in the file so it can be
+proven against a real server: bytes go to `<name>.exe.part`, a partial file is
+resumed with a Range request, the hash covers the entire file including what was
+already on disk, and the rename to the final name is the commit. A cancelled or
+corrupt download is therefore never mistaken for an installed application.
+
+`services/installed.ts` records where each product went, so launching does not
+need the network. `services/launch.ts` spawns it detached and never automatically.
+
 ## What is not here yet
 
-The catalogue, the auth client, the download and launch engines, the admin API
-and panel. Stage 0 is the shell, the identity and the update channel — the part
-that has to be right before the first person installs anything.
+The catalogue API and admin panel, so the library is honestly empty until
+something is published. Everything below the UI — auth, device identity, updates,
+downloads, launching — is real.

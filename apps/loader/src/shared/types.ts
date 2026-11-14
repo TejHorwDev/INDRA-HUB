@@ -53,7 +53,34 @@ export interface LoaderApp {
   fileUrl: string
   /** The product's id in INDRA Auth. Empty means the app is not gated. */
   keyauthAppId: string
+  /**
+   * Optional SHA-256 of the executable. When the catalogue publishes one, a
+   * download that arrives with different bytes is deleted instead of installed.
+   */
+  sha256: string
   status: 'active' | 'locked'
+}
+
+/* ------------------------------------------------------------------- files */
+
+export type InstallState = 'absent' | 'downloading' | 'installed' | 'error'
+
+export interface InstallView {
+  id: string
+  state: InstallState
+  /** True while the launched process is alive. */
+  running: boolean
+  percent: number
+  received: number
+  total: number
+  bytesPerSecond: number
+  /** A sentence, already written for a person. */
+  error: string | null
+}
+
+export interface LaunchResult {
+  ok: boolean
+  error?: string
 }
 
 /** Always all five keys, empty string when unset. */
@@ -118,6 +145,18 @@ export interface LoaderBridge {
 
   catalogue: {
     load: () => Promise<Catalogue>
+  }
+
+  files: {
+    /** Every product's install state, keyed by catalogue id. */
+    states: () => Promise<Record<string, InstallView>>
+    download: (id: string) => Promise<InstallView>
+    cancel: (id: string) => Promise<InstallView>
+    uninstall: (id: string) => Promise<InstallView>
+    launch: (id: string) => Promise<LaunchResult>
+    /** Shows the downloaded file in Explorer. */
+    reveal: (id: string) => Promise<void>
+    onState: (listener: (states: Record<string, InstallView>) => void) => () => void
   }
 
   /** Opens a URL in the real browser. The main process allows https only. */

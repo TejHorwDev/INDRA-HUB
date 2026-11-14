@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AuthResult,
   Catalogue,
+  InstallView,
+  LaunchResult,
   LoaderBridge,
   SessionInfo,
   UpdateDiagnostics,
@@ -41,6 +43,22 @@ const bridge: LoaderBridge = {
     owned: (): Promise<string[]> => ipcRenderer.invoke('auth:owned'),
     logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
     session: (): Promise<SessionInfo | null> => ipcRenderer.invoke('auth:session')
+  },
+
+  files: {
+    states: (): Promise<Record<string, InstallView>> => ipcRenderer.invoke('files:states'),
+    download: (id: string): Promise<InstallView> => ipcRenderer.invoke('files:download', id),
+    cancel: (id: string): Promise<InstallView> => ipcRenderer.invoke('files:cancel', id),
+    uninstall: (id: string): Promise<InstallView> => ipcRenderer.invoke('files:uninstall', id),
+    launch: (id: string): Promise<LaunchResult> => ipcRenderer.invoke('files:launch', id),
+    reveal: (id: string): Promise<void> => ipcRenderer.invoke('files:reveal', id),
+    onState: (
+      listener: (states: Record<string, InstallView>) => void
+    ): (() => void) => {
+      const handler = (_event: unknown, states: Record<string, InstallView>): void => listener(states)
+      ipcRenderer.on('files:state', handler)
+      return () => ipcRenderer.removeListener('files:state', handler)
+    }
   },
 
   links: {

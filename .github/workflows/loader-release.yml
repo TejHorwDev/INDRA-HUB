@@ -82,6 +82,11 @@ jobs:
       - name: Prove the two apps share no identity
         run: npm run sim:isolation
 
+      # Downloads commit atomically, resume correctly and reject a bad hash —
+      # against a real server and a real disk.
+      - name: Prove downloads behave
+        run: npm run sim:download
+
       # The shim has to exist as its own file: it is what package.json points
       # at, and without it an installed copy could never apply an update.
       - name: Confirm the startup shim was produced

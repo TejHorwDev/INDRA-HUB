@@ -1,8 +1,11 @@
 import { app, ipcMain, shell } from 'electron'
+import { installed } from '../services/installed'
 import { runningVersion } from '../lib/payload'
 import { currentSession, login, logout } from '../services/auth'
 import { loadCatalogue } from '../services/catalog'
 import { ownedProductIds } from '../services/entitlement'
+import { cancelDownload, startDownload, states, uninstall } from '../services/downloads'
+import { launch } from '../services/launch'
 import {
   checkForUpdates,
   diagnoseConnection,
@@ -60,6 +63,28 @@ export function registerIpc(handlers: Handlers): void {
   ipcMain.handle('links:open', async (_event, url: unknown) => {
     if (typeof url !== 'string' || !/^https:\/\//i.test(url)) return
     await shell.openExternal(url)
+  })
+
+  /* ------------------------------------------------------------------ files */
+
+  ipcMain.handle('files:states', () => states())
+  ipcMain.handle('files:download', (_event, id: unknown) =>
+    typeof id === 'string' ? startDownload(id) : Promise.reject(new Error('bad id'))
+  )
+  ipcMain.handle('files:cancel', (_event, id: unknown) =>
+    typeof id === 'string' ? cancelDownload(id) : Promise.reject(new Error('bad id'))
+  )
+  ipcMain.handle('files:uninstall', (_event, id: unknown) =>
+    typeof id === 'string' ? uninstall(id) : Promise.reject(new Error('bad id'))
+  )
+  ipcMain.handle('files:launch', (_event, id: unknown) =>
+    typeof id === 'string' ? launch(id) : { ok: false, error: 'bad id' }
+  )
+  ipcMain.handle('files:reveal', (_event, id: unknown) => {
+    if (typeof id !== 'string') return
+    // Only a path this app recorded, never one the renderer supplied.
+    const entry = installed(id)
+    if (entry) shell.showItemInFolder(entry.exe)
   })
 
   ipcMain.on('window:close', handlers.closeWindow)
