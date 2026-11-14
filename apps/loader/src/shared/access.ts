@@ -17,17 +17,30 @@ import type { LoaderApp } from './types'
  * the dashboard, the detail panel and the action button all ask this.
  */
 
+/**
+ * Does this account own the product?
+ *
+ * Case-insensitive, and trimmed, because the two sides come from different systems
+ * and neither promises a canonical form. The owner list may hold ids or names — the
+ * loader collects both — so one comparison covers either decision.
+ */
+function owns(app: LoaderApp, owned: string[]): boolean {
+  const wanted = app.keyauthAppId.trim().toLowerCase()
+  if (!wanted) return true
+  return owned.some((entry) => entry.trim().toLowerCase() === wanted)
+}
+
 export function isAvailable(app: LoaderApp, owned: string[]): boolean {
   if (app.status !== 'active') return false
   // No product attached means nothing to gate: it is available to anyone signed
   // in, which is a legitimate way to publish a free tool.
   if (!app.keyauthAppId) return true
-  return owned.includes(app.keyauthAppId)
+  return owns(app, owned)
 }
 
 /** The reason a card is closed, for the dialog to say out loud. */
 export function lockedReason(app: LoaderApp, owned: string[]): 'unavailable' | 'unowned' | null {
   if (app.status !== 'active') return 'unavailable'
   if (!app.keyauthAppId) return null
-  return owned.includes(app.keyauthAppId) ? null : 'unowned'
+  return owns(app, owned) ? null : 'unowned'
 }

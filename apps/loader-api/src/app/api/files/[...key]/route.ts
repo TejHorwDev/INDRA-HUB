@@ -19,7 +19,10 @@ const TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   webp: 'image/webp',
-  gif: 'image/gif'
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime'
 }
 
 export async function GET(
@@ -46,7 +49,16 @@ export async function GET(
       headers: {
         'content-type': type,
         // Images can be cached; an installer is fetched once and verified.
-        'cache-control': type.startsWith('image/') ? 'public, max-age=3600' : 'public, max-age=300',
+        /*
+         * A film is fetched once per person and then cached; ranges matter for it,
+         * which is why the response is a stream and not a buffered body.
+         */
+        'cache-control': type.startsWith('video/')
+          ? 'public, max-age=86400'
+          : type.startsWith('image/')
+            ? 'public, max-age=3600'
+            : 'public, max-age=300',
+        'accept-ranges': 'bytes',
         'x-content-type-options': 'nosniff'
       }
     }

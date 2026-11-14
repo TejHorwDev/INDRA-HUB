@@ -21,7 +21,7 @@ import { env } from './env'
  */
 
 export type Driver = 'r2' | 'b2' | 'supabase' | 'local'
-export type Kind = 'exe' | 'image'
+export type Kind = 'exe' | 'image' | 'video'
 
 const LOCAL_ROOT = join(process.cwd(), '.data', 'uploads')
 
@@ -71,15 +71,18 @@ function bucket(): string {
  * absolute paths, no keys from anywhere but `objectKey`.
  */
 export function isObjectKey(key: string): boolean {
-  return /^(exes|images)\/[a-zA-Z0-9._-]+$/.test(key)
+  return /^(exes|images|videos)\/[a-zA-Z0-9._-]+$/.test(key)
 }
+
+/** The folder each kind lives in. One place, so a key and its kind cannot disagree. */
+const FOLDER: Record<Kind, string> = { exe: 'exes', image: 'images', video: 'videos' }
 
 /** A key that cannot collide, and names the kind of thing it is. */
 export function objectKey(kind: Kind, filename: string): string {
   const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-60)
   const stamp = Date.now().toString(36)
   const random = Math.random().toString(36).slice(2, 8)
-  return `${kind === 'exe' ? 'exes' : 'images'}/${stamp}-${random}-${safe}`
+  return `${FOLDER[kind]}/${stamp}-${random}-${safe}`
 }
 
 export interface UploadTarget {

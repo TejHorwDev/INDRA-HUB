@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AuthResult,
   Catalogue,
+  EntitlementReport,
   InstallView,
   LaunchResult,
   LoaderBridge,
@@ -39,6 +40,7 @@ const bridge: LoaderBridge = {
   },
 
   auth: {
+    probe: (): Promise<EntitlementReport> => ipcRenderer.invoke('auth:probe'),
     login: (username: string, password: string): Promise<AuthResult> =>
       ipcRenderer.invoke('auth:login', username, password),
     owned: (): Promise<string[]> => ipcRenderer.invoke('auth:owned'),

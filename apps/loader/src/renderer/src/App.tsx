@@ -29,7 +29,7 @@ type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings
 const SPLASH_MS = 2_000
 const MIN_VERIFY_MS = 1_300
 
-const EMPTY_CONFIG: LoaderConfig = { website: '' }
+const EMPTY_CONFIG: LoaderConfig = { website: '', video: '' }
 
 interface Confirmation {
   title: string
@@ -220,7 +220,13 @@ export default function App(): React.JSX.Element {
       ) : null}
 
       {screen === 'signin' ? (
-        <SignIn onSubmit={submit} error={error} busy={false} onBack={() => setScreen('landing')} />
+        <SignIn
+          video={config.video}
+          onSubmit={submit}
+          error={error}
+          busy={false}
+          onBack={() => setScreen('landing')}
+        />
       ) : null}
 
       {screen === 'verifying' ? <Verifying /> : null}
@@ -250,6 +256,13 @@ export default function App(): React.JSX.Element {
           onCheck={() => void runUpdate(() => bridge.updates.check())}
           onInstall={() => void runUpdate(() => bridge.updates.install())}
           onOpen={confirmExternal}
+        onProbe={() => {
+          void bridge.auth.probe().then((report) => {
+            if (!report.ok) toast(report.error ?? 'Could not check your access.')
+            else if (report.count === 0) toast('INDRA Auth returned no products for this account.')
+            else toast(`${report.count} product(s): ${report.ids.slice(0, 3).join(', ')}`)
+          })
+        }}
         />
       ) : null}
 

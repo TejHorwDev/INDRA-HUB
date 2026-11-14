@@ -1,3 +1,4 @@
+import Appearance from '@/components/Appearance'
 import LinkConfig from '@/components/LinkConfig'
 import { adminReady, databaseReady } from '@/lib/env'
 import { driver } from '@/lib/storage'
@@ -19,6 +20,15 @@ export default function SettingsPage(): React.JSX.Element {
     <>
       <h1>Settings</h1>
       <p className="lede">What the loader reads, and what this deployment is connected to.</p>
+
+      <div className="card">
+        <h2>Sign-in video</h2>
+        <p className="hint" style={{ marginBottom: 14, lineHeight: 1.7 }}>
+          Plays behind the sign-in form in the desktop app. Changing it here changes it
+          for everyone on their next launch — no release, no update.
+        </p>
+        <Appearance />
+      </div>
 
       <div className="card">
         <h2>Links</h2>

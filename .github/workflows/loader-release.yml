@@ -98,6 +98,11 @@ jobs:
       - name: Prove the two apps share no identity
         run: npm run sim:isolation
 
+      # Entitlement reads an undocumented response shape structurally. If it misses
+      # a wrapper, a paying customer sees "locked" and the UI explains nothing.
+      - name: Prove entitlement reads every shape
+        run: npm run sim:access
+
       # Downloads commit atomically, resume correctly and reject a bad hash —
       # against a real server and a real disk.
       - name: Prove downloads behave
