@@ -537,6 +537,47 @@ export async function portraitOnServer(viewer: SessionUser): Promise<CloudPortra
  * new identity is a plain member until the first ever administrator claims the
  * role. Nothing here can forge it.
  */
+/**
+ * The local account behind a panel session.
+ *
+ * The panel signs in with a server account and keeps its own session, keyed on
+ * the administrator row — not on the local user id every other lookup uses. So
+ * "the account this console speaks as" has to be resolved through the address
+ * they signed in with, or the console falls back to the machine's device
+ * identity and reports that nobody is signed in, while the panel is very
+ * obviously open.
+ */
+function localUserForAdmin(adminId: string): string | null {
+  try {
+    const admin = getDatabase()
+      .prepare('SELECT email FROM admin_users WHERE id = ?')
+      .get(adminId) as { email?: string } | undefined
+    if (!admin?.email) return null
+    const user = getDatabase()
+      .prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE')
+      .get(admin.email) as { id?: string } | undefined
+    return user?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+/** The local user whose account session the console should speak as, if any. */
+function adminAccountUser(adminId: string): string | null {
+  try {
+    if (sessionForLocalUser(adminId)) return adminId
+  } catch {
+    // fall through to the address
+  }
+  const linked = localUserForAdmin(adminId)
+  if (!linked) return null
+  try {
+    return sessionForLocalUser(linked) ? linked : null
+  } catch {
+    return null
+  }
+}
+
 export async function adminCloudSession(adminId: string): Promise<CloudSession> {
   assertReachable()
 
@@ -550,7 +591,8 @@ export async function adminCloudSession(adminId: string): Promise<CloudSession> 
    * to ask about and the console would otherwise be unreachable.
    */
   try {
-    const human = sessionForLocalUser(adminId)
+    const accountUser = adminAccountUser(adminId)
+    const human = accountUser ? sessionForLocalUser(accountUser) : null
     if (human) {
       const live = await liveAccount()
       if (live?.accessToken) {
@@ -657,7 +699,8 @@ async function identityEmail(adminId: string): Promise<string | null> {
   /* The account when there is one — the device address is an implementation
      detail and naming it in the panel is what made this undiagnosable. */
   try {
-    const human = sessionForLocalUser(adminId)
+    const accountUser = adminAccountUser(adminId)
+    const human = accountUser ? sessionForLocalUser(accountUser) : null
     if (human?.email) return human.email
   } catch {
     // Looking up whose account this is must never break the console itself.
