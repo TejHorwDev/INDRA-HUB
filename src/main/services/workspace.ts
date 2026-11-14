@@ -16,7 +16,8 @@ import {
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
 import { sealSecret, unsealSecret } from '../lib/seal'
-import { adoptBackground, readLoginAppearance, readLoginBackgroundFile, removeLoginBackground, writeTreatment } from './appearance'
+import { adoptBackground, readLoginAppearance, readLoginBackgroundFile, removeLoginBackground, writeTreatment, treatmentPending, clearTreatmentPending
+} from './appearance'
 import { adminCloudSession } from './cloud'
 import {
   adoptDeveloperPhoto,
@@ -454,7 +455,7 @@ export async function applyRemote(next: RemoteWorkspace): Promise<string | null>
      * they drag it, look away, and it is 18/46 again. While something is
      * pending, the local value is the newer one.
      */
-    if (!pending) {
+    if (!pending && !treatmentPending()) {
       const blur = Math.min(40, Math.max(0, Math.round(Number(next.background_blur) || 0)))
       const dim = Math.min(92, Math.max(0, Math.round(Number(next.background_dim) || 0)))
       writeTreatment({ blur, dim })
@@ -784,6 +785,8 @@ export async function push(): Promise<WorkspaceState> {
     }
 
     if (clearingPhoto) clearDeveloperPhotoNeedsClear()
+    /* The row has our treatment now, so it may speak for it again. */
+    clearTreatmentPending()
 
     // The old object is no longer referenced by the row.
     if (background && current.background_path && current.background_asset_id !== background.id) {
