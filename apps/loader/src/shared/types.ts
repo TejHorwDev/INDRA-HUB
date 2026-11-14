@@ -157,6 +157,13 @@ export interface LoaderBridge {
     check: () => Promise<UpdateState>
     install: () => Promise<UpdateState>
     diagnose: () => Promise<UpdateDiagnostics>
+    /**
+     * Did this launch come from the updater restarting the app into a new version?
+     *
+     * Only then is a remembered session used. Every other launch shows the sign-in
+     * form, because an updater is not allowed to remove a sign-in screen.
+     */
+    updateLaunch: () => Promise<boolean>
     /** The last few things the updater did, oldest first. */
     log: () => Promise<string[]>
     /**

@@ -14,6 +14,7 @@ import {
   noteActivity,
   noteScreen,
   updateLog,
+  wasUpdatedLaunch,
   updateState
 } from '../services/updates'
 
@@ -45,6 +46,11 @@ export function registerIpc(handlers: Handlers): void {
   ipcMain.handle('update:install', () => installUpdate({ manual: true }))
   ipcMain.handle('update:diagnose', () => diagnoseConnection())
   ipcMain.handle('update:log', () => updateLog())
+  /*
+   * True only when this process was started by the updater relaunching itself.
+   * The window asks before it considers a remembered session.
+   */
+  ipcMain.handle('update:launch', () => wasUpdatedLaunch())
   ipcMain.on('update:screen', (_event, screen: unknown) => {
     if (typeof screen === 'string') noteScreen(screen)
   })

@@ -225,7 +225,18 @@ export default function App(): React.JSX.Element {
     if (screen !== 'landing' || restoreStarted.current) return
     restoreStarted.current = true
 
-    void withCap(bridge.auth.restore(), null)
+    void withCap(
+      /*
+       * A remembered session is used on one launch only: ours. On every other start
+       * the sign-in form is the first thing, because it is the first thing — the app
+       * was told to remember a session, not to skip authentication.
+       */
+      bridge.updates
+        .updateLaunch()
+        .then((afterUpdate) => (afterUpdate ? bridge.auth.restore() : null))
+        .catch(() => null),
+      null
+    )
       .then(async (info) => {
         if (!info) return
         const active = document.activeElement
@@ -424,6 +435,19 @@ export default function App(): React.JSX.Element {
           onCheck={() => void runUpdate(() => bridge.updates.check())}
           onInstall={() => void runUpdate(() => bridge.updates.install())}
           onOpen={confirmExternal}
+          onSignOut={() => {
+            /*
+             * The one way out of a remembered session. Without it, an app that
+             * restored itself after an update had no sign-out anywhere in it.
+             */
+            void bridge.auth.logout().then(() => {
+              restoreStarted.current = true
+              setSelected(null)
+              setOwned([])
+              setError(null)
+              setScreen('signin')
+            })
+          }}
         />
       ) : null}
 
