@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AdminAppRow } from '@/lib/db'
+import { parseDescription } from '@/lib/prose'
 
 /*
  * The catalogue, and the only screen that matters.
@@ -390,12 +391,10 @@ export default function Products(): React.JSX.Element {
             <label className="label" htmlFor={`desc-${current.id}`}>
               Description
             </label>
-            <textarea
-              id={`desc-${current.id}`}
-              defaultValue={current.description}
-              onBlur={(event) => {
-                if (event.target.value !== current.description) void patch(current.id, { description: event.target.value })
-              }}
+            <DescriptionField
+              key={current.id}
+              app={current}
+              onSave={(description) => patch(current.id, { description })}
             />
           </div>
 
@@ -585,5 +584,102 @@ export default function Products(): React.JSX.Element {
         </form>
       </div>
     </>
+  )
+}
+
+
+/**
+ * The field, its hint, and the preview.
+ *
+ * Local state on purpose: the preview must react to every keystroke, and the save must
+ * not be one request per letter. Typing is local, leaving the field publishes.
+ */
+function DescriptionField({
+  app,
+  onSave
+}: {
+  app: AdminAppRow
+  onSave: (description: string) => void
+}): React.JSX.Element {
+  const [text, setText] = useState(app.description)
+
+  return (
+    <>
+      <textarea
+        id={`desc-${app.id}`}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={() => {
+          if (text !== app.description) onSave(text)
+        }}
+      />
+      <div className="hint" style={{ marginTop: 6 }}>
+        Separate features with a dash, a pipe or a new line — they become a list in the
+        app instead of one long sentence. Capitals are softened there.
+      </div>
+      {/* Exactly what the loader will draw, so nobody publishes a wall of text. */}
+      <DescriptionPreview text={text} />
+    </>
+  )
+}
+
+/**
+ * The description, as the loader will draw it.
+ *
+ * The field is one line and a product's selling points are a list, so the two are never
+ * the same shape — and until this existed the only way to find out how it came out was to
+ * look at it in the app, on a customer's screen. One parse, the same function the app
+ * uses, drawn small.
+ */
+function DescriptionPreview({ text }: { text: string }): React.JSX.Element | null {
+  const prose = parseDescription(text)
+  if (!prose.about && prose.features.length === 0) return null
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        padding: '10px 12px',
+        border: '1px solid var(--hairline)',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.02)'
+      }}
+    >
+      <div className="label" style={{ marginBottom: 6 }}>
+        In the app
+      </div>
+      {prose.about ? (
+        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--ink-2)' }}>{prose.about}</p>
+      ) : null}
+      {prose.features.length > 0 ? (
+        <ul
+          style={{
+            margin: '8px 0 0',
+            padding: 0,
+            listStyle: 'none',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '4px 18px',
+            fontSize: 11.5,
+            color: 'var(--ink-2)'
+          }}
+        >
+          {prose.features.slice(0, 6).map((feature) => (
+            <li key={feature} style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+              <span
+                aria-hidden
+                style={{ marginTop: 6, width: 3, height: 3, borderRadius: 999, background: 'var(--ink-3)', flexShrink: 0 }}
+              />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {prose.features.length > 6 ? (
+        <div className="hint" style={{ marginTop: 6 }}>
+          +{prose.features.length - 6} more
+        </div>
+      ) : null}
+    </div>
   )
 }
