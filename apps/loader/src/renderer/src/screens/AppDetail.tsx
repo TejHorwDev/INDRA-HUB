@@ -65,13 +65,24 @@ export default function AppDetail({
 }: Props): React.JSX.Element {
   const state = install?.state ?? 'absent'
   const percent = install?.percent ?? 0
+
+  /*
+   * A server that does not say how big the file is cannot be turned into a percentage.
+   * The panel does say now, but the loader must not depend on that to look alive: with no
+   * total, the count of bytes received is the honest number, and "0%" for two minutes is
+   * how this looked broken even when it was working.
+   */
+  const metered = Boolean(install && install.total > 0)
+  const megabytes = install ? (install.received / 1048576).toFixed(1) : '0.0'
   const installed = state === 'installed'
 
   const size = install && install.total > 0 ? `${(install.total / 1048576).toFixed(1)} MB` : ''
   const status = running
     ? 'Running'
     : state === 'downloading'
-      ? `Downloading ${percent}%`
+      ? metered
+        ? `Downloading ${percent}%`
+        : `Downloading ${megabytes} MB`
       : installed
         ? size
           ? `Downloaded · ${size}`
@@ -168,13 +179,19 @@ export default function AppDetail({
                   className="relative grid flex-1 place-items-center overflow-hidden border border-[var(--hairline)] bg-[var(--color-raised)]/80 text-[12.5px] font-medium text-[var(--color-ink)] backdrop-blur-[2px]"
                   style={{ height: BUTTON, borderRadius: 10 }}
                 >
-                  <span
-                    aria-hidden
-                    className="absolute inset-y-0 left-0 bg-[var(--color-accent)]/16 transition-[width] duration-200"
-                    style={{ width: `${percent}%` }}
-                  />
+                  {metered ? (
+                    <span
+                      aria-hidden
+                      className="absolute inset-y-0 left-0 bg-[var(--color-accent)]/16 transition-[width] duration-200"
+                      style={{ width: `${percent}%` }}
+                    />
+                  ) : (
+                    /* No length from the server: an indeterminate stripe that moves,
+                       because something is happening and the interface should say so. */
+                    <span aria-hidden className="download-stripe absolute inset-y-0 left-0 w-1/3" />
+                  )}
                   <span className="relative">
-                    {percent}%
+                    {metered ? `${percent}%` : `${megabytes} MB`}
                     {install && install.bytesPerSecond > 0
                       ? ` · ${Math.round(install.bytesPerSecond / 1_000_000)} MB/s`
                       : ''}

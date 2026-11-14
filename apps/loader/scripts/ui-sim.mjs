@@ -208,6 +208,24 @@ check('an existing file is never fetched again', /const already = installed\(id\
 check('a truncated file counts as missing', /info\.size !== entry\.bytes/.test(registry))
 check('the library lives in the loader folder', /libraryDir\(app\.getPath\('userData'\)\)/.test(registry))
 
+/*
+ * The film, and the bar.
+ *
+ * `loop` is one attribute and one visible freeze per playthrough on a large file: it
+ * seeks to zero. The standby layer is the fix, and it only stays fixed if nobody puts
+ * `loop` back. The progress readout is the other half — 0% with bytes arriving is
+ * indistinguishable from a stalled download.
+ */
+const backdrop = code(readFileSync(join(renderer, 'components/Backdrop.tsx'), 'utf8'))
+check('the film loops by handover, not by seeking', !/\bloop\b/.test(backdrop.replace(/`[^`]*`/g, '')))
+check('two layers, so the join is a fade', (backdrop.match(/<video/g) ?? []).length === 2)
+check('and it is memoised, so a download cannot re-render it', /export default memo\(Backdrop\)/.test(backdrop))
+
+check('no length means bytes on screen, not a frozen 0%', /metered \? `\$\{percent\}%` : `\$\{megabytes\} MB`/.test(detail))
+check('the stripe moves when the length is unknown', /download-stripe/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+check('a stall is detected rather than waited on', /STALL_MS/.test(service))
+check('and the transfer is continued, not restarted', /resumeFrom: resumableBytes\(target\.exe\)/.test(service))
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.

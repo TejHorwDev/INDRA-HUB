@@ -339,6 +339,112 @@ export async function openObject(key: string): Promise<Readable | null> {
   }
 }
 
+/**
+ * The object as a stream, with its size, and with ranges honoured.
+ *
+ * This is the difference between a download that can be measured and resumed and one
+ * that arrives as an unmeasured trickle. Without a length a client cannot show progress
+ * — it can only count bytes and guess — and without ranges a retry starts from zero and
+ * a looping video has to re-fetch the file to play it again.
+ *
+ * `end` is inclusive, as HTTP means it.
+ */
+export interface ObjectRead {
+  stream: Readable
+  /** Full size of the object, or 0 when the backend cannot report one. */
+  size: number
+  /** Bytes in this response. */
+  length: number
+  /** The range that was actually served, when one was asked for and honoured. */
+  range: { start: number; end: number } | null
+}
+
+export async function readObject(
+  key: string,
+  range?: { start: number; end?: number }
+): Promise<ObjectRead | null> {
+  const active = driver()
+
+  if (active === 'local') {
+    const path = join(LOCAL_ROOT, key)
+    let size = 0
+    try {
+      size = (await stat(path)).size
+    } catch {
+      return null
+    }
+    if (!range) {
+      return { stream: createReadStream(path), size, length: size, range: null }
+    }
+    const end = Math.min(range.end ?? size - 1, size - 1)
+    if (range.start > end) return null
+    return {
+      stream: createReadStream(path, { start: range.start, end }),
+      size,
+      length: end - range.start + 1,
+      range: { start: range.start, end }
+    }
+  }
+
+  if (active === 'supabase') {
+    const supabase = createClient(env.supabaseUrl, env.supabaseServiceKey, {
+      auth: { persistSession: false }
+    })
+    const { data } = await supabase.storage.from(env.supabaseBucket).createSignedUrl(key, 300)
+    if (!data?.signedUrl) return null
+
+    // The signed URL answers Range with 206 and a content-range, which carries the total
+    // even when no range was asked for. One request, so a HEAD is not needed.
+    const response = await fetch(data.signedUrl, {
+      headers: range ? { range: `bytes=${range.start}-${range.end ?? ''}` } : {}
+    })
+    if (!response.ok || !response.body) return null
+
+    const stream = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0])
+    const contentRange = response.headers.get('content-range')
+    const parsed = contentRange ? /bytes\s+(\d+)-(\d+)\/(\d+)/.exec(contentRange) : null
+    if (parsed) {
+      const start = Number(parsed[1])
+      const end = Number(parsed[2])
+      const size = Number(parsed[3])
+      return {
+        stream,
+        size,
+        length: end - start + 1,
+        range: { start, end }
+      }
+    }
+
+    const length = Number(response.headers.get('content-length')) || 0
+    return { stream, size: length, length, range: null }
+  }
+
+  try {
+    const result = await s3().send(
+      new GetObjectCommand({
+        Bucket: bucket(),
+        Key: key,
+        ...(range ? { Range: `bytes=${range.start}-${range.end ?? ''}` } : {})
+      })
+    )
+    const stream = (result.Body as Readable | undefined) ?? null
+    if (!stream) return null
+    const contentRange = result.ContentRange ? /bytes\s+(\d+)-(\d+)\/(\d+)/.exec(result.ContentRange) : null
+    if (contentRange) {
+      return {
+        stream,
+        size: Number(contentRange[3]),
+        length: result.ContentLength ?? 0,
+        range: { start: Number(contentRange[1]), end: Number(contentRange[2]) }
+      }
+    }
+    const size = result.ContentLength ?? 0
+    return { stream, size, length: size, range: null }
+  } catch {
+    return null
+  }
+}
+
 /** Local only: the bytes of a direct upload. */
 export async function localWrite(key: string, body: Readable): Promise<void> {
   const path = join(LOCAL_ROOT, key)

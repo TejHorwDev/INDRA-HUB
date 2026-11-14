@@ -13,7 +13,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
-import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -196,7 +196,44 @@ async function main() {
   check('stops when it is cancelled', cancelCode !== 'no error', cancelCode)
   check('never produces an installed file', !existsSync(cancelTarget))
 
-  /* ------------------------------------------------- 5. downloaded once */
+  /* ------------------------------------------------- 5. a measured download */
+
+  /*
+   * The bug this section exists for: the panel served files as a chunked stream with no
+   * length and no ranges. The loader could not compute a percentage — the bar sat at 0%
+   * while bytes arrived — and every retry started from zero.
+   */
+  console.log('\nA server that says how big the file is')
+
+  const ranged = await downloader.downloadToFile({
+    url,
+    destination: join(work, 'apps', 'Ranged', 'Ranged.exe'),
+    signal: new AbortController().signal
+  })
+  check('the length is known, so a percentage is possible', ranged.bytes === body.length)
+  check('the server honoured the request', ranged.resumed === false)
+
+  // The half-downloaded case, which a retry depends on.
+  const resumeTarget = join(work, 'apps', 'Resumed', 'Resumed.exe')
+  mkdirSync(dirname(resumeTarget), { recursive: true })
+  writeFileSync(`${resumeTarget}.part`, body.subarray(0, 1024 * 1024))
+  const continued = await downloader.downloadToFile({
+    url,
+    destination: resumeTarget,
+    signal: new AbortController().signal
+  })
+  check('a fragment is continued rather than restarted', continued.resumed === true)
+  check('and the result is the whole file', readFileSync(resumeTarget).equals(body))
+
+  // A fragment too old to trust is not continued: the file may have been replaced.
+  writeFileSync(`${resumeTarget}.part`, Buffer.alloc(10))
+  check('a fresh fragment is offered for reuse', downloader.resumableBytes(resumeTarget) === 10)
+
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+  utimesSync(`${resumeTarget}.part`, twoDaysAgo, twoDaysAgo)
+  check('a fragment from two days ago is refused', downloader.resumableBytes(resumeTarget) === 0)
+
+  /* ------------------------------------------------- 6. downloaded once */
 
   /*
    * "Downloaded once" is the whole feature: a machine that already has the file must
@@ -243,7 +280,7 @@ async function main() {
   check('deleting the file brings the download back', installed.installed('nova') === null)
   check('and takes it out of the list', installed.allInstalled().length === 0)
 
-  /* ------------------------------------------------------------- 6. names */
+  /* ------------------------------------------------------------- 7. names */
 
   console.log('\nFile names from a hostile field')
   const safe = paths.safeName('../../Windows/System32')
