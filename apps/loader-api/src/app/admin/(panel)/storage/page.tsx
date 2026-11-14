@@ -1,5 +1,5 @@
 import { currentSession } from '@/lib/auth'
-import { env, storageDriverConfigured } from '@/lib/env'
+import { b2Endpoint, b2Ready, env, storageDriverConfigured } from '@/lib/env'
 import {
   capFor,
   driver,
@@ -116,6 +116,59 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
           </tbody>
         </table>
       </div>
+
+      {active === 'b2' || b2Ready() ? (
+        <div className="card">
+          <h2>Backblaze B2 setup</h2>
+          <p className="hint">
+            Endpoint in use: <span className="mono">{b2Endpoint()}</span> — derived from{' '}
+            <span className="mono">B2_REGION</span> unless{' '}
+            <span className="mono">B2_ENDPOINT</span> says otherwise.
+          </p>
+          <table>
+            <tbody>
+              <tr>
+                <th>Bucket</th>
+                <td className="mono">{env.b2.bucket || 'not set'}</td>
+              </tr>
+              <tr>
+                <th>Key id</th>
+                <td className="mono">{env.b2.keyId ? `${env.b2.keyId.slice(0, 10)}…` : 'not set'}</td>
+              </tr>
+              <tr>
+                <th>Region</th>
+                <td className="mono">{env.b2.region}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="hint">
+            The application key needs <span className="mono">readFiles</span>,{' '}
+            <span className="mono">writeFiles</span> and <span className="mono">listFiles</span>{' '}
+            on this bucket, and nothing else. Without <span className="mono">listFiles</span>{' '}
+            the usage numbers above cannot be counted, and without{' '}
+            <span className="mono">writeFiles</span> every upload is refused by B2 with a
+            sentence about access.
+          </p>
+          <p className="hint">
+            Uploads go from the browser straight to the bucket, so the bucket needs one
+            CORS rule naming this panel. Backblaze → bucket → CORS Rules → add:
+          </p>
+          <pre className="mono hint">{`[
+  {
+    "corsRuleName": "indra-panel",
+    "allowedOrigins": ["${env.publicBaseUrl || 'https://indra-loader-api.onrender.com'}"],
+    "allowedOperations": ["s3_put", "s3_get", "s3_head"],
+    "allowedHeaders": ["*"],
+    "exposeHeaders": ["etag"],
+    "maxAgeSeconds": 3600
+  }
+]`}</pre>
+          <p className="hint">
+            Without that rule the upload fails in the browser with a network error and no
+            explanation — the bucket never sees the request.
+          </p>
+        </div>
+      ) : null}
 
       <div className="card">
         <h2>Installers bigger than the ceiling</h2>
