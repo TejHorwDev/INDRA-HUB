@@ -1,5 +1,6 @@
 import type { InstallView, LoaderApp } from '@shared/types'
 import Monogram from '../components/Monogram'
+import { parseDescription } from '../lib/prose'
 
 /*
  * The detail overlay.
@@ -72,6 +73,18 @@ export default function AppDetail({
    * total, the count of bytes received is the honest number, and "0%" for two minutes is
    * how this looked broken even when it was working.
    */
+  /*
+   * What the panel typed, made readable.
+   *
+   * A description is one line and people fill one line like a message: a claim, then
+   * features separated by hyphens. Printed raw that is a wall of capitals that wraps in
+   * the wrong places — so it is split into the sentence and the list it always was, and
+   * the shouting is undone.
+   */
+  const prose = parseDescription(app.description)
+  const features = prose.features.slice(0, 6)
+  const more = prose.features.length - features.length
+
   const metered = Boolean(install && install.total > 0)
   const megabytes = install ? (install.received / 1048576).toFixed(1) : '0.0'
   const installed = state === 'installed'
@@ -152,10 +165,39 @@ export default function AppDetail({
             </div>
 
             {/* Nothing is better than a placeholder sentence pretending to be copy. */}
-            {app.description ? (
-              <p className="mt-[18px] max-w-[430px] text-[12.5px] leading-[20px] text-[var(--color-ink-2)]">
-                {app.description}
+            {prose.about ? (
+              <p className="mt-[18px] max-w-[430px] break-words text-[12.5px] leading-[20px] text-[var(--color-ink-2)]">
+                {prose.about}
               </p>
+            ) : null}
+
+            {/*
+              The features, as features: two columns, a hairline dot each, so a long run
+              of them stays a list instead of becoming a paragraph that happens to have
+              dashes in it.
+            */}
+            {features.length > 0 ? (
+              <ul
+                className="mt-[12px] grid max-w-[430px] grid-cols-2 gap-x-[22px] gap-y-[7px]"
+                aria-label="Features"
+              >
+                {features.map((feature) => (
+                  <li
+                    key={feature}
+                    className="flex min-w-0 items-start gap-[7px] break-words text-[11.5px] leading-[16px] text-[var(--color-ink-2)]"
+                  >
+                    <span
+                      aria-hidden
+                      className="mt-[6.5px] h-[3px] w-[3px] shrink-0 rounded-full bg-white/35"
+                    />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {more > 0 ? (
+              <p className="mt-[7px] text-[10.5px] text-[var(--color-ink-3)]">+{more} more</p>
             ) : null}
 
             {install?.error ? (

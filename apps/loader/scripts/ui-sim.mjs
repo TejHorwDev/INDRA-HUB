@@ -12,13 +12,17 @@
  *
  *   npm run sim:ui
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { build } from 'esbuild'
+import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const renderer = join(root, 'src/renderer/src')
 const main = join(root, 'src/main')
+const work = join(tmpdir(), 'indra-loader-ui-sim')
+mkdirSync(work, { recursive: true })
 
 let failures = 0
 const check = (label, ok, detail = '') => {
@@ -253,6 +257,41 @@ check('the film is served from disk, not the network', /protocol\.handle\(SCHEME
 check('and it is fetched once, for next time', /export function ensureFilm/.test(filmCache))
 check('an old film is not kept forever', /const KEEP = 2/.test(filmCache))
 check('the scheme is allowed by the policy', /media-src 'self' blob: https: indra-film:/.test(readFileSync(join(main, 'index.ts'), 'utf8')))
+
+/* ------------------------------------------------------- the description ---- */
+
+/*
+ * People write a description the way they write a message: a claim, then features
+ * separated by hyphens. Printed raw it is a wall of capitals that wraps in the wrong
+ * places, which is what it looked like. This checks the parse, not the string.
+ */
+console.log('\nA description, parsed the way it is drawn')
+
+const proseFile = join(work, 'prose.mjs')
+await build({
+  entryPoints: [join(renderer, 'lib/prose.ts')],
+  outfile: proseFile,
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  logLevel: 'silent'
+})
+const prose = await import(`file://${proseFile}?t=${Date.now()}`)
+
+const shout = prose.parseDescription(
+  'BEST EXTERNAL CHEATS IN THE MARKET…! MANY COOL FEATURES :-AIMBOT ( EXTERNAL , AI , RAGE )-ESP MENU-EXTRA FEATURES-SKIN CHANGER'
+)
+check('the claim becomes a sentence', shout.about === 'Best external cheats in the market…! Many cool features', shout.about)
+check('the run becomes four features', shout.features.length === 4, JSON.stringify(shout.features))
+check('one line, one honest feature', shout.features[3] === 'Skin changer', shout.features[3])
+check('acronyms keep their capitals', shout.features[0] === 'Aimbot (external, AI, rage)', shout.features[0])
+check('a name keeps its hyphen', prose.parseDescription('Anti-Aim and Fake Lag built in').features.length === 0)
+check('plain prose stays a paragraph', prose.parseDescription('External cheat for the season.').features.length === 0)
+
+const detailScreen = code(readFileSync(join(renderer, 'screens/AppDetail.tsx'), 'utf8'))
+check('the screen draws the parsed form', /parseDescription\(app\.description\)/.test(detailScreen))
+check('features are a list, not a paragraph', /aria-label="Features"/.test(detailScreen))
+check('a very long list is capped', /prose\.features\.slice\(0, 6\)/.test(detailScreen))
 
 console.log('\nThe connecting screen')
 /*

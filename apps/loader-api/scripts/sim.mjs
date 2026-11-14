@@ -247,6 +247,31 @@ async function main() {
   check('only a film is redirected', /path\.startsWith\('videos\/'\)/.test(filesRoute))
   check('and the redirect is short-lived', /directUrl\(path\)/.test(filesRoute))
 
+  /*
+   * A description is written the way people write messages, and printed raw it is a wall
+   * of capitals that wraps where nothing means anything. The panel previews what the app
+   * will draw, so the two parsers must agree — these are the same fixtures the loader
+   * checks against.
+   */
+  console.log('\nA description, parsed the way the app draws it')
+  const prose = await bundle('src/lib/prose.ts', 'prose')
+
+  const shout = prose.parseDescription(
+    'BEST EXTERNAL CHEATS IN THE MARKET…! MANY COOL FEATURES :-AIMBOT ( EXTERNAL , AI , RAGE )-ESP MENU-EXTRA FEATURES-SKIN CHANGER'
+  )
+  check(
+    'the claim becomes a sentence',
+    shout.about === 'Best external cheats in the market…! Many cool features',
+    shout.about
+  )
+  check('and the run of features becomes a list', shout.features.length === 4, JSON.stringify(shout.features))
+  check('with acronyms left alone', shout.features[0] === 'Aimbot (external, AI, rage)', shout.features[0])
+
+  check('a pipe is a separator too', prose.parseDescription('Aimbot | ESP').features.length === 2)
+  check('a name keeps its hyphen', prose.parseDescription('Anti-Aim and Fake Lag built in').features.length === 0)
+  check('plain prose stays one paragraph', prose.parseDescription('External cheat for the season.').features.length === 0)
+  check('an empty field draws nothing', prose.parseDescription('').about === '')
+
   const range = await bundle('src/lib/http-range.ts', 'http-range')
   check('`bytes=0-` is the whole file', JSON.stringify(range.parseRange('bytes=0-')) === '{"start":0}')
   check('`bytes=5-9` is a slice', range.parseRange('bytes=5-9')?.end === 9)
