@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import { APP_NAME, applyIdentity } from './lib/identity'
+import { clearCacheOnUpdate } from './lib/cache-version'
 import { markHealthy } from './lib/payload'
 import { forgetStoredSession } from './services/auth'
 import { registerIpc } from './ipc'
@@ -189,7 +190,7 @@ function revealWindow(window: BrowserWindow): void {
   else show()
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   /*
    * Healthy the moment the app is up, not five seconds later.
    *
@@ -202,6 +203,13 @@ app.whenReady().then(() => {
    * "healthy" was always meant to mean.
    */
   markHealthy()
+
+  /*
+   * Before anything is fetched: a cache written by an older version is not trusted,
+   * because the response format itself changed in 1.0.28 and nothing that is already on
+   * disk can be repaired by the server.
+   */
+  await clearCacheOnUpdate()
 
   /*
    * A token from a release that remembered sessions is deleted, not ignored.
