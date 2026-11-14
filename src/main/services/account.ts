@@ -22,7 +22,7 @@ import { AppError, errors } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { EMAIL_PATTERN, normalizeEmail } from '../lib/validation'
 import { SupabaseError, asRow, supabaseRpc, supabaseRequest } from '../lib/supabase'
-import { activeSessionUserId, discardLocalAccount, openSessionFor, register, signOut } from './auth'
+import { activeSessionUserId, clearLocalPassword, discardLocalAccount, openSessionFor, register, signOut } from './auth'
 import { recheckConnectivity } from './connectivity'
 import { syncAfterSignIn } from './sync'
 import { findUserById } from './users'
@@ -416,6 +416,12 @@ export async function registerOnServer(input: RegisterInput): Promise<SessionUse
   const user = register(input)
   try {
     await createAccountFromLocal(input.password ?? '')
+    /*
+     * The server holds the password now, and it is the only place that should.
+     * What stays here is a hash of bytes nobody kept, so this PC cannot be used
+     * as a credential store for somebody's account.
+     */
+    clearLocalPassword(user.id)
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
     if (/confirm the address/i.test(message)) throw error

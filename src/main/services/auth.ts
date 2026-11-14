@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import type {
   ChangePasswordInput,
   DeleteAccountInput,
@@ -225,6 +225,20 @@ export function register(input: RegisterInput): SessionUser {
  * survive: an account that exists only on this PC is exactly the trap this
  * project has been digging itself out of.
  */
+/**
+ * Forgets the local copy of a password that now lives on the server.
+ *
+ * The row keeps a hash because the column exists and predates server accounts;
+ * what is stored is 32 random bytes that were thrown away immediately, so there
+ * is nothing on this disk to guess, crack, or reuse.
+ */
+export function clearLocalPassword(userId: string): void {
+  const { hash, salt } = hashPassword(randomBytes(32).toString('base64url'))
+  getDatabase()
+    .prepare('UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?')
+    .run(hash, salt, userId)
+}
+
 export function discardLocalAccount(userId: string): void {
   const db = getDatabase()
   db.exec('BEGIN')
