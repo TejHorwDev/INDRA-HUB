@@ -156,6 +156,19 @@ check('the artwork fills the card', /absolute inset-0/.test(shelf) && !/h-\[128p
 check('the library is called Browse library', /Browse library/.test(dash))
 check('and the library has no corner label', !/Indra Loader/i.test(dash) && !/\{username\}/.test(dash))
 
+console.log('\nThe product screen')
+/*
+ * No version, and no sheet.
+ *
+ * The detail overlay used to paint the app's own background over the window, which is
+ * the one place the film visibly stopped. It also carried a version pill and a version
+ * row in a table — the same number twice, on a screen where it can only change when an
+ * update arrives.
+ */
+const detail = code(readFileSync(join(renderer, 'screens/AppDetail.tsx'), 'utf8'))
+check('the detail screen carries no version', !/app\.version/.test(detail))
+check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detail))
+
 console.log('\nThe landing page')
 const landing = code(readFileSync(join(renderer, 'screens/Landing.tsx'), 'utf8'))
 check('has no social row', !/FOLLOW US|Follow us|instagram-icon|SocialMark/i.test(landing))

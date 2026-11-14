@@ -4,19 +4,27 @@ import Monogram from '../components/Monogram'
 /*
  * The detail overlay.
  *
- * Fills the window: preview on the left at x28, 340x332; everything written on
- * the right from x396, 476 wide; the action row across the bottom at y444.
+ * No background of its own. It used to paint `--color-bg` over the whole window,
+ * which meant the film stopped at this screen and started again behind the library —
+ * the one place in the app where the background was visibly a decision rather than the
+ * room the app is in.
  *
- * The action row is a state machine, not a fixed pair of buttons. Four states
- * exist and all four are reachable:
+ * What is here instead: the artwork on the left, and three things on the right — the
+ * name, what it is, and what state it is in. The version is gone, from the pill and
+ * from the table, because it is the same for every product in the catalogue until you
+ * update it, and the only moment it matters is the moment it changes. The table it
+ * used to sit in is gone with it: three labelled rows in a box is a settings panel, not
+ * a product.
  *
- *   not installed → Download (546 wide) · Launch (disabled)
- *   downloading   → progress and speed in the left slot · Cancel in the right
- *   installed     → "Installed · open folder" · Launch in #34c395
- *   running       → the same, with Launch reading "Running" and disabled
+ * The action row is still a state machine, and still the only place anything starts:
  *
- * Failed downloads keep the same shape: the left button becomes "Try again" and
- * the sentence explaining why sits above it, in the detail column.
+ *   not installed → Download · Launch (disabled)
+ *   downloading   → progress and speed · Cancel
+ *   installed     → "Installed · open folder" · Launch
+ *   running       → the same, with Launch reading "Running"
+ *
+ * White is the accent now, so Download is white and Launch is a hairline. The green
+ * button was the last colour in the app.
  */
 
 interface Props {
@@ -29,6 +37,11 @@ interface Props {
   onLaunch: () => void
   onReveal: () => void
 }
+
+/** The composition, in the window's own coordinates. */
+const ART = { left: 28, top: 84, size: 300 }
+const COLUMN = { left: 368, width: 504 }
+const ACTIONS = 448
 
 export default function AppDetail({
   app,
@@ -44,8 +57,18 @@ export default function AppDetail({
   const percent = install?.percent ?? 0
   const installed = state === 'installed'
 
+  const status = running
+    ? 'Running'
+    : state === 'downloading'
+      ? `Downloading ${percent}%`
+      : installed
+        ? 'Installed'
+        : state === 'error'
+          ? 'Download failed'
+          : 'Not installed'
+
   return (
-    <div className="absolute inset-0 z-30 bg-[var(--color-bg)]">
+    <div className="absolute inset-0 z-30">
       <CircleButton label="Back" left={46} onClick={onBack}>
         <path d="M7.5 2.5 4 6l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       </CircleButton>
@@ -54,26 +77,32 @@ export default function AppDetail({
         <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </CircleButton>
 
+      {/* The artwork, edge to edge, with nothing drawn around it. */}
       <div
-        className="absolute overflow-hidden border border-[var(--hairline)] bg-[var(--color-surface)]"
-        style={{ left: 28, top: 100, width: 340, height: 332, borderRadius: 14 }}
+        className="absolute overflow-hidden"
+        style={{
+          left: ART.left,
+          top: ART.top,
+          width: ART.size,
+          height: ART.size,
+          borderRadius: 16,
+          boxShadow: '0 30px 70px -30px rgba(0,0,0,0.95)'
+        }}
       >
-        <Monogram name={app.name} image={app.image} initialClassName="text-[72px]" />
+        <Monogram name={app.name} image={app.image} initialClassName="text-[84px]" />
       </div>
 
-      <div className="absolute" style={{ left: 396, top: 100, width: 476 }}>
-        <h2 className="text-[22px] font-semibold leading-none text-[var(--color-ink)]">{app.name}</h2>
+      <div className="absolute" style={{ left: COLUMN.left, top: ART.top, width: COLUMN.width }}>
+        <h2
+          className="text-[26px] font-semibold leading-none text-white"
+          style={{ letterSpacing: '0.005em', textShadow: '0 2px 20px rgba(0,0,0,0.55)' }}
+        >
+          {app.name}
+        </h2>
 
-        <div className="mt-3 flex items-center gap-2">
-          <span className="rounded border border-[var(--hairline)] px-1.5 py-[2px] text-[10px] font-medium tracking-[0.04em] text-[var(--color-ink-2)]">
-            v{app.version}
-          </span>
-          <span
-            className={
-              'flex items-center gap-1.5 rounded border border-[var(--hairline)] px-1.5 py-[2px] text-[10px] font-medium uppercase tracking-[0.08em] ' +
-              (app.status === 'active' ? 'text-[var(--color-ink-2)]' : 'text-[var(--color-ink-3)]')
-            }
-          >
+        {/* One line: is it available, is it installed, who vouches for it. */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-3)]">
+          <span className="flex items-center gap-1.5">
             <span
               className={
                 'h-1 w-1 rounded-full ' +
@@ -82,55 +111,35 @@ export default function AppDetail({
             />
             {app.status === 'active' ? 'Available' : 'Unavailable'}
           </span>
+          <span aria-hidden className="text-[var(--color-ink-3)]/50">·</span>
+          <span>{status}</span>
+          <span aria-hidden className="text-[var(--color-ink-3)]/50">·</span>
+          <span>{app.keyauthAppId ? 'INDRA Auth' : 'Included'}</span>
         </div>
 
-        <p className="mt-4 text-[12px] leading-[19px] text-[var(--color-ink-2)]">
+        <p className="mt-5 max-w-[460px] text-[12.5px] leading-[20px] text-[var(--color-ink-2)]">
           {app.description || 'No description yet.'}
         </p>
 
-        <div className="mt-6 border-t border-[var(--hairline)] pt-3">
-          <Row label="Version" value={app.version} />
-          <Row
-            label="Status"
-            value={
-              running
-                ? 'Running'
-                : state === 'downloading'
-                  ? `Downloading ${percent}%`
-                  : installed
-                    ? 'Installed'
-                    : state === 'error'
-                      ? 'Download failed'
-                      : 'Not installed'
-            }
-          />
-          {install?.error ? (
-            <p className="mt-2 text-[10.5px] leading-[16px] text-[var(--color-danger)]">{install.error}</p>
-          ) : null}
-          <Row label="Licence" value={app.keyauthAppId ? 'INDRA Auth' : 'Included'} />
-        </div>
+        {install?.error ? (
+          <p className="mt-3 text-[11px] leading-[17px] text-[var(--color-danger)]">{install.error}</p>
+        ) : null}
       </div>
 
       {/* The action row: the only place a download or a launch can start. */}
-      <div className="absolute flex gap-[14px]" style={{ left: 28, top: 444, height: 50 }}>
+      <div className="absolute flex gap-3" style={{ left: COLUMN.left, top: ACTIONS, height: 48 }}>
         <button
           type="button"
-          onClick={
-            state === 'downloading'
-              ? undefined
-              : installed
-                ? onReveal
-                : onDownload
-          }
+          onClick={state === 'downloading' ? undefined : installed ? onReveal : onDownload}
           disabled={state === 'downloading'}
-          className="relative grid place-items-center overflow-hidden rounded-[10px] border border-[var(--hairline)] bg-[var(--color-raised)] text-[12.5px] font-medium text-[var(--color-ink)] transition-[border-color,background] duration-150 hover:border-[var(--hairline-strong)] hover:bg-[#17171b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
-          style={{ width: 546, height: 50 }}
+          className="relative grid place-items-center overflow-hidden border border-[var(--hairline-strong)] bg-[var(--color-raised)]/85 text-[12.5px] font-medium text-[var(--color-ink)] backdrop-blur-[2px] transition-[border-color,background] duration-150 hover:border-white/25 hover:bg-[var(--color-raised)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
+          style={{ width: 312, height: 48, borderRadius: 10 }}
         >
           {state === 'downloading' ? (
             <>
               <span
                 aria-hidden
-                className="absolute inset-y-0 left-0 bg-[var(--color-accent)]/20 transition-[width] duration-200"
+                className="absolute inset-y-0 left-0 bg-[var(--color-accent)]/18 transition-[width] duration-200"
                 style={{ width: `${percent}%` }}
               />
               <span className="relative">
@@ -151,8 +160,8 @@ export default function AppDetail({
           <button
             type="button"
             onClick={onCancel}
-            className="grid place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--color-raised)] text-[12.5px] font-medium text-[var(--color-ink-2)] transition-[color,border-color] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-            style={{ width: 284, height: 50 }}
+            className="grid place-items-center border border-[var(--hairline)] bg-transparent text-[12.5px] font-medium text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+            style={{ width: 180, height: 48, borderRadius: 10 }}
           >
             Cancel
           </button>
@@ -161,24 +170,13 @@ export default function AppDetail({
             type="button"
             onClick={onLaunch}
             disabled={!installed || running}
-            className="grid place-items-center rounded-[10px] bg-[var(--color-success)] text-[12.5px] font-semibold text-[#06110d] transition-[filter] duration-150 hover:brightness-[1.06] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-success)] disabled:bg-[var(--color-raised)] disabled:text-[var(--color-ink-3)] disabled:hover:brightness-100"
-            style={{ width: 284, height: 50 }}
+            className="grid place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:bg-white/6 disabled:text-[var(--color-ink-3)]"
+            style={{ width: 180, height: 48, borderRadius: 10 }}
           >
             {running ? 'Running' : 'Launch'}
           </button>
         )}
       </div>
-    </div>
-  )
-}
-
-function Row({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return (
-    <div className="flex items-baseline justify-between border-b border-[var(--hairline)] py-[7px] last:border-b-0">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-3)]">
-        {label}
-      </span>
-      <span className="text-[11.5px] text-[var(--color-ink-2)]">{value}</span>
     </div>
   )
 }
@@ -199,7 +197,7 @@ function CircleButton({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="no-drag absolute z-50 grid h-[38px] w-[38px] place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-surface)] text-[var(--color-ink-2)] transition-[color,border-color] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+      className="no-drag absolute z-50 grid h-[38px] w-[38px] place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-surface)]/80 text-[var(--color-ink-2)] backdrop-blur-[2px] transition-[color,border-color,background] duration-150 hover:border-[var(--hairline-strong)] hover:bg-[var(--color-surface)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
       style={{ left, top: 44 }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
