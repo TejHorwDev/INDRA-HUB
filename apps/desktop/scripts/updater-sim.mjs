@@ -157,6 +157,26 @@ async function main() {
   const { port } = server.address()
 
   globalThis.__simFetch = async (url) => {
+    /*
+     * The release list.
+     *
+     * The loader's release is deliberately NEWER than the hub's, because that is
+     * exactly the situation the tag filter exists for. An updater that trusts
+     * `releases/latest` picks `loader-v9.9.9` here, fails the manifest's
+     * version-agrees-with-tag check, and never updates at all — which is the
+     * quiet version of the failure. The loud version installs the other app.
+     */
+    if (String(url).includes('/releases?')) {
+      return new Response(
+        JSON.stringify([
+          { tag_name: 'loader-v9.9.9', published_at: '2026-12-01T00:00:00Z' },
+          { tag_name: 'v1.3.5', published_at: '2026-01-01T00:00:00Z' },
+          { tag_name: 'v1.3.4', published_at: '2025-12-01T00:00:00Z' }
+        ]),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    }
+
     const local = url.includes('payload.json')
       ? `http://127.0.0.1:${port}/payload.json`
       : `http://127.0.0.1:${port}/asset`
