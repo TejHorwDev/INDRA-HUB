@@ -136,6 +136,31 @@ export * from ${JSON.stringify(join(root, 'src/renderer/src/lib/nav.ts'))}
   )
   check(offlineGroups.length === 1, 'in one group, with no headings to explain a second')
   check(
+    !offlinePaths.some((path) => ['/credits', '/developers', '/home'].includes(path)),
+    'and nothing that needs a server: no tokens, no developers, no home feed',
+    offlinePaths.join(',')
+  )
+  check(
+    offlinePaths.includes('/settings'),
+    'settings stays, because appearance is a local decision'
+  )
+  /* ---- 1c. the offline page is a page, not a disabled sign-in ------- */
+  const offlineScreen = readFileSync(join(root, 'src/renderer/src/screens/OfflineScreen.tsx'), 'utf8')
+  check(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(offlineScreen), 'the offline page carries a mark')
+  check(/You&rsquo;re offline|You're offline/.test(offlineScreen), 'and says so in the title')
+  check(/Work offline/.test(offlineScreen), 'the one button is Work offline')
+  check(!/<input/.test(offlineScreen), 'there is no password field on it at all')
+
+  check(
+    !offlinePaths.some((path) => ['/credits', '/developers', '/home'].includes(path)),
+    'and nothing that needs a server: no tokens, no developers, no home feed',
+    offlinePaths.join(',')
+  )
+  check(
+    offlinePaths.includes('/settings'),
+    'settings stays, because appearance is a local decision'
+  )
+  check(
     api.navDestinations(false).every((entry) => entry.to !== '/documents'),
     'the command palette follows the same list online'
   )
