@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import Backdrop from '../components/Backdrop'
 import Field from '../components/Field'
 import SlideButton from '../components/SlideButton'
 import WindowControls from '../components/WindowControls'
@@ -17,8 +16,6 @@ import WindowControls from '../components/WindowControls'
  */
 
 interface Props {
-  /** The backdrop film, from the admin panel. Empty means the animated wash. */
-  video: string
   onBack: () => void
   onSubmit: (username: string, password: string) => void
   /** A sentence from the last attempt, shown under the fields. */
@@ -26,7 +23,7 @@ interface Props {
   busy: boolean
 }
 
-export default function SignIn({ video, onBack, onSubmit, error, busy }: Props): React.JSX.Element {
+export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.JSX.Element {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [visible, setVisible] = useState(false)
@@ -45,7 +42,6 @@ export default function SignIn({ video, onBack, onSubmit, error, busy }: Props):
 
   return (
     <div className="absolute inset-0">
-      <Backdrop video={video || undefined} />
       <WindowControls />
 
       <button

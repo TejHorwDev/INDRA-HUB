@@ -41,7 +41,20 @@ export async function GET(
   if (!stream) return new Response('Not found', { status: 404 })
 
   const extension = path.split('.').pop()?.toLowerCase() ?? ''
-  const type = TYPES[extension] ?? 'application/octet-stream'
+  /*
+   * A fallback by folder, not by guesswork.
+   *
+   * `x-content-type-options: nosniff` is sent below, and it is not a decoration: a
+   * video served as `application/octet-stream` will not play, and neither will an
+   * image with no extension. The folder says what the file is even when the name
+   * does not.
+   */
+  const fallback = path.startsWith('videos/')
+    ? 'video/mp4'
+    : path.startsWith('images/')
+      ? 'image/png'
+      : 'application/octet-stream'
+  const type = TYPES[extension] ?? fallback
 
   return new Response(
     Readable.toWeb(stream) as unknown as ReadableStream<Uint8Array>,
