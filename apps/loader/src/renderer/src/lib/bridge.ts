@@ -83,7 +83,7 @@ const staged: Catalogue = {
       status: 'locked'
     }
   ],
-  config: { website: 'https://indra-cheats.com' }
+  config: { website: 'https://indra-cheats.com', video: '' }
 }
 
 /*
@@ -197,6 +197,7 @@ const mock: LoaderBridge = {
   },
 
   auth: {
+    probe: async () => ({ ok: true, status: 200, count: 1, ids: ['mock-nova'], error: null }),
     owned: async () => ['mock-nova'],
     login: async (username, password) => {
       // Long enough to see the verifying screen, and honest about failures: the

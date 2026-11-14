@@ -20,7 +20,9 @@ export async function POST(request: Request): Promise<Response> {
   const filename = text(payload?.['filename'], 200)
   const contentType = text(payload?.['contentType'], 120) || 'application/octet-stream'
 
-  if (kind !== 'exe' && kind !== 'image') return fail('Upload either an installer or an image.')
+  if (kind !== 'exe' && kind !== 'image' && kind !== 'video') {
+    return fail('Upload an installer, an image, or a video.')
+  }
   if (!filename) return fail('A file needs a name.')
 
   // The loader will only download an https URL. A local driver exists for

@@ -3,7 +3,7 @@ import { installed } from '../services/installed'
 import { runningVersion } from '../lib/payload'
 import { currentSession, login, logout } from '../services/auth'
 import { loadCatalogue } from '../services/catalog'
-import { ownedProductIds } from '../services/entitlement'
+import { entitlementReport, ownedProductIds } from '../services/entitlement'
 import { cancelDownload, startDownload, states, uninstall } from '../services/downloads'
 import { launch } from '../services/launch'
 import {
@@ -57,6 +57,7 @@ export function registerIpc(handlers: Handlers): void {
   // The catalogue and its links. Public data, fetched in the main process so the
   // renderer still has no network of its own.
   ipcMain.handle('catalogue:load', () => loadCatalogue())
+  ipcMain.handle('auth:probe', () => entitlementReport())
   ipcMain.handle('auth:owned', () => ownedProductIds())
 
   /*

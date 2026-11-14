@@ -23,9 +23,9 @@ const API_BASE = (
   typeof __LOADER_API__ === 'string' && __LOADER_API__ ? __LOADER_API__ : (process.env['INDRA_LOADER_API'] ?? '')
 ).replace(/\/+$/, '')
 
-const EMPTY_CONFIG: LoaderConfig = { website: '' }
+const EMPTY_CONFIG: LoaderConfig = { website: '', video: '' }
 
-const FIELDS: Array<keyof LoaderConfig> = ['website']
+const FIELDS: Array<keyof LoaderConfig> = ['website', 'video']
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''

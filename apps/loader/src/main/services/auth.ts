@@ -43,6 +43,21 @@ interface Session {
 
 let session: Session | null = null
 
+/**
+ * The bearer token, for the one service that needs it.
+ *
+ * Module-private by intent: this is the only way anything outside this file can
+ * reach the token, and it exists solely so the entitlement lookup can present it.
+ * It is never passed to the renderer, never written down, never logged.
+ */
+export function sessionToken(): string | null {
+  return session?.token ?? null
+}
+
+export function authBase(): string {
+  return AUTH_BASE
+}
+
 export function currentSession(): SessionInfo | null {
   return session ? { username: session.username, expires: session.expires } : null
 }

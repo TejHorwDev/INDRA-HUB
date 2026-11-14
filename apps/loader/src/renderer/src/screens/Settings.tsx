@@ -23,6 +23,8 @@ interface Props {
   onCheck: () => void
   onInstall: () => void
   onOpen: (url: string) => void
+  /** Asks INDRA Auth what this account owns, and reports it. */
+  onProbe: () => void
 }
 
 const PHASE_TITLE: Record<UpdateState['phase'], string> = {
@@ -44,7 +46,8 @@ export default function Settings({
   onBack,
   onCheck,
   onInstall,
-  onOpen
+  onOpen,
+  onProbe
 }: Props): React.JSX.Element {
   // One link, and only if it is published. The social channels were removed from
   // the app entirely: nothing here should send somebody to Instagram.
@@ -70,7 +73,12 @@ export default function Settings({
         Settings
       </h2>
 
-      <div className="absolute flex flex-col gap-3" style={{ left: 88, top: 150, width: 724 }}>
+      {/* Scrolls: the settings list grew past the window, and a fixed frame with a
+          clipped section is how "the panel is broken" starts. */}
+      <div
+        className="settings-scroll absolute flex flex-col gap-3"
+        style={{ left: 88, top: 150, width: 724, maxHeight: 372 }}
+      >
         <section
           className="border border-[var(--hairline)] bg-[var(--color-surface)] p-4"
           style={{ borderRadius: 14, boxShadow: 'var(--sheen)' }}
@@ -128,6 +136,23 @@ export default function Settings({
               {update.detail}
             </p>
           ) : null}
+        </section>
+
+        <section
+          className="flex items-start justify-between gap-4 border border-[var(--hairline)] bg-[var(--color-surface)] px-4 py-3"
+          style={{ borderRadius: 14 }}
+        >
+          <div className="min-w-0">
+            <div className="text-[12px] font-semibold text-[var(--color-ink)]">Access</div>
+            <div className="mt-1 text-[11px] leading-[17px] text-[var(--color-ink-2)]">
+              A product with an app id opens only when INDRA Auth says this account
+              owns it. If a card is locked and should not be, check what the auth
+              service actually returned.
+            </div>
+          </div>
+          <Button variant="ghost" onClick={onProbe}>
+            Check access
+          </Button>
         </section>
 
         <section

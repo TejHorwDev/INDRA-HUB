@@ -94,6 +94,21 @@ export interface LaunchResult {
  */
 export interface LoaderConfig {
   website: string
+  /**
+   * The sign-in backdrop. An absolute URL, or empty for the animated wash.
+   *
+   * Set from the admin panel, so the film can change without a release.
+   */
+  video: string
+}
+
+/** What the diagnostics button reports about the entitlement lookup. */
+export interface EntitlementReport {
+  ok: boolean
+  status: number
+  count: number
+  ids: string[]
+  error: string | null
 }
 
 export interface Catalogue {
@@ -144,6 +159,8 @@ export interface LoaderBridge {
   }
 
   auth: {
+    /** What `/v1/apps` actually answered, for when a card is wrongly locked. */
+    probe: () => Promise<EntitlementReport>
     /** The token never leaves the main process — this returns who, not what. */
     login: (username: string, password: string) => Promise<AuthResult>
     /**

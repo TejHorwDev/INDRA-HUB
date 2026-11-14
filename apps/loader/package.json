@@ -1,7 +1,7 @@
 {
   "name": "indra-loader",
   "productName": "INDRA LOADER",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "description": "INDRA LOADER \u2014 app launcher and catalogue",
   "author": "TejHorwDev",
@@ -20,7 +20,8 @@
     "sim:isolation": "node scripts/isolation-sim.mjs",
     "preview:web": "vite --config vite.preview.config.mjs",
     "sim:download": "node scripts/download-sim.mjs",
-    "sim:ui": "node scripts/ui-sim.mjs"
+    "sim:ui": "node scripts/ui-sim.mjs",
+    "sim:access": "node scripts/access-sim.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

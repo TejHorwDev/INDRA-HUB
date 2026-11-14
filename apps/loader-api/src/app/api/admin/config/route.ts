@@ -10,7 +10,7 @@ import { body, fail, ok, serverError } from '@/lib/http'
  * will then wonder about.
  */
 
-const KNOWN = ['website'] as const
+const KNOWN = ['website', 'video'] as const
 
 export async function GET(): Promise<Response> {
   if (!(await currentSession())) return fail('Not signed in.', 401)

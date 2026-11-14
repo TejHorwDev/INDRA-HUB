@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 /*
  * The sign-in backdrop.
  *
@@ -17,10 +19,25 @@ interface Props {
   poster?: string
 }
 
+/*
+ * The washes are always mounted, under the film.
+ *
+ * A video that fails — wrong codec, 404, a bucket that stopped answering, a
+ * customer on a connection that gives up — must not leave a black rectangle where
+ * the sign-in screen should be. The fallback is already behind it, so the worst
+ * case is the screen we had before the film existed.
+ */
 export default function Backdrop({ video, poster }: Props): React.JSX.Element {
+  const [failed, setFailed] = useState(false)
+  const showVideo = Boolean(video) && !failed
+
   return (
     <div className="backdrop" aria-hidden>
-      {video ? (
+      <span className="wash-a" />
+      <span className="wash-b" />
+      <span className="wash-c" />
+
+      {showVideo ? (
         <video
           className="backdrop-video"
           src={video}
@@ -29,17 +46,13 @@ export default function Backdrop({ video, poster }: Props): React.JSX.Element {
           muted
           loop
           playsInline
+          preload="auto"
           // Decorative: never take focus, never offer controls.
           tabIndex={-1}
           disablePictureInPicture
+          onError={() => setFailed(true)}
         />
-      ) : (
-        <>
-          <span className="wash-a" />
-          <span className="wash-b" />
-          <span className="wash-c" />
-        </>
-      )}
+      ) : null}
     </div>
   )
 }
