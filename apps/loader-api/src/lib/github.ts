@@ -62,6 +62,21 @@ function versionFromTag(tag: string): string | null {
  * that publishing a release and pressing check twice still sees it.
  */
 const TTL_MS = 60_000
+
+/**
+ * What the last lookup did, step by step.
+ *
+ * Three sources, any of which can fail for a different reason, and the failure that
+ * matters is always the one nobody can see. `?debug=1` on the endpoint prints this.
+ */
+let notes: string[] = []
+export function lookupNotes(): string[] {
+  return [...notes]
+}
+const note = (line: string): void => {
+  notes.push(line)
+  if (notes.length > 12) notes.shift()
+}
 let cache: { at: number; value: LatestRelease | null } | null = null
 
 async function json<T>(url: string, timeoutMs = 12_000): Promise<T> {
@@ -204,24 +219,49 @@ export async function latestLoaderRelease(): Promise<LatestRelease | null> {
     let tag: string | null = null
     let publishedAt = ''
 
-    const release = await newest().catch(() => null)
+    notes = []
+    const release = await newest().catch((error: unknown) => {
+      note(`api: ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     if (release) {
       tag = release.tag_name as string
       publishedAt = release.published_at ?? ''
+      note(`api: ${tag}`)
     }
 
     /*
      * The API did not answer — the feed still can. Two independent ways of asking the
      * same question, and only the manifest itself is a hard requirement.
      */
-    if (!tag) tag = await newestFromFeed()
     if (!tag) {
+      tag = await newestFromFeed().catch((error: unknown) => {
+        note(`feed: ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
+      if (tag) note(`feed: ${tag}`)
+    }
+
+    /*
+     * Nothing answered. The remembered release is the last honest thing we know, and
+     * it is better than telling an app that has an update waiting that it is current.
+     */
+    if (!tag) {
+      const fallback = await remembered()
+      if (fallback) {
+        note(`remembered: ${fallback.tag}`)
+        return fallback
+      }
+      note('nothing answered')
       cache = { at: Date.now(), value: null }
       return null
     }
 
     const version = versionFromTag(tag) as string
-    const manifest = await manifestOf(tag, version)
+    const manifest = await manifestOf(tag, version).catch((error: unknown) => {
+      note(`manifest: ${error instanceof Error ? error.message : String(error)}`)
+      throw error
+    })
 
     const value: LatestRelease = { version, tag, publishedAt, manifest }
     cache = { at: Date.now(), value }
