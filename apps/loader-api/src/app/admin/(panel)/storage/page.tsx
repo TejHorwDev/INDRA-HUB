@@ -117,7 +117,9 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
         </table>
       </div>
 
-      {active === 'b2' || b2Ready() ? (
+      {/* Shown whatever the live driver is: the rule has to be in place *before*
+          the variables are, or the first upload fails in the browser. */}
+      {true ? (
         <div className="card">
           <h2>Backblaze B2 setup</h2>
           <p className="hint">
