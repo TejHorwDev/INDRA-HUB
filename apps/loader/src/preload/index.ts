@@ -28,6 +28,7 @@ const bridge: LoaderBridge = {
     install: (): Promise<UpdateState> => ipcRenderer.invoke('update:install'),
     diagnose: (): Promise<UpdateDiagnostics> => ipcRenderer.invoke('update:diagnose'),
     log: (): Promise<string[]> => ipcRenderer.invoke('update:log'),
+    updateLaunch: (): Promise<boolean> => ipcRenderer.invoke('update:launch'),
     screen: (screen: string): void => ipcRenderer.send('update:screen', screen),
     activity: (activity: { screen: string; typing: boolean }): void =>
       ipcRenderer.send('update:activity', activity),

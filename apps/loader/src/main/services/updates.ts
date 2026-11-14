@@ -169,6 +169,32 @@ function restartAlreadyTried(version: string): boolean {
   return true
 }
 
+/**
+ * Was this launch a silent restart into a new version?
+ *
+ * Read once, from the same claim the updater writes a second before it relaunches.
+ * It answers one question and only one: may the app open the library instead of the
+ * sign-in form? A normal launch has no claim, so a normal launch always signs in.
+ *
+ * The distinction is the whole point. Restoring a remembered session on *every*
+ * launch quietly removed the sign-in screen from the app, which is not what an
+ * updater was ever allowed to do. Restoring it on the one launch that the app
+ * started by itself — the update — is the thing that makes an update look like a
+ * blink instead of a crash.
+ */
+const updatedLaunch = (() => {
+  try {
+    const guard = readGuard()
+    return Boolean(guard && guard.target === runningVersion())
+  } catch {
+    return false
+  }
+})()
+
+export function wasUpdatedLaunch(): boolean {
+  return updatedLaunch
+}
+
 function clearGuard(): void {
   try {
     rmSync(guardFile(), { force: true })

@@ -34,6 +34,8 @@ interface Props {
   onCheck: () => void
   onInstall: () => void
   onOpen: (url: string) => void
+  /** Forgets the remembered session and returns to the sign-in form. */
+  onSignOut: () => void
 }
 
 const PHASE_TITLE: Record<UpdateState['phase'], string> = {
@@ -47,10 +49,11 @@ const PHASE_TITLE: Record<UpdateState['phase'], string> = {
   error: 'Check failed'
 }
 
-type Section = 'updates' | 'about' | 'links'
+type Section = 'account' | 'updates' | 'about' | 'links'
 
 const SECTIONS: Array<{ id: Section; label: string }> = [
   { id: 'updates', label: 'Updates' },
+  { id: 'account', label: 'Account' },
   { id: 'about', label: 'About' },
   { id: 'links', label: 'Links' }
 ]
@@ -67,7 +70,8 @@ export default function Settings({
   onBack,
   onCheck,
   onInstall,
-  onOpen
+  onOpen,
+  onSignOut
 }: Props): React.JSX.Element {
   const [section, setSection] = useState<Section>('updates')
 
@@ -264,6 +268,25 @@ export default function Settings({
                 </div>
               </details>
             ) : null}
+          </Page>
+        ) : null}
+
+        {section === 'account' ? (
+          <Page title="Account">
+            {/*
+              No username on screen. The account row exists to get *out*, and printing
+              somebody's handle in a window that already hides it everywhere else would
+              be inconsistent with the rest of the app.
+            */}
+            <div className="flex items-center justify-between gap-6 border-b border-[var(--hairline)] py-3">
+              <div className="min-w-0">
+                <div className="text-[11.5px] text-[var(--color-ink-3)]">Session</div>
+                <div className="mt-1 text-[11px] leading-[17px] text-[var(--color-ink-3)]">
+                  Remembered for the next update restart only. Signing out forgets it.
+                </div>
+              </div>
+              <Action onClick={onSignOut}>Sign out</Action>
+            </div>
           </Page>
         ) : null}
 

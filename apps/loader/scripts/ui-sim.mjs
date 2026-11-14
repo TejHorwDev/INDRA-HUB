@@ -202,10 +202,24 @@ const verifying = code(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'ut
 check('the restore sequence cannot cancel itself', !/let cancelled/.test(shell))
 check('and it starts once per launch', /restoreStarted\.current/.test(shell))
 check('a hung sign-in is capped', /withCap\(bridge\.auth\.login/.test(shell))
-check('a hung restore is capped', /withCap\(bridge\.auth\.restore/.test(shell))
+check('a hung restore is capped', /withCap\([\s\S]{0,600}bridge\.auth\.restore/.test(shell))
 check('a failed sign-in returns to the form', /\.catch\(\(error: unknown\)/.test(shell))
 check('the spinner covers what is behind it', /bg-\[var\(--color-bg\)\]/.test(verifying))
 check('and after a while it offers a way back', /Back to sign in/.test(verifying))
+
+/*
+ * The sign-in screen is not the updater's to remove.
+ *
+ * Restoring a remembered session on every launch silently took the form out of the
+ * app — the window opened straight into the library with no way to sign in, sign out,
+ * or be somebody else. It is now used on exactly one launch: the one the updater
+ * started, which is the only launch that has to be invisible.
+ */
+check('a remembered session is only used after an update restart', /updateLaunch/.test(shell))
+check(
+  'and the form is reachable again afterwards',
+  /Sign out/.test(code(readFileSync(join(renderer, 'screens/Settings.tsx'), 'utf8')))
+)
 
 console.log('\nThe settings screen')
 /*
