@@ -52,7 +52,7 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
         type="button"
         aria-label="Back"
         onClick={onBack}
-        className="absolute grid h-10 w-10 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)]/70 text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+        className="no-drag absolute z-50 grid h-10 w-10 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)]/80 text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:bg-[var(--color-raised)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
         style={{ left: 20, top: 14 }}
       >
         <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden>

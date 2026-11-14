@@ -81,6 +81,31 @@ check(
   Boolean(strip && /z-index:\s*\d+/.test(strip.body))
 )
 
+/*
+ * The strip must not cover a control.
+ *
+ * It ran from the left edge to 104px from the right, and the back button lives at
+ * x20 — inside it — with the settings gear at 86 from the right, also inside it. A
+ * drag region eats the pointer, so both were unhoverable and unclickable, while
+ * close and minimise worked because they were past the strip's right edge. Numbers,
+ * not intentions.
+ */
+const px = (name) => {
+  const match = strip?.body.match(new RegExp(`${name}:\\s*(\\d+)px`))
+  return match ? Number(match[1]) : null
+}
+
+const stripLeft = px('left') ?? 0
+const stripRight = px('right') ?? 0
+
+check('the strip clears the back button', stripLeft >= 72, `${stripLeft}px`)
+check('the strip clears the settings gear', stripRight >= 100, `${stripRight}px`)
+
+/* And every control drawn in the top bar says it is not a drag handle. */
+const topThumbs = ['components/WindowControls.tsx', 'screens/SignIn.tsx', 'screens/Settings.tsx']
+const loose = topThumbs.filter((file) => !/no-drag/.test(code(readFileSync(join(renderer, file), 'utf8'))))
+check('top-bar controls are marked no-drag', loose.length === 0, loose.join(', '))
+
 console.log('\nNothing else claims the window')
 const offenders = walk(renderer).filter((file) => {
   if (file.endsWith('index.css')) return false

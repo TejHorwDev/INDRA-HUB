@@ -87,8 +87,8 @@ export default function Settings({
         type="button"
         aria-label="Back"
         onClick={onBack}
-        className="absolute grid h-7 w-7 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)] text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-        style={{ left: 24, top: 16 }}
+        className="no-drag absolute z-50 grid h-10 w-10 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)]/80 text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:bg-[var(--color-raised)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+        style={{ left: 20, top: 14 }}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
           <path d="M7.5 2.5 4 6l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

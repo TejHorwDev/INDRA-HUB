@@ -104,7 +104,7 @@ export default function Dashboard({
         type="button"
         aria-label="Settings"
         onClick={onSettings}
-        className="absolute right-[86px] top-3 grid h-7 w-7 place-items-center rounded-md text-[var(--color-ink-3)] transition-colors duration-150 hover:bg-white/5 hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+        className="no-drag absolute right-[84px] top-2.5 z-50 grid h-8 w-8 place-items-center rounded-md text-[var(--color-ink-3)] transition-colors duration-150 hover:bg-white/5 hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
           <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.3" />
