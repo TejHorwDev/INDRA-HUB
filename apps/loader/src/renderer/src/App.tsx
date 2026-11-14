@@ -73,16 +73,17 @@ export default function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
 
   const [selected, setSelected] = useState<LoaderApp | null>(null)
-  /** The remembered-session attempt happens once per launch, never twice. */
-  const restoreStarted = useRef(false)
   const [installs, setInstalls] = useState<Record<string, InstallView>>({})
   const [dialog, setDialog] = useState<Confirmation | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
 
   const [update, setUpdate] = useState<UpdateState | null>(null)
-  const [version, setVersion] = useState<{ running: string; installed: string; packaged: boolean } | null>(
-    null
-  )
+  const [version, setVersion] = useState<{
+    running: string
+    installed: string
+    packaged: boolean
+    updated?: string | null
+  } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const toastId = useRef(0)
@@ -138,7 +139,15 @@ export default function App(): React.JSX.Element {
   }, [screen])
 
   useEffect(() => {
-    void bridge.version().then(setVersion)
+    void bridge.version().then((info) => {
+      setVersion(info)
+      /*
+       * An update that installs itself and then shows a sign-in form is
+       * indistinguishable from one that never happened — which is exactly how it was
+       * reported. So when this launch came from the updater, it says so once.
+       */
+      if (info.updated) toast(`Updated to ${info.updated}.`)
+    })
     void bridge.updates.state().then(setUpdate)
     return bridge.updates.onState(setUpdate)
   }, [])
@@ -196,67 +205,6 @@ export default function App(): React.JSX.Element {
       setLoading(false)
     }
   }, [])
-
-  /*
-   * A remembered session, picked up as the landing screen appears.
-   *
-   * This is the other half of a silent update. The app restarts itself to apply one,
-   * and until now every restart ended on a password box — the update worked, and the
-   * experience was indistinguishable from the app crashing. With the token the OS
-   * decrypted, the restart lands back in the library instead.
-   *
-   * It never takes the form away from somebody: if a field has focus or text by the
-   * time the answer arrives, the restore stands down and the form stays where it is.
-   */
-  /*
-   * Once per launch, and it always finishes.
-   *
-   * This had a bug worth naming, because it is the shape of every stuck spinner: the
-   * effect cancelled itself. `setScreen('verifying')` changed `screen`, which is a
-   * dependency, so React ran the cleanup — `cancelled = true` — and the continuation
-   * that was about to open the library saw the flag and returned. The spinner ran
-   * forever, over the sign-in screen nobody could reach.
-   *
-   * So there is no cancellation here at all: the sequence is started once (`started`
-   * ref), and once started it runs to the end, whether or not the screen changed
-   * underneath it. Nothing in it can wait indefinitely either — the restore is capped.
-   */
-  useEffect(() => {
-    if (screen !== 'landing' || restoreStarted.current) return
-    restoreStarted.current = true
-
-    void withCap(
-      /*
-       * A remembered session is used on one launch only: ours. On every other start
-       * the sign-in form is the first thing, because it is the first thing — the app
-       * was told to remember a session, not to skip authentication.
-       */
-      bridge.updates
-        .updateLaunch()
-        .then((afterUpdate) => (afterUpdate ? bridge.auth.restore() : null))
-        .catch(() => null),
-      null
-    )
-      .then(async (info) => {
-        if (!info) return
-        const active = document.activeElement
-        const busy =
-          active instanceof HTMLInputElement ||
-          active instanceof HTMLTextAreaElement ||
-          Boolean((document.querySelector('input:not([type="hidden"])') as HTMLInputElement | null)?.value)
-        if (busy) return
-
-        setScreen('verifying')
-        await new Promise((resolve) => setTimeout(resolve, MIN_VERIFY_MS))
-        setScreen('home')
-        await loadLibrary()
-      })
-      .catch(() => {
-        // A remembered session that cannot be used is not an error to show. It is
-        // simply the sign-in form, which is already on screen.
-        setScreen((current) => (current === 'verifying' ? 'signin' : current))
-      })
-  }, [screen, loadLibrary])
 
   const submit = useCallback(
     (user: string, pass: string) => {
@@ -377,7 +325,6 @@ export default function App(): React.JSX.Element {
       {screen === 'verifying' ? (
         <Verifying
           onBack={() => {
-            restoreStarted.current = false
             setError(null)
             setScreen('signin')
           }}
@@ -441,7 +388,6 @@ export default function App(): React.JSX.Element {
              * restored itself after an update had no sign-out anywhere in it.
              */
             void bridge.auth.logout().then(() => {
-              restoreStarted.current = true
               setSelected(null)
               setOwned([])
               setError(null)

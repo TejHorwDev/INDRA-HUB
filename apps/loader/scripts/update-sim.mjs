@@ -254,9 +254,18 @@ async function main() {
 
   /* A restart that lands on a password box is the bug this pairs with. */
   const auth = readFileSync(join(root, 'src/main/services/auth.ts'), 'utf8')
-  check('the session is remembered through the OS secret store', /safeStorage\.encryptString/.test(auth))
-  check('and never written in the clear', !/writeFileSync\(sessionFile\(\), JSON\.stringify/.test(auth))
-  check('the remembered session is asked for at boot', /auth\.restore\(\)/.test(renderer))
+  /*
+   * The app asks. Every launch, without exceptions.
+   *
+   * One release remembered the session so an update restart would not land on a
+   * password box. It encrypted the token properly and it was still wrong: it removed
+   * the sign-in screen from the app and decided who was signed in. These checks are
+   * the promise that it never comes back — no store, no restore, no skip.
+   */
+  check('the token is never written to disk', !/writeFileSync/.test(auth))
+  check('no secret store is used at all', !/safeStorage/.test(auth))
+  check('nothing can restore a session', !/restoreSession/.test(auth) && !/auth\.restore/.test(renderer))
+  check('a remembered token is deleted, not just ignored', /forgetStoredSession/.test(auth))
 
   /* --------------------------------------------------------- the launch card */
 

@@ -150,20 +150,19 @@ export interface SessionInfo {
 /* ------------------------------------------------------------------- bridge */
 
 export interface LoaderBridge {
-  version: () => Promise<{ running: string; installed: string; packaged: boolean }>
+  version: () => Promise<{
+      running: string
+      installed: string
+      packaged: boolean
+      /** Set when this launch was an update restart; the version it installed. */
+      updated?: string | null
+    }>
 
   updates: {
     state: () => Promise<UpdateState>
     check: () => Promise<UpdateState>
     install: () => Promise<UpdateState>
     diagnose: () => Promise<UpdateDiagnostics>
-    /**
-     * Did this launch come from the updater restarting the app into a new version?
-     *
-     * Only then is a remembered session used. Every other launch shows the sign-in
-     * form, because an updater is not allowed to remove a sign-in screen.
-     */
-    updateLaunch: () => Promise<boolean>
     /** The last few things the updater did, oldest first. */
     log: () => Promise<string[]>
     /**
@@ -186,13 +185,6 @@ export interface LoaderBridge {
   }
 
   auth: {
-    /**
-     * The session from the last run, if the OS can decrypt it and it still works.
-     *
-     * `null` means sign in. A remembered session is the difference between an update
-     * restart and a crash, from where somebody is sitting.
-     */
-    restore: () => Promise<SessionInfo | null>
     /** What `/v1/apps` actually answered, for when a card is wrongly locked. */
     probe: () => Promise<EntitlementReport>
     /** The token never leaves the main process — this returns who, not what. */

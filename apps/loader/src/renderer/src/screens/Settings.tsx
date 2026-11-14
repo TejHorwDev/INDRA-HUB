@@ -282,7 +282,7 @@ export default function Settings({
               <div className="min-w-0">
                 <div className="text-[11.5px] text-[var(--color-ink-3)]">Session</div>
                 <div className="mt-1 text-[11px] leading-[17px] text-[var(--color-ink-3)]">
-                  Remembered for the next update restart only. Signing out forgets it.
+                  Signing out ends this session and returns to the sign-in form.
                 </div>
               </div>
               <Action onClick={onSignOut}>Sign out</Action>

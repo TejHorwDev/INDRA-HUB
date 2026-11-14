@@ -28,7 +28,6 @@ const bridge: LoaderBridge = {
     install: (): Promise<UpdateState> => ipcRenderer.invoke('update:install'),
     diagnose: (): Promise<UpdateDiagnostics> => ipcRenderer.invoke('update:diagnose'),
     log: (): Promise<string[]> => ipcRenderer.invoke('update:log'),
-    updateLaunch: (): Promise<boolean> => ipcRenderer.invoke('update:launch'),
     screen: (screen: string): void => ipcRenderer.send('update:screen', screen),
     activity: (activity: { screen: string; typing: boolean }): void =>
       ipcRenderer.send('update:activity', activity),
@@ -49,8 +48,7 @@ const bridge: LoaderBridge = {
       ipcRenderer.invoke('auth:login', username, password),
     owned: (): Promise<string[]> => ipcRenderer.invoke('auth:owned'),
     logout: (): Promise<void> => ipcRenderer.invoke('auth:logout'),
-    session: (): Promise<SessionInfo | null> => ipcRenderer.invoke('auth:session'),
-    restore: (): Promise<SessionInfo | null> => ipcRenderer.invoke('auth:restore')
+    session: (): Promise<SessionInfo | null> => ipcRenderer.invoke('auth:session')
   },
 
   files: {

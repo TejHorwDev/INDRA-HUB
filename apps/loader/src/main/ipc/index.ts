@@ -1,7 +1,7 @@
 import { app, ipcMain, shell } from 'electron'
 import { installed } from '../services/installed'
 import { runningVersion } from '../lib/payload'
-import { currentSession, login, logout, restoreSession } from '../services/auth'
+import { currentSession, login, logout } from '../services/auth'
 import { rememberVideo } from '../lib/backdrop-cache'
 import { loadCatalogue } from '../services/catalog'
 import { entitlementReport, ownedProductIds } from '../services/entitlement'
@@ -14,7 +14,7 @@ import {
   noteActivity,
   noteScreen,
   updateLog,
-  wasUpdatedLaunch,
+  appliedUpdateVersion,
   updateState
 } from '../services/updates'
 
@@ -36,7 +36,9 @@ export function registerIpc(handlers: Handlers): void {
   ipcMain.handle('app:version', () => ({
     running: runningVersion(),
     installed: app.getVersion(),
-    packaged: app.isPackaged
+    packaged: app.isPackaged,
+    /** Non-null when this launch is the updater's, and names what it installed. */
+    updated: appliedUpdateVersion()
   }))
 
   ipcMain.handle('update:state', () => updateState())
@@ -46,11 +48,6 @@ export function registerIpc(handlers: Handlers): void {
   ipcMain.handle('update:install', () => installUpdate({ manual: true }))
   ipcMain.handle('update:diagnose', () => diagnoseConnection())
   ipcMain.handle('update:log', () => updateLog())
-  /*
-   * True only when this process was started by the updater relaunching itself.
-   * The window asks before it considers a remembered session.
-   */
-  ipcMain.handle('update:launch', () => wasUpdatedLaunch())
   ipcMain.on('update:screen', (_event, screen: unknown) => {
     if (typeof screen === 'string') noteScreen(screen)
   })
@@ -78,12 +75,6 @@ export function registerIpc(handlers: Handlers): void {
   })
   ipcMain.handle('auth:logout', () => logout())
   ipcMain.handle('auth:session', () => currentSession())
-  /*
-   * The session from the last run. Asked once as the window comes up: if the token
-   * the OS decrypts still works, the app opens into the library instead of a
-   * password box — which is what makes an update restart invisible.
-   */
-  ipcMain.handle('auth:restore', () => restoreSession())
 
   // The catalogue and its links. Public data, fetched in the main process so the
   // renderer still has no network of its own.
