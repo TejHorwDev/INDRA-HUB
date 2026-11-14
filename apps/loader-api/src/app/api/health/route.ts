@@ -1,6 +1,7 @@
 import { databaseReady } from '@/lib/env'
 import { db } from '@/lib/db'
 import { driver } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 
 /*
  * GET  /api/health
@@ -32,6 +33,8 @@ interface Report {
 }
 
 async function report(): Promise<Report> {
+  await ensureStorageConfig()
+
   let database: Report['checks']['database'] = 'not-configured'
 
   if (databaseReady()) {

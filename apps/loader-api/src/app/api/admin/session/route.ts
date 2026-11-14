@@ -1,6 +1,7 @@
 import { currentSession } from '@/lib/auth'
 import { adminReady, databaseReady } from '@/lib/env'
 import { driver, storageReady } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 import { fail, ok } from '@/lib/http'
 
 /*
@@ -11,6 +12,8 @@ import { fail, ok } from '@/lib/http'
  */
 export async function GET(): Promise<Response> {
   if (!(await currentSession())) return fail('Not signed in.', 401)
+
+  await ensureStorageConfig()
 
   return ok({
     ok: true,

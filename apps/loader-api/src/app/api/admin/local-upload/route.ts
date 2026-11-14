@@ -2,6 +2,7 @@ import { Readable } from 'node:stream'
 import { currentSession } from '@/lib/auth'
 import { fail, ok, serverError } from '@/lib/http'
 import { driver, isObjectKey, localWrite } from '@/lib/storage'
+import { ensureStorageConfig } from '@/lib/storage-config'
 
 /*
  * POST /api/admin/local-upload?key=...
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request): Promise<Response> {
   if (!(await currentSession())) return fail('Not signed in.', 401)
+  await ensureStorageConfig()
   if (driver() !== 'local') return fail('Direct upload is only used by the local driver.', 400)
 
   const key = new URL(request.url).searchParams.get('key') ?? ''

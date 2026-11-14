@@ -11,7 +11,8 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@supabase/supabase-js'
-import { b2Endpoint, b2Ready, env } from './env'
+import { env } from './env'
+import { storageSettings } from './storage-config'
 
 /*
  * Where the files live.
@@ -31,12 +32,15 @@ export type Kind = 'exe' | 'image' | 'video'
 
 const LOCAL_ROOT = join(process.cwd(), '.data', 'uploads')
 
+/*
+ * Which bucket, decided in one place.
+ *
+ * `storageSettings()` merges what the panel saved with what the environment carries,
+ * so every caller here — the proxy, the upload signer, the hashing, the health check —
+ * agrees on one answer without any of them knowing about environment variables.
+ */
 export function driver(): Driver {
-  if (env.storageDriver) return env.storageDriver as Driver
-  if (env.r2.accountId && env.r2.accessKeyId && env.r2.secretAccessKey && env.r2.bucket) return 'r2'
-  if (b2Ready()) return 'b2'
-  if (env.supabaseUrl && env.supabaseServiceKey) return 'supabase'
-  return 'local'
+  return storageSettings().driver
 }
 
 export function storageReady(): boolean {
@@ -44,30 +48,36 @@ export function storageReady(): boolean {
 }
 
 function s3(): S3Client {
-  const active = driver()
+  const settings = storageSettings()
 
-  if (active === 'r2') {
+  if (settings.driver === 'r2') {
     return new S3Client({
       region: 'auto',
-      endpoint: `https://${env.r2.accountId}.r2.cloudflarestorage.com`,
-      credentials: { accessKeyId: env.r2.accessKeyId, secretAccessKey: env.r2.secretAccessKey }
+      endpoint: `https://${settings.r2.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: settings.r2.accessKeyId,
+        secretAccessKey: settings.r2.secretAccessKey
+      }
     })
   }
 
   return new S3Client({
-    region: env.b2.region,
-    endpoint: b2Endpoint(),
-    credentials: { accessKeyId: env.b2.keyId, secretAccessKey: env.b2.applicationKey },
+    region: settings.b2.region,
+    endpoint: settings.b2.endpoint,
+    credentials: {
+      accessKeyId: settings.b2.keyId,
+      secretAccessKey: settings.b2.applicationKey
+    },
     // B2 is path-style; R2 accepts either.
     forcePathStyle: true
   })
 }
 
 function bucket(): string {
-  const active = driver()
-  if (active === 'r2') return env.r2.bucket
-  if (active === 'b2') return env.b2.bucket
-  return env.supabaseBucket
+  const settings = storageSettings()
+  if (settings.driver === 'r2') return settings.r2.bucket
+  if (settings.driver === 'b2') return settings.b2.bucket
+  return settings.supabaseBucket
 }
 
 /**
@@ -361,5 +371,66 @@ export async function removeObject(key: string): Promise<void> {
   } catch (error) {
     // A file that cannot be removed is a tidy-up problem, not a request failure.
     console.warn('[storage] could not remove', key, error)
+  }
+}
+
+/* ---------------------------------------------------------------- the probe */
+
+/**
+ * Writes one small object, reads it back, and deletes it.
+ *
+ * The only way to know a bucket works. A form that saves credentials is a form that
+ * saves credentials; whether the key can actually write is a different question, and it
+ * is the one that matters at 2 a.m. when an upload has failed.
+ */
+export async function probeStorage(): Promise<{ ok: boolean; driver: Driver; message: string }> {
+  const active = driver()
+  const key = `probes/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.txt`
+  const body = 'indra loader storage probe'
+
+  try {
+    if (active === 'local') {
+      await localWrite(key, Readable.from([body]))
+      const stream = await openObject(key)
+      if (!stream) throw new Error('the file was written but could not be read back')
+      await removeObject(key)
+      return { ok: true, driver: active, message: 'Local disk accepts writes and reads.' }
+    }
+
+    if (active === 'supabase') {
+      const supabase = createClient(env.supabaseUrl, env.supabaseServiceKey, {
+        auth: { persistSession: false }
+      })
+      const bucketName = bucket()
+      const { error } = await supabase.storage
+        .from(bucketName)
+        .upload(key, new Blob([body]), { contentType: 'text/plain', upsert: true })
+      if (error) throw new Error(error.message)
+      await supabase.storage.from(bucketName).remove([key])
+      return {
+        ok: true,
+        driver: active,
+        message: `Bucket "${bucketName}" accepts writes. Note the per-file ceiling: ${formatBytes(capFor('exe'))} for installers.`
+      }
+    }
+
+    const client = s3()
+    const Bucket = bucket()
+    await client.send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: 'text/plain' }))
+    const back = await client.send(new GetObjectCommand({ Bucket, Key: key }))
+    const read = back.Body ? await back.Body.transformToString().catch(() => null) : null
+    await client.send(new DeleteObjectCommand({ Bucket, Key: key }))
+    if (read !== body) throw new Error('the object was written but read back different bytes')
+    return {
+      ok: true,
+      driver: active,
+      message: `Bucket "${Bucket}" accepts writes, reads and deletes. Ceiling for installers: ${formatBytes(capFor('exe'))}.`
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      driver: active,
+      message: error instanceof Error ? error.message : 'the bucket refused the probe'
+    }
   }
 }
