@@ -80,7 +80,13 @@ export function manifestUrl(repo: string, tag: string): string {
   return `https://github.com/${repo}/releases/download/${tag}/payload.json`
 }
 
-/** The list endpoint, newest releases first. 20 is far more than two trains need. */
+/**
+ * The list endpoint, newest releases first.
+ *
+ * A hundred, not twenty: this app releases rarely, and twenty entries of the
+ * other application's releases would push its own off the page — the check would
+ * then answer "up to date" while a newer version existed.
+ */
 export function releaseListUrl(repo: string): string {
-  return `https://api.github.com/repos/${repo}/releases?per_page=20`
+  return `https://api.github.com/repos/${repo}/releases?per_page=100`
 }

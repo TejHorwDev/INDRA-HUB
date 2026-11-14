@@ -34,21 +34,55 @@ export default function Landing({ onStart, onExternal }: Props): React.JSX.Eleme
     <div className="absolute inset-0">
       <WindowControls />
 
+      {/* A soft bloom behind the title, so the type sits on light rather than
+          floating on a flat field. */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          top: 54,
+          width: 520,
+          height: 210,
+          background: 'radial-gradient(closest-side, rgba(167,155,199,0.14), transparent 72%)',
+          pointerEvents: 'none'
+        }}
+      />
+
+      <div
+        className="fade-up absolute left-0 right-0 text-center text-[9.5px] font-semibold uppercase tracking-[0.34em] text-[var(--color-ink-3)]"
+        style={{ top: 92 }}
+      >
+        Indra
+      </div>
+
       <h1
         className="wordmark fade-up absolute left-0 right-0 text-center text-[32.5px] leading-none"
-        style={{ top: 108 }}
+        style={{ top: 116 }}
       >
         INDRA CHEATS
       </h1>
 
       <p
         className="fade-up absolute left-0 right-0 text-center text-[12.5px] leading-[20px] text-[var(--color-ink-2)]"
-        style={{ top: 160, animationDelay: '60ms' }}
+        style={{ top: 164, animationDelay: '60ms' }}
       >
         Premium game enhancement, delivered.
         <br />
         Sign in to open your library.
       </p>
+
+      {/* The space between the subtitle and the slider is what made the page feel
+          unfinished. Three short facts belong there. */}
+      <div
+        className="fade-up absolute left-0 right-0 flex items-center justify-center gap-3 text-[10px] tracking-[0.02em] text-[var(--color-ink-3)]"
+        style={{ top: 250, animationDelay: '100ms' }}
+      >
+        <span>Signed downloads</span>
+        <Dot />
+        <span>Updates in place</span>
+        <Dot />
+        <span>No reinstallers</span>
+      </div>
 
       <div className="absolute flex items-start gap-[13px]" style={{ top: 315, left: 283 }}>
         <SlideButton label="Get Started" width={174} height={40} onConfirm={onStart} />
@@ -91,6 +125,10 @@ export default function Landing({ onStart, onExternal }: Props): React.JSX.Eleme
 }
 
 /** Line marks rather than brand logos: same shapes, one stroke weight, calm. */
+function Dot(): React.JSX.Element {
+  return <span className="h-[3px] w-[3px] rounded-full bg-[var(--color-ink-3)]/60" />
+}
+
 function SocialMark({ name }: { name: string }): React.JSX.Element {
   const common = {
     width: 13,

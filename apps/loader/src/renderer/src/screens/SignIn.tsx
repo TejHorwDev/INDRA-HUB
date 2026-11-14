@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Backdrop from '../components/Backdrop'
 import Field from '../components/Field'
 import SlideButton from '../components/SlideButton'
 import WindowControls from '../components/WindowControls'
@@ -42,6 +43,7 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
 
   return (
     <div className="absolute inset-0">
+      <Backdrop />
       <WindowControls />
 
       <button
@@ -75,6 +77,13 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
       >
         Use the username and password you registered.
       </p>
+
+      {/* The form sits on its own plane over the motion. */}
+      <div
+        aria-hidden
+        className="absolute border border-[var(--hairline)] bg-[#08080a]/55 backdrop-blur-[3px]"
+        style={{ left: 297, top: 168, width: 306, height: 214, borderRadius: 16, boxShadow: 'var(--sheen)' }}
+      />
 
       <div className="absolute" style={{ left: 317, top: 188 }}>
         <Field
@@ -158,6 +167,13 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
           Drag the slider to sign in.
         </p>
       )}
+
+      <p
+        className="absolute text-center text-[10px] text-[var(--color-ink-3)]"
+        style={{ left: 317, top: 404, width: 266 }}
+      >
+        No account yet? Licences are sold on the website.
+      </p>
     </div>
   )
 }

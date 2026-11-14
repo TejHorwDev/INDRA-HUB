@@ -16,7 +16,7 @@ import Toasts, { type Toast } from './components/Toasts'
 /*
  * The whole flow, in one place.
  *
- *   splash (4s) → landing → sign in → verifying → library ⇄ settings
+ *   splash (2s) → landing → sign in → verifying → library ⇄ settings
  *
  * The auth call, the catalogue load and the entitlement lookup are owned here
  * and nowhere else, so there is exactly one place that knows what "signed in"
@@ -25,7 +25,7 @@ import Toasts, { type Toast } from './components/Toasts'
 
 type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings'
 
-const SPLASH_MS = 4_000
+const SPLASH_MS = 2_000
 const MIN_VERIFY_MS = 1_300
 
 const EMPTY_CONFIG: LoaderConfig = {

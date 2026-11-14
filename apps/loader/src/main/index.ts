@@ -58,6 +58,8 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   // Product images are served from the storage bucket; nothing else is remote.
   "img-src 'self' data: https:",
+  // A backdrop film, when one is bundled. Never remote.
+  "media-src 'self' blob:",
   "font-src 'self'",
   "connect-src 'none'",
   "base-uri 'none'",
