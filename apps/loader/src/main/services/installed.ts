@@ -1,7 +1,7 @@
 import { app } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { appPaths } from '../lib/paths'
+import { appPaths, libraryDir } from '../lib/paths'
 
 /*
  * What this machine has installed.
@@ -64,16 +64,35 @@ export function forget(id: string): void {
 }
 
 /**
- * The recorded entry, but only while the executable is still on disk. A file
- * deleted from Explorer must not be reported as installed.
+ * The recorded entry, but only while the executable is still there and still whole.
+ *
+ * This is the answer to "have I already downloaded this?", and it is answered from the
+ * disk rather than from memory — because the whole point is surviving a restart, and a
+ * file deleted (or truncated) in Explorer must bring the Download button back rather
+ * than claim an app is ready to launch.
  */
 export function installed(id: string): InstalledApp | null {
   const entry = readRegistry()[id]
   if (!entry || typeof entry.exe !== 'string') return null
-  return existsSync(entry.exe) ? entry : null
+  try {
+    const info = statSync(entry.exe)
+    if (!info.isFile()) return null
+    // A recorded size that no longer matches means the file was replaced or cut short.
+    if (entry.bytes > 0 && info.size !== entry.bytes) return null
+    return entry
+  } catch {
+    return null
+  }
 }
 
-/** Where a download for this name would go. */
+/** Every recorded entry whose file is still on disk. */
+export function allInstalled(): InstalledApp[] {
+  return Object.keys(readRegistry())
+    .map((id) => installed(id))
+    .filter((entry): entry is InstalledApp => entry !== null)
+}
+
+/** Where a download for this name would go: inside the loader's own folder. */
 export function downloadTarget(name: string): { dir: string; exe: string } {
-  return appPaths(app.getPath('documents'), name)
+  return appPaths(libraryDir(app.getPath('userData')), name)
 }

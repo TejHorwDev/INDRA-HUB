@@ -67,15 +67,18 @@ export default function AppDetail({
   const percent = install?.percent ?? 0
   const installed = state === 'installed'
 
+  const size = install && install.total > 0 ? `${(install.total / 1048576).toFixed(1)} MB` : ''
   const status = running
     ? 'Running'
     : state === 'downloading'
       ? `Downloading ${percent}%`
       : installed
-        ? 'Installed'
+        ? size
+          ? `Downloaded · ${size}`
+          : 'Downloaded'
         : state === 'error'
           ? 'Download failed'
-          : 'Not installed'
+          : 'Not downloaded'
 
   return (
     <div className="absolute inset-0 z-30">
@@ -151,25 +154,20 @@ export default function AppDetail({
             ) : null}
           </div>
 
-          {/* Pushed to the foot of the column, so this row's bottom edge is the
-              artwork's bottom edge. */}
+          {/*
+            Pushed to the foot of the column. There is no Download button once the file
+            is in the library — a download that has already happened is not an action,
+            it is a fact, and the button that matters is Launch. It comes back on its own
+            if the file is deleted, because `installed()` reads the disk rather than a
+            memory of what happened.
+          */}
           <div className="mt-auto flex" style={{ gap: 12 }}>
-            <button
-              type="button"
-              onClick={state === 'downloading' ? undefined : installed ? onReveal : onDownload}
-              disabled={state === 'downloading'}
-              className={
-                'relative grid flex-1 place-items-center overflow-hidden text-[12.5px] font-medium transition-[background,border-color,color] duration-150 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] ' +
-                (state === 'downloading'
-                  ? 'border border-[var(--hairline)] bg-[var(--color-raised)]/80 text-[var(--color-ink)] backdrop-blur-[2px]'
-                  : installed
-                    ? 'border border-[var(--hairline-strong)] bg-transparent text-[var(--color-ink-2)] hover:border-white/25 hover:text-[var(--color-ink)]'
-                    : 'bg-[#f2f2f4] font-semibold text-[#0a0a0c] hover:bg-white')
-              }
-              style={{ height: BUTTON, borderRadius: 10 }}
-            >
-              {state === 'downloading' ? (
-                <>
+            {state === 'downloading' ? (
+              <>
+                <div
+                  className="relative grid flex-1 place-items-center overflow-hidden border border-[var(--hairline)] bg-[var(--color-raised)]/80 text-[12.5px] font-medium text-[var(--color-ink)] backdrop-blur-[2px]"
+                  style={{ height: BUTTON, borderRadius: 10 }}
+                >
                   <span
                     aria-hidden
                     className="absolute inset-y-0 left-0 bg-[var(--color-accent)]/16 transition-[width] duration-200"
@@ -181,32 +179,44 @@ export default function AppDetail({
                       ? ` · ${Math.round(install.bytesPerSecond / 1_000_000)} MB/s`
                       : ''}
                   </span>
-                </>
-              ) : (
-                <span>
-                  {installed ? 'Open folder' : state === 'error' ? 'Try again' : 'Download'}
-                </span>
-              )}
-            </button>
-
-            {state === 'downloading' ? (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="grid flex-1 place-items-center border border-[var(--hairline)] bg-transparent text-[12.5px] font-medium text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-                style={{ height: BUTTON, borderRadius: 10 }}
-              >
-                Cancel
-              </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="grid flex-1 place-items-center border border-[var(--hairline)] bg-transparent text-[12.5px] font-medium text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                  style={{ height: BUTTON, borderRadius: 10 }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : installed ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onLaunch}
+                  disabled={running}
+                  className="grid flex-1 place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background,color] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:bg-white/[0.06] disabled:text-[var(--color-ink-3)] disabled:hover:bg-white/[0.06]"
+                  style={{ height: BUTTON, borderRadius: 10 }}
+                >
+                  {running ? 'Running' : 'Launch'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onReveal}
+                  className="grid place-items-center border border-[var(--hairline-strong)] bg-transparent px-4 text-[12.5px] font-medium text-[var(--color-ink-2)] transition-[border-color,color] duration-150 hover:border-white/25 hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                  style={{ height: BUTTON, borderRadius: 10 }}
+                >
+                  Open folder
+                </button>
+              </>
             ) : (
               <button
                 type="button"
-                onClick={onLaunch}
-                disabled={!installed || running}
-                className="grid flex-1 place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background,color] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:bg-white/[0.06] disabled:text-[var(--color-ink-3)] disabled:hover:bg-white/[0.06]"
+                onClick={onDownload}
+                className="grid flex-1 place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                 style={{ height: BUTTON, borderRadius: 10 }}
               >
-                {running ? 'Running' : 'Launch'}
+                {state === 'error' ? 'Try again' : 'Download'}
               </button>
             )}
           </div>

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import type { InstallView, LoaderApp } from '@shared/types'
 import { discardPartial, downloadToFile } from '../lib/downloader'
 import { loadCatalogue } from './catalog'
-import { downloadTarget, installed, record } from './installed'
+import { allInstalled, downloadTarget, installed, readRegistry, record } from './installed'
 import { isRunning } from './launch'
 
 /*
@@ -56,21 +56,63 @@ export function busy(): boolean {
   return false
 }
 
-/** Every product's state, with the disk consulted rather than remembered. */
+/**
+ * Every product's state, starting from the disk.
+ *
+ * This used to start from the in-memory map, which is empty on every launch — so a
+ * product downloaded yesterday reported "absent" today, and the Download button came back
+ * for a file sitting in the library. The registry on disk is the first source now;
+ * memory is only what overlays it while a download is actually running.
+ */
 export function states(): Record<string, InstallView> {
   const result: Record<string, InstallView> = {}
-  for (const [id, view] of entries) result[id] = view
 
-  // Anything not currently downloading is whatever the disk and the process
-  // table say, rather than what was last remembered.
-  for (const id of Object.keys(result)) {
-    if (result[id].state === 'downloading') continue
-    if (!installed(id)) {
-      result[id] = { ...result[id], state: 'absent', percent: 0, running: false }
+  // What is on disk, whether or not this process has ever touched it.
+  for (const entry of allInstalled()) {
+    result[entry.id] = {
+      id: entry.id,
+      state: 'installed',
+      running: isRunning(entry.id),
+      percent: 100,
+      received: entry.bytes,
+      total: entry.bytes,
+      bytesPerSecond: 0,
+      error: null
+    }
+  }
+
+  // What is happening right now, which beats what is on disk.
+  for (const [id, view] of entries) {
+    if (view.state === 'downloading' || view.state === 'error') {
+      result[id] = view
       continue
     }
-    result[id] = { ...result[id], state: 'installed', running: isRunning(id) }
+    const onDisk = installed(id)
+    result[id] = {
+      ...view,
+      state: onDisk ? 'installed' : 'absent',
+      running: onDisk ? isRunning(id) : false,
+      percent: onDisk ? 100 : 0,
+      received: onDisk ? onDisk.bytes : 0,
+      total: onDisk ? onDisk.bytes : 0
+    }
   }
+
+  // A registry entry whose file has gone is not an installed app.
+  for (const id of Object.keys(readRegistry())) {
+    if (result[id]) continue
+    result[id] = {
+      id,
+      state: 'absent',
+      running: false,
+      percent: 0,
+      received: 0,
+      total: 0,
+      bytesPerSecond: 0,
+      error: null
+    }
+  }
+
   return result
 }
 
@@ -95,6 +137,25 @@ function findApp(apps: LoaderApp[], id: string): LoaderApp | null {
 
 export async function startDownload(id: string): Promise<InstallView> {
   if (entries.get(id)?.state === 'downloading') return stateOf(id)
+
+  /*
+   * Downloaded once means downloaded. A file that is already in the library is not
+   * fetched again — not for a reinstall, not after a restart, and not because somebody
+   * pressed the button twice. Bandwidth is the reason this feature exists: one machine,
+   * one copy.
+   */
+  const already = installed(id)
+  if (already) {
+    set(id, {
+      state: 'installed',
+      percent: 100,
+      received: already.bytes,
+      total: already.bytes,
+      bytesPerSecond: 0,
+      error: null
+    })
+    return stateOf(id)
+  }
 
   for (const [otherId, view] of entries) {
     if (view.state === 'downloading' && otherId !== id) {
