@@ -1,0 +1,401 @@
+/*
+ * The panel's stylesheet.
+ *
+ * Plain CSS, no framework: this is nine screens' worth of table and form, and a
+ * design system for it would be more code than the panel. Same tokens as the
+ * desktop app so the two look like one product.
+ */
+
+:root {
+  --bg: #070708;
+  --surface: #0c0c0f;
+  --raised: #131317;
+  --ink: #f4f2f8;
+  --ink-2: rgba(244, 242, 248, 0.62);
+  --ink-3: rgba(244, 242, 248, 0.38);
+  --accent: #a79bc7;
+  --accent-2: #8f86b8;
+  --success: #34c395;
+  --danger: #e2695e;
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* One soft wash, the same one the app has, so the panel is not a flat sheet. */
+  background-image: radial-gradient(120% 80% at 50% -20%, rgba(167, 155, 199, 0.07), transparent 60%);
+  background-repeat: no-repeat;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* --------------------------------------------------------------- layout ---- */
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 24px 80px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 26px;
+}
+
+.wordmark {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.topbar nav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.topbar nav a {
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+
+.topbar nav a:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+}
+
+.topbar nav a[data-active='true'] {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+
+.lede {
+  margin: 0 0 22px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- forms ---- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 13px;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+input[type='text'],
+input[type='password'],
+input[type='url'],
+textarea,
+select {
+  width: 100%;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 11px;
+  outline: none;
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+
+textarea {
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--hairline-strong);
+  box-shadow: 0 0 0 3px rgba(167, 155, 199, 0.1);
+}
+
+.hint {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------- buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 9px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms var(--ease), border-color 150ms var(--ease), opacity 150ms var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+  background: #17171c;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn.primary {
+  /* The accent, flat. No glow, no gradient. */
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #14111c;
+  font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #b3a8cf;
+  border-color: #b3a8cf;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn.danger {
+  color: var(--danger);
+  border-color: rgba(226, 105, 94, 0.28);
+  background: transparent;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: rgba(226, 105, 94, 0.1);
+}
+
+.btn.small {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  border-radius: 7px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------- tables ---- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+th {
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 0 10px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-2);
+  vertical-align: middle;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+td strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+}
+
+.pill.ok {
+  color: var(--success);
+  border-color: rgba(52, 195, 149, 0.3);
+}
+
+.pill.off {
+  color: var(--danger);
+  border-color: rgba(226, 105, 94, 0.3);
+}
+
+.mono {
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.empty {
+  padding: 34px 10px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+/* --------------------------------------------------------------- notices ---- */
+
+.notice {
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  padding: 11px 13px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin-bottom: 14px;
+}
+
+.notice.error {
+  border-color: rgba(226, 105, 94, 0.3);
+  color: #f0b0a9;
+}
+
+.notice.ok {
+  border-color: rgba(52, 195, 149, 0.28);
+  color: #9be0c8;
+}
+
+/* ------------------------------------------------------------- uploader ---- */
+
+.dropzone {
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms var(--ease), background 150ms var(--ease);
+}
+
+.dropzone:hover,
+.dropzone[data-active='true'] {
+  border-color: var(--accent-2);
+  background: rgba(167, 155, 199, 0.04);
+}
+
+.progress {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--raised);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms linear;
+}
+
+/* ----------------------------------------------------------------- login ---- */
+
+.center {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login {
+  width: 100%;
+  max-width: 340px;
+}
+
+.login .wordmark {
+  text-align: center;
+  display: block;
+  margin-bottom: 22px;
+}
