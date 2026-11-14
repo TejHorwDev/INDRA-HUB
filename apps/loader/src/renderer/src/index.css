@@ -1,0 +1,175 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * Matte black, one muted accent, hairline borders, depth from shadow rather than
+ * glow. The accent is the silk violet already in the heading gradient; nothing
+ * else in the app is allowed to be a colour.
+ */
+@theme {
+  --color-bg: #0a0a0b;
+  --color-surface: #0e0e10;
+  --color-raised: #141417;
+  --color-ink: #f2f0f6;
+  --color-ink-2: rgba(242, 240, 246, 0.62);
+  --color-ink-3: rgba(242, 240, 246, 0.38);
+  --color-accent: #a79bc7;
+  --color-accent-deep: #8f86b8;
+  --color-success: #34c395;
+  --color-danger: #e2695e;
+
+  --radius-window: 18px;
+
+  /* The one easing curve the whole app uses. */
+  --ease-silk: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+:root {
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.12);
+  --lift: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  /* The window is transparent only at the corner arcs. */
+  background: transparent;
+}
+
+body {
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, Arial, sans-serif;
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+  cursor: default;
+  overflow: hidden;
+}
+
+/* The window itself: fixed 900x550, 18px arcs, everything clipped inside. */
+.shell {
+  position: relative;
+  width: 900px;
+  height: 550px;
+  border-radius: var(--radius-window);
+  overflow: hidden;
+  background: var(--color-bg);
+  box-shadow: var(--sheen);
+}
+
+/*
+ * Silk: three off-centre radial washes plus a fixed grain.
+ *
+ * Completely static — no animation, no canvas, no per-frame cost — and it reads
+ * as fabric rather than as a gradient someone liked.
+ */
+.silk::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 18% 0%, rgba(167, 155, 199, 0.1), transparent 55%),
+    radial-gradient(100% 80% at 92% 12%, rgba(143, 134, 184, 0.09), transparent 60%),
+    radial-gradient(140% 120% at 50% 118%, rgba(120, 112, 160, 0.07), transparent 62%);
+  pointer-events: none;
+}
+
+.silk::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.025;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* A surface: hairline, lift, machined top edge. No blur, no glow. */
+.panel {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--lift), var(--sheen);
+}
+
+.wordmark {
+  background: linear-gradient(96deg, #f4f2fa 0%, #cfc8e6 52%, #8f86b8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* A glyph arriving. Short, small, once. */
+@keyframes glyph-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.glyph {
+  display: inline-block;
+  animation: glyph-in 420ms var(--ease-silk) both;
+}
+
+@keyframes rule-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.rule {
+  height: 1px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(167, 155, 199, 0.55), transparent);
+  animation: rule-in 600ms var(--ease-silk) both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fade-up {
+  animation: fade-up 320ms var(--ease-silk) both;
+}
+
+/* Nothing in the app moves for a user who asked it not to. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}

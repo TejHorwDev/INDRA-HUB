@@ -1,0 +1,183 @@
+name: Build INDRA LOADER release
+
+# Two ways to start it:
+#   • push a tag like loader-v1.0.1 → builds and publishes a GitHub Release
+#   • "Run workflow"                → builds, and publishes only if asked to
+#
+# The tag carries the `loader-` prefix because INDRA HUB releases from this same
+# repository. The loader's updater finds its own releases by that prefix, so a
+# tag without it would be invisible to the app — refused here rather than
+# discovered by a user who never receives an update.
+on:
+  push:
+    tags:
+      - 'loader-v*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a GitHub Release (otherwise the installer is a run artifact)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-loader-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/loader
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/loader/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # One version for the artifact names, the payload and the release tag. A
+      # tag that disagrees with package.json is a mistake, not a release name.
+      - name: Read the version being released
+        id: version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing INDRA LOADER $version"
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            if [ "loader-v$version" != "${{ github.ref_name }}" ]; then
+              echo "package.json says $version but the tag is ${{ github.ref_name }}" >&2
+              echo "a loader tag must be loader-v<version>" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Refuse to ship a release that does not compile
+        run: npm run typecheck
+
+      - name: Compile main, preload and renderer
+        run: npm run build
+
+      # The two things that can silently rot: release selection (a hub release
+      # must never be offered to the loader) and payload adoption.
+      - name: Prove the updater still picks the right release
+        run: npm run sim:update
+
+      # The loader and the hub install side by side. A shared identity value
+      # merges them, and this is the only place that knows both sides.
+      - name: Prove the two apps share no identity
+        run: npm run sim:isolation
+
+      # The shim has to exist as its own file: it is what package.json points
+      # at, and without it an installed copy could never apply an update.
+      - name: Confirm the startup shim was produced
+        shell: pwsh
+        run: |
+          if (!(Test-Path "out/main/bootstrap.js")) { throw "out/main/bootstrap.js is missing" }
+          if (!(Test-Path "out/main/index.js")) { throw "out/main/index.js is missing" }
+          if (!(Test-Path "out/renderer/index.html")) { throw "out/renderer/index.html is missing" }
+
+      - name: Package the Windows installer
+        run: npx electron-builder --win --publish never
+
+      # The in-app update. One small archive of the compiled app plus a manifest
+      # that names it, its size and its SHA-256. An installed copy downloads
+      # these instead of the ~120 MB installer, so updating costs seconds.
+      - name: Pack the in-app update payload
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+          $tag = "loader-v$version"
+
+          # The archive root must mirror the app directory: main/, preload/,
+          # renderer/. The bootstrap loads <payload>/main/index.js, so getting
+          # this wrong would make every update silently fail to apply.
+          New-Item -ItemType Directory -Force -Path payload | Out-Null
+          Copy-Item -Path out/* -Destination payload -Recurse
+
+          # The shim belongs to the installed copy, never to a payload: the boot
+          # decision must come from the file package.json points at, which an
+          # update cannot replace.
+          Remove-Item -Force "payload/main/bootstrap.js"
+
+          $asar = "release/INDRA-LOADER-Payload-$version.asar"
+          npx --no-install asar pack payload $asar
+          if (!(Test-Path $asar)) { throw "The update payload was not produced" }
+
+          $listing = (npx --no-install asar list $asar) -join "`n"
+          if ($listing -notmatch 'main[\\/]index\.js') {
+            throw "The update payload does not contain main/index.js — the bootstrap could not load it"
+          }
+          if ($listing -notmatch 'renderer[\\/]index\.html') {
+            throw "The update payload does not contain renderer/index.html"
+          }
+          if ($listing -match 'main[\\/]bootstrap\.js') {
+            throw "The payload must not contain the shim — the installed copy owns the boot"
+          }
+
+          $file = "INDRA-LOADER-Payload-$version.asar"
+          $hash = (Get-FileHash "release/$file" -Algorithm SHA256).Hash.ToLower()
+          $size = (Get-Item "release/$file").Length
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$file"
+
+          [ordered]@{
+            version = $version
+            file    = $file
+            sha256  = $hash
+            size    = $size
+            url     = $url
+          } | ConvertTo-Json -Compress | Set-Content -NoNewline "release/payload.json"
+
+          Get-Content "release/payload.json"
+
+      - name: Show what was produced
+        shell: pwsh
+        run: Get-ChildItem release | Select-Object Name, Length
+
+      # A release without a payload installs fine but can never update itself,
+      # so fail the build instead of shipping a silent dead end.
+      - name: Confirm the update feed is wired into the build
+        shell: pwsh
+        run: |
+          if (!(Test-Path "release/payload.json")) { throw "payload.json is missing — self-update would be dead on arrival" }
+          if (!(Test-Path "release/win-unpacked/resources/app.asar")) { throw "the packaged app.asar is missing" }
+          Get-Content "release/payload.json"
+
+      - name: Publish the Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: loader-v${{ steps.version.outputs.value }}
+          name: INDRA LOADER v${{ steps.version.outputs.value }}
+          files: |
+            apps/loader/release/*.exe
+            apps/loader/release/INDRA-LOADER-Payload-*.asar
+            apps/loader/release/payload.json
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      # Manual runs still give a downloadable installer, attached to the run, so
+      # a build can be tested on real Windows without publishing anything.
+      - name: Upload the installer as a run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: indra-loader-windows
+          path: |
+            apps/loader/release/*.exe
+            apps/loader/release/INDRA-LOADER-Payload-*.asar
+            apps/loader/release/payload.json
+          if-no-files-found: error
