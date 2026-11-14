@@ -1,5 +1,5 @@
 import { compareVersions } from './version'
-import { readConfig } from './db'
+import { readConfig, writeConfig } from './db'
 
 /*
  * The other half of the updater: what GitHub says the newest loader release is.
@@ -184,6 +184,17 @@ async function manifestOf(tag: string, version: string): Promise<LoaderManifest>
  */
 const REMEMBERED_KEY = 'latest_release'
 
+async function remember(release: LatestRelease): Promise<void> {
+  try {
+    const config = await readConfig()
+    const next = JSON.stringify(release)
+    if (config[REMEMBERED_KEY] === next) return
+    await writeConfig({ [REMEMBERED_KEY]: next })
+  } catch {
+    /* remembering is a convenience, never a requirement */
+  }
+}
+
 async function remembered(): Promise<LatestRelease | null> {
   try {
     const config = await readConfig()
@@ -265,6 +276,16 @@ export async function latestLoaderRelease(): Promise<LatestRelease | null> {
 
     const value: LatestRelease = { version, tag, publishedAt, manifest }
     cache = { at: Date.now(), value }
+
+    /*
+     * Remember what was just learned.
+     *
+     * The memory is only useful if it is current, and it can only be current if
+     * something writes to it. Doing that here means every successful lookup — by any
+     * of the three sources — refreshes the answer the next outage will fall back on.
+     */
+    void remember(value)
+
     return value
   } catch (error) {
     console.warn('[github] release lookup failed', error instanceof Error ? error.message : error)
