@@ -1,4 +1,5 @@
 import { compareVersions } from './version'
+import { readConfig } from './db'
 
 /*
  * The other half of the updater: what GitHub says the newest loader release is.
@@ -111,6 +112,46 @@ async function manifestOf(tag: string, version: string): Promise<LoaderManifest>
   return { version, file, sha256, size: Number(body.size) || 0 }
 }
 
+/**
+ * The release, remembered in the database.
+ *
+ * GitHub's API is rate limited by address, and a shared datacentre address can be
+ * spent by strangers. It can also simply be down. Either way the app must still be
+ * offerable an update, so the last release that was ever read successfully is kept
+ * in `loader_config` and used when GitHub cannot be asked.
+ *
+ * Writing it is not the panel's job: a release is published by CI, so a value here
+ * can only ever be one that a real release produced.
+ */
+const REMEMBERED_KEY = 'latest_release'
+
+async function remembered(): Promise<LatestRelease | null> {
+  try {
+    const config = await readConfig()
+    const raw = config[REMEMBERED_KEY]
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as Partial<LatestRelease> & { manifest?: Partial<LoaderManifest> }
+    const manifest = parsed.manifest
+    if (!manifest) return null
+
+    const version = typeof manifest.version === 'string' ? manifest.version : ''
+    const file = typeof manifest.file === 'string' ? manifest.file : ''
+    const sha256 = typeof manifest.sha256 === 'string' ? manifest.sha256.toLowerCase() : ''
+
+    if (!version || !/^[a-f0-9]{64}$/.test(sha256) || !/\.asar$/i.test(file)) return null
+
+    return {
+      version,
+      tag: typeof parsed.tag === 'string' ? parsed.tag : `loader-v${version}`,
+      publishedAt: typeof parsed.publishedAt === 'string' ? parsed.publishedAt : '',
+      manifest: { version, file, sha256, size: Number(manifest.size) || 0 }
+    }
+  } catch {
+    return null
+  }
+}
+
 /** What the newest published loader is. `null` when nothing has been published. */
 export async function latestLoaderRelease(): Promise<LatestRelease | null> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.value
@@ -136,6 +177,18 @@ export async function latestLoaderRelease(): Promise<LatestRelease | null> {
     return value
   } catch (error) {
     console.warn('[github] release lookup failed', error instanceof Error ? error.message : error)
+
+    /*
+     * GitHub could not be asked. If a release was ever recorded, that answer is
+     * better than no answer — the app gets an update it can install rather than a
+     * sentence about the weather in GitHub's datacentre.
+     */
+    const fallback = await remembered()
+    if (fallback) {
+      console.warn('[github] using the remembered release', fallback.tag)
+      return fallback
+    }
+
     /* A failed lookup is not a cached answer — the next request tries again. */
     throw error
   }
