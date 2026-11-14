@@ -445,9 +445,20 @@ export async function applyRemote(next: RemoteWorkspace): Promise<string | null>
       requireActivationKey: Boolean(next.require_activation_key)
     })
 
-    const blur = Math.min(40, Math.max(0, Math.round(Number(next.background_blur) || 0)))
-    const dim = Math.min(92, Math.max(0, Math.round(Number(next.background_dim) || 0)))
-    writeTreatment({ blur, dim })
+    /*
+     * A slider moved a second ago is not the server's to overwrite.
+     *
+     * The rows below arrive from the shared workspace, and applying them while
+     * a change of our own is still waiting to be published is how a treatment
+     * the administrator just set snaps back to whatever the server last heard:
+     * they drag it, look away, and it is 18/46 again. While something is
+     * pending, the local value is the newer one.
+     */
+    if (!pending) {
+      const blur = Math.min(40, Math.max(0, Math.round(Number(next.background_blur) || 0)))
+      const dim = Math.min(92, Math.max(0, Math.round(Number(next.background_dim) || 0)))
+      writeTreatment({ blur, dim })
+    }
 
     const local = readLoginAppearance().background
     const assetId = next.background_asset_id
