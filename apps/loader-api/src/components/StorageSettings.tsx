@@ -140,15 +140,24 @@ export default function StorageSettings(): React.JSX.Element {
         </p>
       ) : null}
 
-      {status && status.driver === 'supabase' ? (
+      {status ? (
         <p className="hint">
-          <span className="mono">Note</span> — installers are capped at {status.capsLabel.exe}{' '}
-          here. A bigger build needs B2 or R2: fill in the fields below and save, and this
-          switches over on its own.
+          Installers up to <span className="mono">{status.capsLabel.exe}</span> per file,
+          images {status.capsLabel.image}, film {status.capsLabel.video}. Nothing to do here
+          unless a build gets bigger than that.
         </p>
       ) : (
         <p className="hint">Reading the current bucket…</p>
       )}
+
+      <details className="field" open={driver === 'b2' || driver === 'r2'}>
+        <summary className="label" style={{ cursor: 'pointer' }}>
+          Use a bigger bucket — optional
+        </summary>
+        <p className="hint">
+          Only needed if a build grows past the ceiling above. Backblaze B2 and Cloudflare R2
+          have no per-file limit worth naming, and their egress is free or nearly free.
+        </p>
 
       <div className="field">
         <span className="label">Driver</span>
@@ -247,28 +256,27 @@ export default function StorageSettings(): React.JSX.Element {
         </div>
       ) : null}
 
-      <div className="field">
-        <span className="label">Do</span>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="field">
+          <span className="label">Save these</span>
           <button type="button" className="btn" onClick={() => void save()} disabled={busy !== null}>
             {busy === 'save' ? 'Saving…' : 'Save'}
           </button>
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => void test()}
-            disabled={busy !== null}
-          >
-            {busy === 'test' ? 'Writing a test object…' : 'Test the bucket'}
-          </button>
         </div>
+      </details>
+
+      <div className="field">
+        <span className="label">Check it works</span>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() => void test()}
+          disabled={busy !== null}
+        >
+          {busy === 'test' ? 'Writing a test object…' : 'Test the bucket'}
+        </button>
         <p className="hint">
-          The test writes one small object, reads it back and deletes it — the only way to
-          know a key can actually write. Limits follow the driver:{' '}
-          {status
-            ? `installers ${status.capsLabel.exe}, images ${status.capsLabel.image}, film ${status.capsLabel.video}`
-            : '…'}
-          .
+          Writes one small object, reads it back and deletes it — the only way to know a key
+          can actually write.
         </p>
       </div>
 
