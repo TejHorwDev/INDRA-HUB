@@ -36,26 +36,39 @@ export default function OfflineScreen() {
   return (
     <AuthLayout>
       <p className="auth-eyebrow">Offline</p>
-      <h1 className="auth-title">Work offline</h1>
+
+      {/*
+       * The one thing this screen is for: say there is no connection, without
+       * pretending to be a sign-in form. A password typed here would be checked
+       * against a hash on this disk, which proves nothing about anywhere else —
+       * so no credential is accepted while the machine has no route out.
+       */}
+      <div className="auth-offline-mark" aria-hidden="true">
+        📡
+      </div>
+
+      <h1 className="auth-title">You&rsquo;re offline</h1>
 
       <div className="auth-rule" />
 
       <p className="auth-lede">
-        This PC has no connection, and signing in needs one. What still works is the writing:
-        documents and presentations, saved here as you go.
+        This PC has no internet right now, and signing in needs one.
+      </p>
+      <p className="auth-lede">
+        What still works is the writing: <strong>documents</strong> and <strong>presentations</strong>, saved on this
+        PC as you type. No credits, no team, no cloud — just the page in front of you.
       </p>
 
       <div className="mt-6 space-y-3">
         <button type="button" className="btn btn-primary" onClick={() => void goOffline()} disabled={pending}>
           {pending ? <span className="spinner" aria-hidden="true" /> : null}
-          {pending ? 'Opening…' : 'Go offline'}
+          {pending ? 'Opening…' : 'Work offline'}
         </button>
         {error && <Notice>{error}</Notice>}
       </div>
 
       <p className="auth-alt">
-        When the connection returns, sign in and bring this work into your account from the projects
-        screen.
+        When the connection comes back, sign in and this work comes with you — nothing is lost by starting here.
       </p>
     </AuthLayout>
   )
