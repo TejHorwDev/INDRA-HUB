@@ -78,6 +78,16 @@ jobs:
         env:
           INDRA_LOADER_API: ${{ vars.INDRA_LOADER_API || 'https://indra-loader-api.onrender.com' }}
 
+      # The catalogue address has to survive the build. If it does not, the app
+      # ships with an empty one and shows an empty library that looks exactly like a
+      # correct install with nothing published — the worst possible failure.
+      - name: Prove the catalogue address is compiled in
+        shell: bash
+        run: |
+          grep -q "indra-loader-api.onrender.com" out/main/index.js || {
+            echo "the catalogue address is missing from the build"; exit 1; }
+          echo "the app knows where its catalogue is"
+
       # The two things that can silently rot: release selection (a hub release
       # must never be offered to the loader) and payload adoption.
       - name: Prove the updater still picks the right release
