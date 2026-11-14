@@ -574,8 +574,17 @@ export default function Products(): React.JSX.Element {
               id="new-description"
               value={draft.description}
               onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-              placeholder="One or two sentences. The card has room for this and nothing more."
+              placeholder={
+                'One line about it, then the features after dashes — for example:\n' +
+                'Best external cheats in the market - aimbot (external, AI, rage) - ESP menu - skin changer'
+              }
             />
+            <div className="hint" style={{ marginTop: 6 }}>
+              Dashes, pipes or new lines separate the features. Everything before the first
+              one becomes the sentence at the top.
+            </div>
+            {/* The same preview as the edit panel: nobody should have to guess. */}
+            <DescriptionPreview text={draft.description} />
           </div>
 
           <button className="btn primary" type="submit" disabled={busy || !draft.name.trim()}>
@@ -612,6 +621,10 @@ function DescriptionField({
         onBlur={() => {
           if (text !== app.description) onSave(text)
         }}
+        placeholder={
+          'One line about it, then the features after dashes — for example:\n' +
+          'Best external cheats in the market - aimbot (external, AI, rage) - ESP menu - skin changer'
+        }
       />
       <div className="hint" style={{ marginTop: 6 }}>
         Separate features with a dash, a pipe or a new line — they become a list in the
