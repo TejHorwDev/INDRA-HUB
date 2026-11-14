@@ -272,6 +272,14 @@ async function main() {
   check('plain prose stays one paragraph', prose.parseDescription('External cheat for the season.').features.length === 0)
   check('an empty field draws nothing', prose.parseDescription('').about === '')
 
+  // The placeholder in the panel is real copy, so it must parse into something worth
+  // showing rather than an example that lies about the format.
+  const example = prose.parseDescription(
+    'Best external cheats in the market - aimbot (external, AI, rage) - ESP menu - skin changer'
+  )
+  check('the example in the field parses', example.features.length === 3, JSON.stringify(example.features))
+  check('and reads as a claim plus a list', example.about === 'Best external cheats in the market', example.about)
+
   const range = await bundle('src/lib/http-range.ts', 'http-range')
   check('`bytes=0-` is the whole file', JSON.stringify(range.parseRange('bytes=0-')) === '{"start":0}')
   check('`bytes=5-9` is a slice', range.parseRange('bytes=5-9')?.end === 9)
