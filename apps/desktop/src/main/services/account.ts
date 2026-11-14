@@ -28,6 +28,7 @@ import { syncAfterSignIn } from './sync'
 import { checkServerActivationKey, redeemServerActivationKey } from './activation'
 import { liveAccount } from '../lib/accountSession'
 import { readSettings } from './settings'
+import { repairPortrait } from './media-repair'
 import { findUserById } from './users'
 
 /*
@@ -325,6 +326,12 @@ async function completeSignIn(
     syncAfterSignIn().catch(() => 0),
     new Promise<number>((resolve) => setTimeout(() => resolve(0), 4000))
   ])
+
+  /*
+   * The picture this account chose belongs on the server, so the first thing
+   * after a sign-in is to make sure it is there. Cheap when it already is.
+   */
+  void repairPortrait(opened).catch(() => undefined)
 
   return { user: opened, state: accountStateFor(session, readStoredAccount()) }
 }

@@ -163,6 +163,7 @@ import {
   adoptSignedInAccount,
   publishNow
 } from '../services/workspace'
+import { repairPortrait } from '../services/media-repair'
 import {
   backgroundHealth,
   publicAppearance,
@@ -310,14 +311,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('portrait:cloud', () =>
     toResult(async () => {
       const user = accountActor()
-      const current = await portraitOnServer(user)
-      if (current.path) return current
-      const value = String(user.avatar ?? '')
-      if (!value.startsWith('photo:')) return current
-      const id = value.slice('photo:'.length)
-      const file = readPortraitFile(id)
-      if (!file) return current
-      await publishPortrait(user, id, file.bytes, file.mime)
+      // The repair pass decides whether an upload is even needed; forcing it
+      // means pressing the check button always tries rather than reporting a
+      // minute-old answer.
+      const repaired = await repairPortrait(user, true)
+      if (repaired.state === 'on-server') return portraitOnServer(user)
       return portraitOnServer(user)
     })
   )
@@ -1574,8 +1572,11 @@ export function registerIpcHandlers(): void {
       const next = installDeveloperPhoto(filePath, basename(filePath))
       // The bytes are published by the workspace client, which uploads them
       // before it moves the row — so the panel can honestly say whether the
-      // portrait has reached other PCs yet.
+      // photo has reached other PCs yet. Published now rather than on the next
+      // incidental change: a picture that only exists on this PC is exactly the
+      // thing this screen must not produce.
       queuePush()
+      void publishNow().catch(() => undefined)
       return next
     })
   )
@@ -1585,6 +1586,7 @@ export function registerIpcHandlers(): void {
       requireAdmin()
       const next = removeDeveloperPhoto()
       queuePush()
+      void publishNow().catch(() => undefined)
       return next
     })
   )
