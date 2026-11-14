@@ -311,6 +311,16 @@ td strong {
   border-color: rgba(226, 105, 94, 0.3);
 }
 
+/*
+ * A row that points at a file the bucket does not have. It is not an error state — the
+ * panel did nothing wrong, the file was deleted somewhere else — so it reads as a note,
+ * and it is deliberately not the same red as a failure.
+ */
+.pill.warn {
+  color: var(--warn, #d8b26a);
+  border-color: rgba(216, 178, 106, 0.32);
+}
+
 .mono {
   font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, monospace;
   font-size: 10.5px;

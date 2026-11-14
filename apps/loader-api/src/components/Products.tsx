@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppRow } from '@/lib/db'
+import type { AdminAppRow } from '@/lib/db'
 
 /*
  * The catalogue, and the only screen that matters.
@@ -28,7 +28,7 @@ function size(bytes: number): string {
 }
 
 export default function Products(): React.JSX.Element {
-  const [apps, setApps] = useState<AppRow[]>([])
+  const [apps, setApps] = useState<AdminAppRow[]>([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState<Notice>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -60,7 +60,9 @@ export default function Products(): React.JSX.Element {
         case 'gated':
           return Boolean(app.keyauth_app_id)
         case 'empty':
-          return !app.exe_url
+          // A file that is not in the bucket is not a file: the product has nothing to
+          // download, and this is where it should show up.
+          return !app.exe_url || app.exe_missing
         default:
           return true
       }
@@ -74,7 +76,7 @@ export default function Products(): React.JSX.Element {
     try {
       const response = await fetch('/api/admin/apps', { cache: 'no-store' })
       if (response.status === 401) return
-      const payload = (await response.json()) as { apps?: AppRow[]; error?: string }
+      const payload = (await response.json()) as { apps?: AdminAppRow[]; error?: string }
       if (payload.error) setNotice({ tone: 'error', text: payload.error })
       setApps(payload.apps ?? [])
     } catch {
@@ -131,6 +133,38 @@ export default function Products(): React.JSX.Element {
     }
   }
 
+  /*
+   * Removing a file is two facts at once — the bytes go, and the product stops claiming
+   * them. Doing only the first is how a dead installer sat in the table.
+   */
+  async function removeFile(app: AdminAppRow, kind: 'exe' | 'image'): Promise<void> {
+    const what = kind === 'exe' ? 'installer' : 'image'
+    const detail = app[kind === 'exe' ? 'exe_missing' : 'image_missing']
+      ? `It is already gone from the bucket. Forget the ${what} for ${app.name}?`
+      : `Delete the ${what} for ${app.name}? It cannot be undone, and anybody downloading it now will be cut off.`
+    if (!window.confirm(detail)) return
+
+    setBusy(true)
+    setNotice(null)
+    try {
+      const response = await fetch(`/api/admin/apps/${app.id}/file?kind=${kind}`, { method: 'DELETE' })
+      const payload = (await response.json()) as { error?: string; deleted?: boolean }
+      if (!response.ok) {
+        setNotice({ tone: 'error', text: payload.error ?? 'Could not delete that file.' })
+        return
+      }
+      setNotice({
+        tone: 'ok',
+        text: payload.deleted ? `${what[0].toUpperCase()}${what.slice(1)} deleted.` : `Forgotten — the file was already gone.`
+      })
+      await load()
+    } catch {
+      setNotice({ tone: 'error', text: 'Could not reach the server.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function remove(id: string): Promise<void> {
     if (!window.confirm('Remove this product from the catalogue? The uploaded file is kept.')) return
     setBusy(true)
@@ -164,7 +198,7 @@ export default function Products(): React.JSX.Element {
     })
   }
 
-  async function upload(app: AppRow, file: File, kind: 'exe' | 'image'): Promise<void> {
+  async function upload(app: AdminAppRow, file: File, kind: 'exe' | 'image'): Promise<void> {
     setBusy(true)
     setNotice(null)
     setProgress({ id: app.id, percent: 0, label: kind === 'exe' ? 'Uploading installer' : 'Uploading image' })
@@ -285,7 +319,12 @@ export default function Products(): React.JSX.Element {
                     </span>
                   </td>
                   <td>
-                    {app.exe_url ? (
+                    {app.exe_url && app.exe_missing ? (
+                      <>
+                        <span className="pill warn">file missing</span>
+                        <div className="mono">deleted outside the panel</div>
+                      </>
+                    ) : app.exe_url ? (
                       <>
                         <strong>{size(app.exe_bytes)}</strong>
                         <div className="mono">{app.exe_sha256 ? `${app.exe_sha256.slice(0, 16)}…` : 'no hash'}</div>
@@ -296,29 +335,25 @@ export default function Products(): React.JSX.Element {
                   </td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        className="row-action"
-                        title={
-                          app.status === 'active'
-                            ? 'Hide from everyone. The product and its installer stay.'
-                            : 'Show it again to everybody who owns it.'
-                        }
-                        onClick={() =>
-                          void patch(app.id, { status: app.status === 'active' ? 'locked' : 'active' })
-                        }
-                      >
-                        {app.status === 'active' ? 'Lock' : 'Unlock'}
-                      </button>
-                      <button className="btn small" onClick={() => setSelected(app.id === selected ? null : app.id)}>
-                        {app.id === selected ? 'Close' : 'Edit'}
-                      </button>
+                      {app.exe_missing ? (
+                        <button
+                          className="btn small"
+                          disabled={busy}
+                          title="The file is gone from the bucket. Forget it so the row stops claiming it."
+                          onClick={() => void removeFile(app, 'exe')}
+                        >
+                          Clear
+                        </button>
+                      ) : null}
                       <button
                         className="btn small"
                         disabled={busy}
                         onClick={() => void patch(app.id, { status: app.status === 'active' ? 'locked' : 'active' })}
                       >
                         {app.status === 'active' ? 'Lock' : 'Unlock'}
+                      </button>
+                      <button className="btn small" onClick={() => setSelected(app.id === selected ? null : app.id)}>
+                        {app.id === selected ? 'Close' : 'Edit'}
                       </button>
                       <button className="btn small danger" disabled={busy} onClick={() => void remove(app.id)}>
                         Remove
@@ -404,7 +439,15 @@ export default function Products(): React.JSX.Element {
               data-active={progress?.id === current.id || undefined}
               onClick={() => fileInput.current?.click()}
             >
-              {current.exe_url ? (
+              {current.exe_url && current.exe_missing ? (
+                <div>
+                  <span className="pill warn">file missing</span>
+                  <div className="hint" style={{ marginTop: 6 }}>
+                    This row still points at a file the bucket no longer has — usually because it was
+                    deleted in the Supabase console. Upload a new one, or clear the leftover below.
+                  </div>
+                </div>
+              ) : current.exe_url ? (
                 <>
                   <strong>{size(current.exe_bytes)}</strong>
                   <div className="mono" style={{ marginTop: 4 }}>
@@ -439,13 +482,48 @@ export default function Products(): React.JSX.Element {
                 if (file) void upload(current, file, 'exe')
               }}
             />
+            <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+              <span className="hint">
+                {current.exe_missing
+                  ? 'The bucket does not have this file.'
+                  : current.exe_url
+                    ? 'Delete it before uploading next month’s build, or upload over it.'
+                    : 'No installer yet.'}
+              </span>
+              {current.exe_url ? (
+                <button
+                  type="button"
+                  className="btn small danger"
+                  disabled={busy}
+                  onClick={() => void removeFile(current, 'exe')}
+                >
+                  {current.exe_missing ? 'Clear the leftover' : 'Delete installer'}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="field">
             <span className="label">Card image</span>
             <div className="dropzone" onClick={() => imageInput.current?.click()}>
-              {current.image_url ? 'Replace image' : 'Upload an image (PNG or JPG)'}
+              {current.image_url && current.image_missing
+                ? 'Image missing from the bucket — upload it again'
+                : current.image_url
+                  ? 'Replace image'
+                  : 'Upload an image (PNG or JPG)'}
             </div>
+            {current.image_url ? (
+              <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn small danger"
+                  disabled={busy}
+                  onClick={() => void removeFile(current, 'image')}
+                >
+                  {current.image_missing ? 'Clear the leftover' : 'Delete image'}
+                </button>
+              </div>
+            ) : null}
             <input
               ref={imageInput}
               type="file"

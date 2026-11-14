@@ -155,6 +155,82 @@ export function refusalFor(kind: Kind, bytes: number): string | null {
 }
 
 /**
+ * Everything in one folder of the bucket, right now.
+ *
+ * Read from the bucket every time, never cached. That is the point: a file deleted in
+ * the Supabase console is gone the next time this is asked, so the panel cannot go on
+ * claiming an installer exists that no longer does.
+ */
+export interface StoredObject {
+  key: string
+  bytes: number
+}
+
+export async function listObjects(kind: Kind): Promise<StoredObject[]> {
+  const active = driver()
+
+  if (active === 'local') {
+    const { readdir } = await import('node:fs/promises')
+    const dir = join(LOCAL_ROOT, FOLDER[kind])
+    const names = await readdir(dir).catch(() => [] as string[])
+    const objects: StoredObject[] = []
+    for (const name of names) {
+      const info = await stat(join(dir, name)).catch(() => null)
+      if (info) objects.push({ key: `${FOLDER[kind]}/${name}`, bytes: info.size })
+    }
+    return objects
+  }
+
+  if (active === 'supabase') {
+    const supabase = createClient(env.supabaseUrl, env.supabaseServiceKey, {
+      auth: { persistSession: false }
+    })
+    const objects: StoredObject[] = []
+    let offset = 0
+    for (;;) {
+      const { data, error } = await supabase.storage
+        .from(env.supabaseBucket)
+        .list(FOLDER[kind], { limit: 100, offset })
+      if (error || !data?.length) break
+      for (const entry of data) {
+        // A folder placeholder is not a file.
+        if ((entry as { id?: string | null }).id === null) continue
+        const size = Number((entry.metadata as { size?: unknown } | null)?.size ?? 0)
+        objects.push({
+          key: `${FOLDER[kind]}/${entry.name}`,
+          bytes: Number.isFinite(size) ? size : 0
+        })
+      }
+      if (data.length < 100) break
+      offset += data.length
+    }
+    return objects
+  }
+
+  const objects: StoredObject[] = []
+  let token: string | undefined
+  do {
+    const page = await s3().send(
+      new ListObjectsV2Command({
+        Bucket: bucket(),
+        Prefix: `${FOLDER[kind]}/`,
+        ContinuationToken: token
+      })
+    )
+    for (const object of page.Contents ?? []) {
+      if (object.Key) objects.push({ key: object.Key, bytes: object.Size ?? 0 })
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined
+  } while (token)
+  return objects
+}
+
+/** The keys present in one folder, without the sizes. */
+export async function keySet(kind: Kind): Promise<Set<string>> {
+  return new Set((await listObjects(kind)).map((object) => object.key))
+}
+
+/**
  * What is stored, per kind.
  *
  * Counted rather than guessed. It exists because "where do the exes go?" deserves an

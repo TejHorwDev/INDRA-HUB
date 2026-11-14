@@ -45,6 +45,15 @@ export interface AppRow {
   updated_at: string
 }
 
+/**
+ * An admin row, plus what the bucket says about its files.
+ *
+ * The columns hold addresses; these two flags hold the answer to "but is it there?".
+ * They are computed per request from a live listing, never stored, so a file deleted in
+ * the Supabase console is reported missing the moment the page is reloaded.
+ */
+export type AdminAppRow = AppRow & { exe_missing: boolean; image_missing: boolean }
+
 /** The same row as the loader reads it. Snake case is a storage detail. */
 export interface PublicApp {
   id: string

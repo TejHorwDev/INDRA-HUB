@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { currentSession } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { db, getApp } from '@/lib/db'
 import { body, fail, ok, serverError, text } from '@/lib/http'
-import { openObject } from '@/lib/storage'
+import { openObject, removeObject } from '@/lib/storage'
 import { ensureStorageConfig } from '@/lib/storage-config'
-import { objectUrl } from '@/lib/url'
+import { keyFromUrl, objectUrl } from '@/lib/url'
 
 /*
  * POST /api/admin/finalize  { id, key, kind }
@@ -57,10 +57,31 @@ export async function POST(request: Request): Promise<Response> {
         ? { image_url: url }
         : { exe_url: url, exe_sha256: sha256, exe_bytes: bytes }
 
+    /*
+     * What the row pointed at before. A replacement is a replacement: the old build is
+     * deleted once the new one is in place, because an installer is re-uploaded every
+     * month and every upload gets a fresh key — leave it and the bucket fills with
+     * builds nobody can reach, which is why they were being deleted by hand in the
+     * Supabase console.
+     */
+    const before = await getApp(id)
+    const previous = keyFromUrl(kind === 'image' ? before?.image_url ?? '' : before?.exe_url ?? '')
+
     const { error } = await db().from('loader_apps').update(patch).eq('id', id)
     if (error) throw new Error(error.message)
 
-    return ok({ sha256, bytes, url })
+    let replaced = false
+    if (previous && previous !== key) {
+      try {
+        await removeObject(previous)
+        replaced = true
+      } catch (error) {
+        // The new file is live and hashed; a tidy-up that failed is not a failed upload.
+        console.warn('[admin/finalize] could not remove the replaced file', previous, error)
+      }
+    }
+
+    return ok({ sha256, bytes, url, replaced })
   } catch (error) {
     return serverError('admin/finalize', error)
   }
