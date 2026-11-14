@@ -166,7 +166,13 @@ export async function runLaunchCard(): Promise<LaunchResult> {
       if (next === 'restarting') {
         await moveTo('restarting')
         await delay(LAUNCH_HOLD.restarting)
-        installUpdate()
+        /*
+         * The restart can be refused — a payload that failed to start last time is
+         * not tried again. Claiming `restarting` after a refusal would mean no window
+         * is ever opened, so the answer is read back rather than assumed.
+         */
+        const after = installUpdate()
+        if (after.phase === 'error') break
         return { card, restarting: true }
       }
 

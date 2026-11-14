@@ -23,6 +23,11 @@ const API_BASE = (
   typeof __LOADER_API__ === 'string' && __LOADER_API__ ? __LOADER_API__ : (process.env['INDRA_LOADER_API'] ?? '')
 ).replace(/\/+$/, '')
 
+/** Where this service lives. The updater asks it before it asks GitHub. */
+export function apiBase(): string {
+  return API_BASE
+}
+
 const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
 
 /** The text-valued settings. `maintenance` is parsed separately — it is a flag. */
