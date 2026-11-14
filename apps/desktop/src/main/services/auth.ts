@@ -9,6 +9,8 @@ import type {
 } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { publishPortrait } from './cloud'
+import { liveAccount } from '../lib/accountSession'
+import { supabaseRequest } from '../lib/supabase'
 import { errors } from '../lib/errors'
 import { hashPassword, verifyPassword } from '../lib/password'
 import { EMAIL_PATTERN, normalizeEmail, validateRegistration } from '../lib/validation'
@@ -473,7 +475,7 @@ export function changeOwnPassword(viewer: SessionUser, input: ChangePasswordInpu
     .run(hash, salt, new Date().toISOString(), viewer.id)
 }
 
-export function deleteOwnAccount(viewer: SessionUser, input: DeleteAccountInput): void {
+export async function deleteOwnAccount(viewer: SessionUser, input: DeleteAccountInput): Promise<void> {
   assertRealAccount(viewer)
   const db = getDatabase()
   const account = db
@@ -503,6 +505,41 @@ export function deleteOwnAccount(viewer: SessionUser, input: DeleteAccountInput)
   if (Number(owned) + Number(created) > 0) {
     throw errors.conflict(
       'This account still owns projects or created content. Transfer or delete them before deleting the account.'
+    )
+  }
+
+  /*
+   * The account that can sign in is the server's, so that is the one that has to
+   * go. Deleting only the local row left the address and password working: the
+   * next sign-in made a new local row and the person was back, on this PC and on
+   * any other.
+   *
+   * The server function deletes the caller's own auth row — it takes no id, so it
+   * cannot be aimed at anybody else — and refuses while they still own projects.
+   */
+  const live = await liveAccount().catch(() => null)
+  if (live?.accessToken) {
+    try {
+      await supabaseRequest('/rest/v1/rpc/indra_delete_my_account', {
+        method: 'POST',
+        body: {},
+        token: live.accessToken
+      })
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      if (/owns_projects/.test(text)) {
+        throw errors.conflict(
+          'This account still owns projects on the server. Transfer or delete those first.'
+        )
+      }
+      if (/not_signed_in/.test(text)) {
+        throw errors.authRequired()
+      }
+      throw new Error(`The server did not delete the account: ${text}`)
+    }
+  } else {
+    throw errors.cloud(
+      'Deleting the account needs the server. Reconnect and sign in again, then delete it.'
     )
   }
 

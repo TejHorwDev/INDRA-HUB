@@ -664,10 +664,72 @@ function requireUserRow(userId: string): UserRow {
   return row
 }
 
-export function setAccountSuspended(userId: string, suspended: boolean): void {
+
+/*
+ * The server half of an account action.
+ *
+ * Every one of these is a server function that refuses unless the caller is the
+ * administrator, and none of them can be faked from here. Running it first means
+ * the local row is only touched once the account has actually changed on the
+ * server — the reverse order is what made a "deleted" account sign straight back
+ * in.
+ */
+async function adminAccountRpc(
+  adminId: string,
+  fn: 'indra_admin_delete_account' | 'indra_admin_set_suspended' | 'indra_admin_reset_password',
+  body: Record<string, unknown>
+): Promise<void> {
+  try {
+    await adminCloudRequest(adminId, `/rest/v1/rpc/${fn}`, { method: 'POST', body })
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (/not_an_administrator/.test(text)) {
+      throw errors.validation(
+        'The server does not recognise this account as the administrator, so nothing was changed.',
+        'code'
+      )
+    }
+    if (/owns_projects/.test(text)) {
+      throw errors.conflict(
+        'This account still owns projects on the server. Transfer or delete those first.'
+      )
+    }
+    if (/cannot_delete_yourself/.test(text)) {
+      throw errors.validation('You cannot delete the account you are signed in as.', 'code')
+    }
+    if (/cannot_suspend_yourself/.test(text)) {
+      throw errors.validation('You cannot suspend the account you are signed in as.', 'code')
+    }
+    throw new Error(`The server refused: ${text}`)
+  }
+}
+
+/** The Supabase identity behind a local row, if this account has one. */
+function authUidOf(userId: string): string | null {
+  const row = getDatabase()
+    .prepare('SELECT auth_user_id FROM users WHERE id = ?')
+    .get(userId) as { auth_user_id: string | null } | undefined
+  const uid = row?.auth_user_id ?? null
+  return uid && uid.length > 0 ? uid : null
+}
+
+export async function setAccountSuspended(userId: string, suspended: boolean): Promise<void> {
   const admin = requireAdmin()
   const user = requireUserRow(userId)
   const now = new Date().toISOString()
+
+  /*
+   * The server decides first. Suspending is a ban in Supabase Auth, so the
+   * person cannot sign in on any PC — including one that has never been online
+   * and has never heard of this console.
+   */
+  const uid = authUidOf(userId)
+  if (uid) {
+    await adminAccountRpc(admin.id, 'indra_admin_set_suspended', {
+      p_auth_uid: uid,
+      p_suspended: suspended
+    })
+  }
 
   getDatabase()
     .prepare('UPDATE users SET suspended_at = ? WHERE id = ?')
@@ -683,12 +745,24 @@ export function setAccountSuspended(userId: string, suspended: boolean): void {
   )
 }
 
-export function resetAccountPassword(userId: string, password: string): void {
+export async function resetAccountPassword(userId: string, password: string): Promise<void> {
   const admin = requireAdmin()
   const user = requireUserRow(userId)
   const next = password ?? ''
   if (next.length < 8 || next.length > 200) {
     throw errors.validation('Use 8–200 characters for the new password.', 'password')
+  }
+
+  /*
+   * The password the person signs in with is the server's. Changing only the
+   * local hash reset a password that was never used to sign in.
+   */
+  const uid = authUidOf(userId)
+  if (uid) {
+    await adminAccountRpc(admin.id, 'indra_admin_reset_password', {
+      p_auth_uid: uid,
+      p_password: next
+    })
   }
 
   const { hash, salt } = hashPassword(next)
@@ -707,7 +781,7 @@ export function resetAccountPassword(userId: string, password: string): void {
   audit('password_reset', `Password reset for ${user.email}.`, admin.id)
 }
 
-export function deleteAccount(userId: string): void {
+export async function deleteAccount(userId: string): Promise<void> {
   const admin = requireAdmin()
   const user = requireUserRow(userId)
   const db = getDatabase()
@@ -732,6 +806,16 @@ export function deleteAccount(userId: string): void {
     throw errors.conflict(
       'This account still owns projects or created documents and presentations. Transfer or delete those first.'
     )
+  }
+
+  /*
+   * The server goes first, and its refusal is the answer. An account with no
+   * Supabase identity (one created before accounts moved to the server) has
+   * nothing up there, so the local delete is the whole delete.
+   */
+  const uid = authUidOf(userId)
+  if (uid) {
+    await adminAccountRpc(admin.id, 'indra_admin_delete_account', { p_auth_uid: uid })
   }
 
   db.exec('BEGIN')

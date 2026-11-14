@@ -648,8 +648,8 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('auth:delete-account', (_event, input: DeleteAccountInput) =>
-    toResult(() => {
-      deleteOwnAccount(actor(), input ?? ({ password: '' } as DeleteAccountInput))
+    toResult(async () => {
+      await deleteOwnAccount(actor(), input ?? ({ password: '' } as DeleteAccountInput))
       return null
     })
   )
@@ -980,8 +980,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     'admin:account:suspend',
     (_event, payload: { userId?: unknown; suspended?: unknown }) =>
-      toResult(() => {
-        setAccountSuspended(requireUserId(payload?.userId), payload?.suspended === true)
+      toResult(async () => {
+        await setAccountSuspended(requireUserId(payload?.userId), payload?.suspended === true)
         return null
       })
   )
@@ -989,15 +989,18 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     'admin:account:reset-password',
     (_event, payload: { userId?: unknown; password?: unknown }) =>
-      toResult(() => {
-        resetAccountPassword(requireUserId(payload?.userId), requireText(payload?.password, 'password'))
+      toResult(async () => {
+        await resetAccountPassword(
+          requireUserId(payload?.userId),
+          requireText(payload?.password, 'password')
+        )
         return null
       })
   )
 
   ipcMain.handle('admin:account:delete', (_event, userId: unknown) =>
-    toResult(() => {
-      deleteAccount(requireUserId(userId))
+    toResult(async () => {
+      await deleteAccount(requireUserId(userId))
       return null
     })
   )
