@@ -75,8 +75,12 @@ Wait for the build, then open `https://<service>.onrender.com/admin`.
 add the same variables. The panel is a Next.js app with no build-time secrets, so it
 builds first time.
 
-**Anything else** — `npm install && npm run build && npm start`, port 5280 by
-default.
+**Anything else** — `npm install && npm run build && npm start`. The port comes from
+`$PORT` and falls back to 3000; `npm run dev` uses 5280 locally.
+
+A manual **Web Service** does the same job as the Blueprint without using it: same
+root directory, same two commands, same variables. The `render.yaml` is a
+convenience, not a requirement.
 
 ### 1. Environment
 
