@@ -531,6 +531,9 @@ const api = {
     claim: (input: WorkspaceClaimInput): Promise<ApiResult<WorkspaceState>> =>
       ipcRenderer.invoke('admin:workspace:claim', input),
     sync: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:sync'),
+    /** Publishes this PC's settings now and returns what the server answered. */
+    publishNow: (): Promise<ApiResult<WorkspaceState>> =>
+      ipcRenderer.invoke('admin:workspace:publish-now'),
     discard: (): Promise<ApiResult<WorkspaceState>> => ipcRenderer.invoke('admin:workspace:discard'),
     onChange: (listener: (state: WorkspaceState) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, state: WorkspaceState): void => listener(state)

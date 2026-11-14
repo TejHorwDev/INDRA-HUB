@@ -397,6 +397,7 @@ export const api = {
     claimAsAdmin: (): Promise<WorkspaceState> => unwrap(bridge().workspace.claimAsAdmin()),
     claim: (input: WorkspaceClaimInput): Promise<WorkspaceState> => unwrap(bridge().workspace.claim(input)),
     sync: (): Promise<WorkspaceState> => unwrap(bridge().workspace.sync()),
+    publishNow: (): Promise<WorkspaceState> => unwrap(bridge().workspace.publishNow()),
     discard: (): Promise<WorkspaceState> => unwrap(bridge().workspace.discard()),
     onChange: (listener: (state: WorkspaceState) => void): (() => void) =>
       bridge().workspace.onChange(listener)
