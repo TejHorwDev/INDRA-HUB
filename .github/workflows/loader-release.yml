@@ -100,6 +100,9 @@ jobs:
 
       # Entitlement reads an undocumented response shape structurally. If it misses
       # a wrapper, a paying customer sees "locked" and the UI explains nothing.
+      - name: Prove the panel's settings become the app's states
+        run: npm run sim:config
+
       - name: Prove entitlement reads every shape
         run: npm run sim:access
 

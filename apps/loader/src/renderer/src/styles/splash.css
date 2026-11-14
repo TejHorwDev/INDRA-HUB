@@ -34,14 +34,16 @@ body {
 }
 
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 26px;
+  gap: 22px;
   width: 100%;
   height: 100%;
   padding: 0 26px;
+  overflow: hidden;
   border: 1px solid var(--edge);
   border-radius: 16px;
   /* Matte black, with one soft wash so it is not a flat rectangle. */
@@ -63,13 +65,47 @@ body {
   }
 }
 
-.wordmark {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.34em;
-  color: var(--ink-muted);
-  /* The tracking adds space after the last letter too; pull it back to centre. */
-  margin-left: 0.34em;
+/*
+ * The film, and the scrim over it.
+ *
+ * The card carries no title any more: a wordmark, a ring and a sentence in a
+ * 340px box was three ways of saying the same thing. What is left is the part that
+ * changes — the ring turns, the sentence reports what is happening — and the film
+ * behind it, which is what the app looks like anyway, so the card reads as the app
+ * opening rather than as a different program starting first.
+ *
+ * The film fades in only once it can play. A video that is still buffering must not
+ * be a black rectangle where the app's first impression should be.
+ */
+.film {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 600ms ease;
+  pointer-events: none;
+}
+
+.film.is-ready {
+  opacity: 0.5;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 70% at 50% 40%, rgba(12, 12, 15, 0.35), rgba(12, 12, 15, 0.86) 78%),
+    linear-gradient(180deg, rgba(12, 12, 15, 0.62), rgba(12, 12, 15, 0.78));
+}
+
+/* Everything that is not the film sits above the scrim. */
+.ring,
+.line {
+  position: relative;
+  z-index: 1;
 }
 
 /* ---------------- the ring ---------------- */

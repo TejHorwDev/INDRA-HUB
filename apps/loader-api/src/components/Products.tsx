@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppRow } from '@/lib/db'
 
 /*
@@ -35,6 +35,37 @@ export default function Products(): React.JSX.Element {
   const [draft, setDraft] = useState(EMPTY)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<{ id: string; percent: number; label: string } | null>(null)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<'all' | 'active' | 'locked' | 'gated' | 'empty'>('all')
+
+  /*
+   * The list, narrowed.
+   *
+   * Filtering happens here rather than on the server because the whole catalogue is
+   * a handful of rows — a round trip per keystroke would be slower and would need a
+   * loading state to explain itself.
+   */
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return apps.filter((app) => {
+      if (needle) {
+        const haystack = `${app.name} ${app.keyauth_app_id} ${app.version}`.toLowerCase()
+        if (!haystack.includes(needle)) return false
+      }
+      switch (filter) {
+        case 'active':
+          return app.status === 'active'
+        case 'locked':
+          return app.status !== 'active'
+        case 'gated':
+          return Boolean(app.keyauth_app_id)
+        case 'empty':
+          return !app.exe_url
+        default:
+          return true
+      }
+    })
+  }, [apps, query, filter])
   const fileInput = useRef<HTMLInputElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
 
@@ -188,6 +219,25 @@ export default function Products(): React.JSX.Element {
 
       <div className="card">
         <h2>Catalogue</h2>
+        {!loading && apps.length > 0 ? (
+          <div className="toolbar">
+            <input
+              type="search"
+              value={query}
+              placeholder="Search by name, app id or version…"
+              aria-label="Search products"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <div className="seg">
+              {(['all', 'active', 'locked', 'gated', 'empty'] as const).map((key) => (
+                <button key={key} type="button" data-active={filter === key} onClick={() => setFilter(key)}>
+                  {key === 'empty' ? 'No file' : key[0].toUpperCase() + key.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {loading ? (
           <div className="empty">Loading…</div>
         ) : apps.length === 0 ? (
@@ -196,6 +246,8 @@ export default function Products(): React.JSX.Element {
             <br />
             Until there is, the loader shows an empty library — which is the truth, not a bug.
           </div>
+        ) : shown.length === 0 ? (
+          <div className="empty">Nothing matches that filter.</div>
         ) : (
           <table>
             <thead>
@@ -207,7 +259,7 @@ export default function Products(): React.JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {apps.map((app) => (
+              {shown.map((app) => (
                 <tr key={app.id}>
                   <td>
                     <strong>{app.name}</strong>
@@ -233,6 +285,20 @@ export default function Products(): React.JSX.Element {
                   </td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="row-action"
+                        title={
+                          app.status === 'active'
+                            ? 'Hide from everyone. The product and its installer stay.'
+                            : 'Show it again to everybody who owns it.'
+                        }
+                        onClick={() =>
+                          void patch(app.id, { status: app.status === 'active' ? 'locked' : 'active' })
+                        }
+                      >
+                        {app.status === 'active' ? 'Lock' : 'Unlock'}
+                      </button>
                       <button className="btn small" onClick={() => setSelected(app.id === selected ? null : app.id)}>
                         {app.id === selected ? 'Close' : 'Edit'}
                       </button>

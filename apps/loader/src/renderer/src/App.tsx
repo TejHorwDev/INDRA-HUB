@@ -30,7 +30,7 @@ type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings
 const SPLASH_MS = 2_000
 const MIN_VERIFY_MS = 1_300
 
-const EMPTY_CONFIG: LoaderConfig = { website: '', video: '' }
+const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
 
 interface Confirmation {
   title: string
@@ -256,7 +256,26 @@ export default function App(): React.JSX.Element {
 
       {screen === 'verifying' ? <Verifying /> : null}
 
-      {screen === 'home' ? (
+      {/*
+        * Maintenance closes the door without taking the app away: the header stays,
+        * so the window is still the loader and still has window controls, and the
+        * sentence says whose decision this was. Nobody should have to guess whether
+        * an empty library means they own nothing or that we are working on it.
+        */}
+      {screen === 'home' && config.maintenance ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
+          <div className="text-[9.5px] font-semibold uppercase tracking-[0.28em] text-[var(--color-ink-3)]">
+            Indra Loader
+          </div>
+          <div className="mt-3 text-[19px] leading-tight">Down for maintenance</div>
+          <p className="mt-2 max-w-[420px] text-[11.5px] leading-[1.7] text-[var(--color-ink-2)]">
+            {config.notice ||
+              'The catalogue is being updated. Nothing is lost — reopen in a few minutes.'}
+          </p>
+        </div>
+      ) : null}
+
+      {screen === 'home' && !config.maintenance ? (
         <Dashboard
           apps={apps}
           owned={owned}

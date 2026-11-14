@@ -1,7 +1,9 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { LAUNCH_HOLD, isForward, stageForPhase, type LaunchStage } from './launch-stages'
+import { cachedVideo, rememberVideo } from './lib/backdrop-cache'
 import { APP_NAME } from './lib/identity'
+import { readConfig } from './services/catalog'
 import { checkForUpdates, installUpdate, noteScreen, updateState } from './services/updates'
 
 /*
@@ -100,12 +102,35 @@ export async function runLaunchCard(): Promise<LaunchResult> {
    * hold the app hostage. */
   const painted = new Promise<void>((resolve) => {
     const onReady = (event: Electron.IpcMainEvent): void => {
-      if (event.sender === card.webContents) resolve()
+      if (event.sender !== card.webContents) return
+      /*
+       * The film the panel published last time, handed over the moment the page
+       * exists. The card cannot wait for a network call — it is the first thing
+       * anybody sees — but it can start with what it already knows and be
+       * corrected a second later if the answer has changed.
+       */
+      const remembered = cachedVideo()
+      if (remembered) card.webContents.send('launch:video', remembered)
+      resolve()
     }
     ipcMain.on('launch:ready', onReady)
     card.once('closed', () => ipcMain.removeListener('launch:ready', onReady))
     setTimeout(resolve, 1500)
   })
+
+  /*
+   * A cheap look at the published config while the update check runs. If the film
+   * changed since the last launch, the card swaps to it. If this fails, the card
+   * keeps the remembered one and nobody ever knows.
+   */
+  void readConfig(2500)
+    .then((config) => {
+      const film = config.video.trim()
+      if (!film || film === cachedVideo()) return
+      rememberVideo(film)
+      if (!card.isDestroyed()) card.webContents.send('launch:video', film)
+    })
+    .catch(() => undefined)
 
   const send = (next: Exclude<LaunchStage, 'done'>): void => {
     if (card.isDestroyed()) return

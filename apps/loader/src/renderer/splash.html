@@ -10,7 +10,13 @@
   </head>
   <body>
     <div class="card">
-      <div class="wordmark">INDRA LOADER</div>
+      <!--
+        The same film the app plays behind itself. It arrives from the main process
+        a frame after the page exists, so an empty <video> is the normal first
+        state; the card's own background shows until there is something to play.
+      -->
+      <video class="film" id="film" muted playsinline loop preload="auto"></video>
+      <div class="scrim" aria-hidden="true"></div>
 
       <div class="ring">
         <svg viewBox="0 0 54 54" aria-hidden="true">

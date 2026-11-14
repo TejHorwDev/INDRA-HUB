@@ -2,6 +2,7 @@ import { app, ipcMain, shell } from 'electron'
 import { installed } from '../services/installed'
 import { runningVersion } from '../lib/payload'
 import { currentSession, login, logout } from '../services/auth'
+import { rememberVideo } from '../lib/backdrop-cache'
 import { loadCatalogue } from '../services/catalog'
 import { entitlementReport, ownedProductIds } from '../services/entitlement'
 import { cancelDownload, startDownload, states, uninstall } from '../services/downloads'
@@ -56,7 +57,12 @@ export function registerIpc(handlers: Handlers): void {
 
   // The catalogue and its links. Public data, fetched in the main process so the
   // renderer still has no network of its own.
-  ipcMain.handle('catalogue:load', () => loadCatalogue())
+  ipcMain.handle('catalogue:load', async () => {
+    const catalogue = await loadCatalogue()
+    // The launch card cannot fetch, so every read leaves a note for next time.
+    rememberVideo(catalogue.config.video)
+    return catalogue
+  })
   ipcMain.handle('auth:probe', () => entitlementReport())
   ipcMain.handle('auth:owned', () => ownedProductIds())
 

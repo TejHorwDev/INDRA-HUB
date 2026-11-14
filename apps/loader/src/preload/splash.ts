@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('launch', {
   onStage: (listener: (stage: string) => void): void => {
     ipcRenderer.on('launch:stage', (_event, stage: string) => listener(stage))
   },
+  /** The backdrop film, when the panel has published one. */
+  onVideo: (listener: (url: string) => void): void => {
+    ipcRenderer.on('launch:video', (_event, url: string) => listener(url))
+  },
   ready: (): void => {
     ipcRenderer.send('launch:ready')
   }
