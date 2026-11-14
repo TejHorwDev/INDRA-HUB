@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const { data, error } = await db()
-      .from('apps')
+      .from('loader_apps')
       .insert({
         name,
         description: text(payload?.['description'], 600),

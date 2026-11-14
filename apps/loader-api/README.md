@@ -30,22 +30,49 @@ only means something if the hash describes what is actually in the bucket.
 **RLS is on with no policy.** The anon key can read nothing and write nothing.
 Every read goes through this server, which holds the service role key.
 
-## Setup
+## Where it lives
 
-### 1. Database
+The database and the bucket are **already created**, in the same Supabase project as
+INDRA HUB (`indra-hub`, ref `cztyznuoferktewdhyji`):
 
-In the Supabase project's SQL editor, run `supabase/loader.sql`. It creates `apps`
-and `config`, enables RLS with no policy, and seeds the one link key. Safe to run
-twice.
+| Object | What it is |
+|---|---|
+| `loader_apps` | the catalogue, RLS on with no policy |
+| `loader_config` | the one link, seeded empty |
+| `loader-files` | a private bucket, 300 MB per file |
 
-### 2. Bucket
+The tables are `loader_*` on purpose: every other table in that project is `indra_*`
+and belongs to the hub. Two applications, one database, one bill, one backup — and a
+prefix that keeps them from ever reading each other's rows.
 
-Create a bucket — Cloudflare R2 is the recommendation because egress is free, which
-matters when every customer downloads a 300 MB installer. B2 works identically and
-is configured the same way. Supabase Storage is the fallback.
+Nothing else needs to be run. `supabase/loader.sql` is the same schema kept in the
+repository, so a second deployment can be rebuilt from nothing.
+
+### Capacity, honestly
+
+Supabase Storage gives 1 GB on the free plan, which is about **eight** 116 MB
+installers. That is enough to launch and not enough to grow. When the catalogue
+starts filling up, either raise the plan or move to Cloudflare R2 — and moving is a
+configuration change, not a code change:
+
+```
+STORAGE_DRIVER=r2
+R2_ACCOUNT_ID=...
+```
+
+The same rows keep working; only new uploads land somewhere else.
 
 If you leave `PUBLIC_BASE_URL` empty, files are served through `/api/files/<key>`
-and the bucket can stay private. That is the default and the safer one.
+and the bucket stays private. That is the default and the safer one.
+
+## Setup
+
+### 1. Environment
+
+The only things missing are the three secrets, and they belong in the host's
+environment rather than anywhere else: `SUPABASE_SERVICE_ROLE_KEY` (Supabase
+dashboard → Project Settings → API), `ADMIN_PASSWORD`, and a generated
+`ADMIN_SESSION_SECRET`.
 
 If you set it, the bucket needs a CORS rule allowing `PUT` from the panel's origin:
 
