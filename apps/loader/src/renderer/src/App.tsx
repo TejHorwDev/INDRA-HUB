@@ -368,13 +368,6 @@ export default function App(): React.JSX.Element {
           onCheck={() => void runUpdate(() => bridge.updates.check())}
           onInstall={() => void runUpdate(() => bridge.updates.install())}
           onOpen={confirmExternal}
-        onProbe={() => {
-          void bridge.auth.probe().then((report) => {
-            if (!report.ok) toast(report.error ?? 'Could not check your access.')
-            else if (report.count === 0) toast('INDRA Auth returned no products for this account.')
-            else toast(`${report.count} product(s): ${report.ids.slice(0, 3).join(', ')}`)
-          })
-        }}
         />
       ) : null}
 

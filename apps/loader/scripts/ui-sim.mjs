@@ -187,6 +187,25 @@ check(
 )
 check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detail))
 
+console.log('\nThe settings screen')
+/*
+ * A rail and a page, not a pile of cards.
+ *
+ * Every section used to be its own bordered box, which is fine for two sections and
+ * unmaintainable at ten: each box had its own padding and its own idea of where a
+ * button goes, and one of them managed to wrap a two-word label onto two lines. Rows
+ * cannot do that — a row is a label, a value, a hairline.
+ */
+const settings = code(readFileSync(join(renderer, 'screens/Settings.tsx'), 'utf8'))
+check('the sections live in a rail', /aria-label="Settings sections"/.test(settings))
+check('three sections to start with', (settings.match(/\{ id: '(updates|about|links)'/g) ?? []).length === 3)
+check('no bordered cards left on the screen', !/bg-\[var\(--color-surface\)\]/.test(settings))
+check('a button label never wraps', /whitespace-nowrap/.test(settings))
+check(
+  'the access checker is gone from settings',
+  !/Check access/.test(settings) && !/auth\.probe/.test(settings)
+)
+
 console.log('\nThe landing page')
 const landing = code(readFileSync(join(renderer, 'screens/Landing.tsx'), 'utf8'))
 check('has no social row', !/FOLLOW US|Follow us|instagram-icon|SocialMark/i.test(landing))
