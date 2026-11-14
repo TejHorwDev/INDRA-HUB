@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { currentSession } from '@/lib/auth'
 import SignOut from '@/components/SignOut'
 import Nav from '@/components/Nav'
+import CommandPalette from '@/components/CommandPalette'
+import Footer from '@/components/Footer'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,11 +39,13 @@ export default async function PanelLayout({
           <div className="bar-actions">
             <Nav />
             <span className="bar-user">signed in</span>
+            <CommandPalette />
             <SignOut />
           </div>
         </div>
       </header>
       {children}
+      <Footer />
     </main>
   )
 }

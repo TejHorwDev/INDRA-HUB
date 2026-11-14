@@ -84,15 +84,35 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
         ? `Publishing ${feed.version}`
         : 'Publishing'
 
-  return (
-    <>
-      <p className="eyebrow">
-        <span className="dot" data-tone={tone === 'live' ? undefined : 'warn'} />
-        {state}
-        <span style={{ color: 'var(--ink-4)' }}>/ {apps.length} products</span>
-      </p>
+  /*
+   * The tape. One line of facts that moves, built from the same rows as the cards below
+   * it — so if the panel says 1.0.36 in the tape it says 1.0.36 in the table. Doubled,
+   * because the loop is a single translation of minus half the track.
+   */
+  const facts = [
+    `${apps.length} product${apps.length === 1 ? '' : 's'}`,
+    `${active} active`,
+    gated ? `${gated} gated by INDRA Auth` : 'no gates',
+    feed && 'version' in feed && feed.version !== 'unreachable' ? `feed ${feed.version}` : 'no feed',
+    video ? 'sign-in film set' : 'no film — wash',
+    website ? 'website linked' : 'website hidden',
+    notice ? 'announcement live' : 'no announcement',
+    maintenance ? 'maintenance on' : 'catalogue public',
+    count(bytes) === '—' ? 'no installers' : `${count(bytes)} of installers`
+  ]
 
-      <h1>Overview</h1>      <p className="lede">What the loader is publishing right now, and what it is reading it from.</p>
+  return (
+    <div className="page">
+      <div className="page-head">
+        <p className="eyebrow">
+          <span className="dot" data-tone={tone === 'live' ? undefined : 'warn'} />
+          {state}
+          <span style={{ color: 'var(--ink-4)' }}>/ {apps.length} products</span>
+        </p>
+
+        <h1>Overview</h1>
+        <p className="lede">What the loader is publishing right now, and what it is reading it from.</p>
+      </div>
 
       {failure ? <div className="notice error">{failure}</div> : null}
 
@@ -113,6 +133,16 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
           share={apps.length ? (apps.length - active) / apps.length : 0}
         />
         <Stat value={count(bytes)} label="Installers" index={3} share={0.55} />
+      </div>
+
+      <div className="tape" aria-hidden="true">
+        <div className="tape-track">
+          {[...facts, ...facts].map((fact, index) => (
+            <span className="tape-item" key={`${fact}-${index}`}>
+              <b>{fact}</b>
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="grid cols">
@@ -163,37 +193,6 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
             </dl>
           </div>
 
-          <div className="card" style={{ '--i': 5 } as React.CSSProperties}>
-            <h2>
-              <span className="count">{String(apps.length).padStart(2, '0')}</span>
-              Published catalogue
-            </h2>
-            {apps.length === 0 ? (
-              <div className="empty">
-                Nothing published yet. <Link href="/admin/apps">Add the first product</Link>.
-              </div>
-            ) : (
-              <table>
-                <tbody>
-                  {apps.map((app) => (
-                    <tr key={app.id}>
-                      <td>
-                        <strong>{app.name}</strong>
-                      </td>
-                      <td className="mono">{app.version}</td>
-                      <td>
-                        <span className={`pill ${app.status === 'active' ? 'ok' : 'off'}`}>{app.status}</span>
-                      </td>
-                      <td className="mono">{app.keyauth_app_id ? 'gated' : 'open'}</td>
-                      <td className="mono" style={{ textAlign: 'right' }}>
-                        {count(app.exe_bytes ?? 0)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </div>
 
         <div className="col">
@@ -234,6 +233,53 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
           </div>
         </div>
       </div>
-    </>
+
+      <div className="card" style={{ '--i': 5 } as React.CSSProperties}>
+        <h2>
+          <span className="count">{String(apps.length).padStart(2, '0')}</span>
+          Published catalogue
+        </h2>
+        {apps.length === 0 ? (
+          <div className="empty">
+            Nothing published yet. <Link href="/admin/apps">Add the first product</Link>.
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Access</th>
+                <th style={{ textAlign: 'right' }}>Installer</th>
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {apps.map((app) => (
+                <tr key={app.id}>
+                  <td>
+                    <strong>{app.name}</strong>
+                  </td>
+                  <td className="mono">{app.version}</td>
+                  <td>
+                    <span className={`pill ${app.status === 'active' ? 'ok' : 'off'}`}>{app.status}</span>
+                  </td>
+                  <td className="mono">{app.keyauth_app_id ? 'gated' : 'open'}</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>
+                    {count(app.exe_bytes ?? 0)}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <Link href="/admin/apps" className="row-action">
+                      Manage
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   )
 }

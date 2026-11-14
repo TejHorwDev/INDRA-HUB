@@ -18,13 +18,15 @@ export default function SettingsPage(): React.JSX.Element {
   const storage = driver()
 
   return (
-    <>
-      <p className="eyebrow">
-        <span className="dot" data-tone="off" />
-        Configuration
-      </p>
-      <h1>Settings</h1>
-      <p className="lede">What the loader reads, and what this deployment is connected to.</p>
+    <div className="page">
+      <div className="page-head">
+        <p className="eyebrow">
+          <span className="dot" data-tone="off" />
+          Configuration
+        </p>
+        <h1>Settings</h1>
+        <p className="lede">What the loader reads, and what this deployment is connected to.</p>
+      </div>
 
       <div className="card">
         <h2>Sign-in video</h2>
@@ -92,6 +94,6 @@ export default function SettingsPage(): React.JSX.Element {
           which works with a private bucket and needs no CORS at all.
         </p>
       </div>
-    </>
+    </div>
   )
 }
