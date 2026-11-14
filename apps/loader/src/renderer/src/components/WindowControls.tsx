@@ -8,7 +8,7 @@ import { bridge } from '../lib/bridge'
  */
 export default function WindowControls(): React.JSX.Element {
   return (
-    <div className="absolute right-3 top-3 flex items-center gap-1">
+    <div className="no-drag absolute right-3 top-3 z-50 flex items-center gap-1">
       <button
         type="button"
         aria-label="Minimise"

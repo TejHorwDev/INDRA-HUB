@@ -89,11 +89,33 @@ body {
 .drag-strip {
   position: absolute;
   top: 0;
-  left: 0;
-  right: 104px;
+  /*
+   * The strip stops short of every control in the top bar.
+   *
+   * It used to run from the left edge to 104px from the right, forty pixels tall and
+   * above the screens — which is a drag region drawn straight over the back button at
+   * top 14 and the settings gear at top 12. A drag region swallows the pointer: no
+   * hover, no click, and the cursor never changes. Close and minimise worked because
+   * they sit inside the 104px the strip left alone; everything on the left did not.
+   *
+   * 76px clears the back button, 120px clears the gear. What is left is still the
+   * whole middle of the title bar.
+   */
+  left: 76px;
+  right: 120px;
   height: 40px;
   z-index: 40;
   -webkit-app-region: drag;
+}
+
+/*
+ * Anything the pointer has to reach inside a drag region.
+ *
+ * Belt and braces: the strip no longer covers these, but a control that is drawn over
+ * a drag region must say so or the window moves instead of the control answering.
+ */
+.no-drag {
+  -webkit-app-region: no-drag;
 }
 
 /*
