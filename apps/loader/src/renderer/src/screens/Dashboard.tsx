@@ -122,12 +122,12 @@ export default function Dashboard({
       <WindowControls />
 
       <h1
-        className="absolute top-[92px] text-[15px] font-semibold text-[var(--color-ink)]"
-        style={{ left: GUTTER }}
+        className="absolute left-0 right-0 top-[96px] text-center text-[27px] font-semibold leading-none text-white"
+        style={{ letterSpacing: '0.005em', textShadow: '0 2px 24px rgba(0,0,0,0.55)' }}
       >
-        Library
+        Browse library
       </h1>
-      <p className="absolute top-[116px] text-[11px] text-[var(--color-ink-3)]" style={{ left: GUTTER }}>
+      <p className="absolute left-0 right-0 top-[136px] text-center text-[11px] text-[var(--color-ink-3)]">
         {loading
           ? 'Loading your apps…'
           : apps.length === 0
@@ -139,7 +139,7 @@ export default function Dashboard({
         className="absolute overflow-hidden"
         style={{
           left: GUTTER,
-          top: 158,
+          top: 184,
           width: RAIL_WIDTH,
           height: CARD
         }}
@@ -200,7 +200,7 @@ export default function Dashboard({
       />
 
       {apps.length > PAGE_SIZE ? (
-        <div className="absolute left-0 right-0 flex items-center justify-center gap-1.5" style={{ top: 410 }}>
+        <div className="absolute left-0 right-0 flex items-center justify-center gap-1.5" style={{ top: 436 }}>
           {Array.from({ length: pages }).map((_, index) => (
             <button
               key={index}
@@ -238,7 +238,7 @@ function Arrow({
       disabled={disabled}
       onClick={onClick}
       className="absolute grid h-[38px] w-[38px] place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-surface)] text-[var(--color-ink-2)] transition-[color,border-color] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-25"
-      style={{ [side]: 30, top: 158 + (CARD - 38) / 2 }}
+      style={{ [side]: 30, top: 184 + (CARD - 38) / 2 }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
         <path
