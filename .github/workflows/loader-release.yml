@@ -69,8 +69,14 @@ jobs:
       - name: Refuse to ship a release that does not compile
         run: npm run typecheck
 
+      # The catalogue's address is compiled into the app: an installed copy has no
+      # environment to read. A repository variable overrides the default, so moving
+      # the API is a settings change rather than a release, and the value below is
+      # what ships when nobody has set one.
       - name: Compile main, preload and renderer
         run: npm run build
+        env:
+          INDRA_LOADER_API: ${{ vars.INDRA_LOADER_API || 'https://indra-loader-api.onrender.com' }}
 
       # The two things that can silently rot: release selection (a hub release
       # must never be offered to the loader) and payload adoption.
