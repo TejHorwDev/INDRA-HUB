@@ -4,7 +4,11 @@ import SlideButton from '../components/SlideButton'
 import WindowControls from '../components/WindowControls'
 
 /*
- * Sign in.
+ * Authenticate.
+ *
+ * Called that on the screen too, not "Sign in". The word on the button is the word
+ * for what happens: a password is checked against an account, and "authenticate" is
+ * what the thing on the other end is doing.
  *
  * Field positions come from the design: the two fields at x317, 266 wide, 42
  * tall, 54 apart, with the slider 58 below the second. The eye sits inside the
@@ -48,10 +52,10 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
         type="button"
         aria-label="Back"
         onClick={onBack}
-        className="absolute grid h-7 w-7 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)] text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-        style={{ left: 24, top: 16 }}
+        className="absolute grid h-10 w-10 place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-raised)]/70 text-[var(--color-ink-2)] transition-colors duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+        style={{ left: 20, top: 14 }}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+        <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden>
           <path
             d="M7.5 2.5 4 6l3.5 3.5"
             stroke="currentColor"
@@ -66,7 +70,7 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
         className="fade-up absolute left-0 right-0 text-center text-[23px] leading-none"
         style={{ top: 112, color: '#ffffff', fontWeight: 600, letterSpacing: '0.01em' }}
       >
-        Sign in
+        Authenticate
       </h2>
 
       <p
@@ -155,7 +159,7 @@ export default function SignIn({ onBack, onSubmit, error, busy }: Props): React.
 
       <div className="absolute" style={{ left: 317, top: 300 }}>
         <SlideButton
-          label="Sign In"
+          label="Authenticate"
           width={266}
           height={40}
           disabled={!ready || busy}
