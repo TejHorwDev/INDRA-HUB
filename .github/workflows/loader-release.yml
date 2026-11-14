@@ -109,6 +109,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path payload | Out-Null
           Copy-Item -Path out/* -Destination payload -Recurse
 
+          # The shim belongs to the installed copy, never to a payload: the boot
+          # decision must come from the file package.json points at, which an
+          # update cannot replace.
+          Remove-Item -Force "payload/main/bootstrap.js"
+
           $asar = "release/INDRA-LOADER-Payload-$version.asar"
           npx --no-install asar pack payload $asar
           if (!(Test-Path $asar)) { throw "The update payload was not produced" }
