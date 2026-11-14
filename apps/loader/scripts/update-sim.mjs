@@ -170,9 +170,45 @@ async function main() {
   payload.writePending({ version: '0.9.0', file, sha256: createHash('sha256').update(body).digest('hex'), size })
   check('refuses a downgrade', payload.resolveActivePayload() === null)
 
+  /* ------------------------------------------------------ silent restarting */
+
+  /*
+   * The decision to restart without asking is the one place the updater can do
+   * real damage — it takes a running app away from somebody. Every way it must
+   * refuse is checked, not just the happy path.
+   */
+  const { shouldAutoRestart, AUTO_RESTART_WINDOW_MS } = await bundle(
+    'src/main/lib/autorestart.ts',
+    join(work, 'autorestart.mjs')
+  )
+
+  const base = {
+    packaged: true,
+    phase: 'ready',
+    screen: 'landing',
+    runningForMs: 4_000,
+    alreadyRestarted: false,
+    blocked: false
+  }
+  const ask = (over) => shouldAutoRestart({ ...base, ...over })
+
+  check('restarts before anything has been started', ask({}) === true)
+  check('restarts on the splash too', ask({ screen: 'splash' }) === true)
+  check('never while a password is being typed', ask({ screen: 'signin' }) === false)
+  check('never with the library open', ask({ screen: 'home' }) === false)
+  check('never with settings open', ask({ screen: 'settings' }) === false)
+  check(
+    'never after the welcome window has passed',
+    ask({ runningForMs: AUTO_RESTART_WINDOW_MS + 1 }) === false
+  )
+  check('only once per run', ask({ alreadyRestarted: true }) === false)
+  check('never when the last restart changed nothing', ask({ blocked: true }) === false)
+  check('never before the payload is ready', ask({ phase: 'downloading' }) === false)
+  check('never in development', ask({ packaged: false }) === false)
+
   console.log(
     failures === 0
-      ? '\n✓ The updater picks the right release and adopts only a payload it can trust.\n'
+      ? '\n✓ The updater picks the right release, adopts only a payload it can trust, and restarts only when nobody is looking.\n'
       : `\n✗ ${failures} check(s) failed.\n`
   )
   process.exitCode = failures === 0 ? 0 : 1

@@ -1,7 +1,10 @@
 import { app, BrowserWindow, net } from 'electron'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { open, rename, rm } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename } from 'node:path'
 import type { UpdateDiagnostics, UpdateState } from '@shared/types'
+import { shouldAutoRestart } from '../lib/autorestart'
 import {
   hashFile,
   payloadDir,
@@ -49,6 +52,15 @@ const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000
 const STALL_TIMEOUT_MS = 60_000
 const PROGRESS_INTERVAL_MS = 250
 
+/**
+ * A silent restart is worth trying once. If it comes back on the same version,
+ * the payload did not load, and trying again would be a loop that looks like the
+ * app crashing on every launch.
+ */
+const RESTART_GUARD_MS = 10 * 60 * 1000
+/** Long enough that the window has painted, short enough to feel deliberate. */
+const AUTO_RESTART_DELAY_MS = 900
+
 const packaged = app.isPackaged
 
 interface Manifest {
@@ -64,6 +76,34 @@ let interval: NodeJS.Timeout | null = null
 let retry: NodeJS.Timeout | null = null
 let lastAttempt = 0
 let running = false
+
+/* ------------------------------------------------------- silent restarting */
+
+let startedAt = Date.now()
+/** The screen the renderer last reported, used only to decide about restarting. */
+let screen = 'splash'
+let restarted = false
+let restartBlocked = false
+
+const guardFile = (): string => join(app.getPath('userData'), 'update-auto-restart.json')
+
+function readGuard(): { target: string; at: number } | null {
+  try {
+    const parsed = JSON.parse(readFileSync(guardFile(), 'utf8')) as { target?: unknown; at?: unknown }
+    if (typeof parsed.target !== 'string' || typeof parsed.at !== 'number') return null
+    return { target: parsed.target, at: parsed.at }
+  } catch {
+    return null
+  }
+}
+
+function clearGuard(): void {
+  try {
+    rmSync(guardFile(), { force: true })
+  } catch {
+    /* a guard that cannot be removed is not a reason to stop */
+  }
+}
 
 let state: UpdateState = {
   phase: packaged ? 'idle' : 'unsupported',
@@ -485,7 +525,57 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
     return updateState()
   } finally {
     running = false
+    maybeAutoRestart()
   }
+}
+
+/**
+ * The renderer's current screen.
+ *
+ * The single input that makes a silent restart safe: the main process has no
+ * other way to know whether somebody is looking at a form or at nothing at all.
+ */
+export function noteScreen(next: string): void {
+  screen = next
+}
+
+/**
+ * Restart into a ready payload, without asking, when nothing is at risk.
+ *
+ * The payload is on disk and verified before this is called — the restart only
+ * chooses to run what the next launch was going to run anyway.
+ */
+function maybeAutoRestart(): void {
+  if (!shouldAutoRestart({
+    packaged,
+    phase: state.phase,
+    screen,
+    runningForMs: Date.now() - startedAt,
+    alreadyRestarted: restarted,
+    blocked: restartBlocked
+  })) {
+    return
+  }
+
+  restarted = true
+
+  setTimeout(() => {
+    const pending = readVerifiedPending()
+    // The file could have been removed in the last second. Without it the
+    // restart would be a very expensive way of doing nothing.
+    if (!pending) return
+
+    // The claim on this restart, written before it happens: if the next launch is
+    // still on the old version, `initUpdates` reads this and stays quiet.
+    try {
+      writeFileSync(guardFile(), JSON.stringify({ target: pending.version, at: Date.now() }))
+    } catch {
+      /* without the guard we still know ourselves: `restarted` is already true */
+    }
+
+    app.relaunch()
+    app.exit(0)
+  }, AUTO_RESTART_DELAY_MS)
 }
 
 /**
@@ -597,6 +687,24 @@ export async function diagnoseConnection(): Promise<UpdateDiagnostics> {
 export function initUpdates(): void {
   if (!packaged) return
 
+  startedAt = Date.now()
+
+  /*
+   * Did a silent restart already happen? If the version it claimed to install is
+   * running now, the guard has done its job and is deleted. If it is not, the
+   * payload did not load and no second attempt is made this session.
+   */
+  const guard = readGuard()
+  if (guard) {
+    if (guard.target === runningVersion()) {
+      clearGuard()
+    } else if (Date.now() - guard.at < RESTART_GUARD_MS) {
+      restartBlocked = true
+    } else {
+      clearGuard()
+    }
+  }
+
   // Debris from an interrupted download is never useful.
   prunePayloadDir()
 
@@ -615,6 +723,10 @@ export function initUpdates(): void {
 
   firstCheck = setTimeout(() => void checkForUpdates(false), FIRST_CHECK_DELAY_MS)
   firstCheck.unref()
+
+  // A payload left over from last session is applied by the bootstrap before this
+  // file runs, so `runningVersion()` already answers with it. Nothing to do here
+  // beyond the check above.
 
   interval = setInterval(() => void checkForUpdates(false), CHECK_INTERVAL_MS)
   interval.unref()
