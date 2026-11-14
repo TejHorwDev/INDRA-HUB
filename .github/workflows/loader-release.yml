@@ -87,6 +87,11 @@ jobs:
       - name: Prove downloads behave
         run: npm run sim:download
 
+      # A window-wide drag region eats every click on Windows. It has been done
+      # once; this is what stops it being done again.
+      - name: Prove the window still answers
+        run: npm run sim:ui
+
       # The shim has to exist as its own file: it is what package.json points
       # at, and without it an installed copy could never apply an update.
       - name: Confirm the startup shim was produced

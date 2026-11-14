@@ -29,13 +29,7 @@ type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings
 const SPLASH_MS = 2_000
 const MIN_VERIFY_MS = 1_300
 
-const EMPTY_CONFIG: LoaderConfig = {
-  website: '',
-  instagram: '',
-  tiktok: '',
-  discord: '',
-  youtube: ''
-}
+const EMPTY_CONFIG: LoaderConfig = { website: '' }
 
 interface Confirmation {
   title: string
@@ -297,6 +291,12 @@ export default function App(): React.JSX.Element {
       {screen === 'home' || screen === 'settings' ? (
         <UpdatePill update={update} onInstall={() => void bridge.updates.install()} />
       ) : null}
+
+      {/*
+        * The only drag region in the app. Last in the tree so it sits above the
+        * screens, and short of the window controls so they still take clicks.
+        */}
+      <div className="drag-strip" />
 
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((t) => t.id !== id))} />
     </div>
