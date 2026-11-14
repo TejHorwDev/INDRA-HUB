@@ -11,7 +11,7 @@ interface Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const SKINS: Record<NonNullable<Props['variant']>, string> = {
   solid:
-    'bg-gradient-to-b from-[#b3a8d1] to-[#8f86b8] text-[#0b0a0f] hover:from-[#bcb2d8] hover:to-[#9a91c2]',
+    'bg-gradient-to-b from-[#ffffff] to-[#d6d6db] text-[#0a0a0c] hover:from-[#ffffff] hover:to-[#e2e2e6]',
   ghost:
     'border border-[var(--hairline)] bg-[var(--color-raised)] text-[var(--color-ink)] hover:border-[var(--hairline-strong)] hover:bg-[#17171b]',
   success: 'bg-[var(--color-success)] text-[#06110d] hover:brightness-[1.06]'

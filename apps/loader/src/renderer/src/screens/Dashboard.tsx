@@ -85,7 +85,7 @@ export default function Dashboard({
         */}
       {config.notice ? (
         <div
-          className="absolute top-[46px] rounded-lg border border-[var(--color-edge)] bg-[rgba(167,155,199,0.07)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--color-ink-2)]"
+          className="absolute top-[46px] rounded-lg border border-[var(--color-edge)] bg-[rgba(255,255,255,0.05)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--color-ink-2)]"
           role="status"
           style={{ left: GUTTER, right: GUTTER }}
         >

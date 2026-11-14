@@ -20,7 +20,7 @@ const Field = forwardRef<HTMLInputElement, Props>(function Field(
 ) {
   return (
     <div
-      className="relative flex items-center border border-[var(--hairline)] bg-[var(--color-raised)] transition-colors duration-150 focus-within:border-[rgba(167,155,199,0.4)]"
+      className="relative flex items-center border border-[var(--hairline)] bg-[var(--color-raised)] transition-colors duration-150 focus-within:border-[rgba(255,255,255,0.34)]"
       style={{ width, height, borderRadius: 10 }}
     >
       <input
@@ -29,7 +29,7 @@ const Field = forwardRef<HTMLInputElement, Props>(function Field(
         className={[
           'h-full w-full bg-transparent px-3.5 text-[12.5px] text-[var(--color-ink)]',
           'placeholder:text-[var(--color-ink-3)] focus:outline-none',
-          'caret-[var(--color-accent)] selection:bg-[rgba(167,155,199,0.25)]',
+          'caret-[var(--color-accent)] selection:bg-[rgba(255,255,255,0.22)]',
           className
         ].join(' ')}
         style={{ borderRadius: 10 }}

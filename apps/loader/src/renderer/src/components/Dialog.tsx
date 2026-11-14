@@ -63,7 +63,7 @@ export default function Dialog({
             type="button"
             autoFocus
             onClick={onPrimary}
-            className="h-8 rounded-md bg-gradient-to-b from-[#b3a8d1] to-[#8f86b8] px-3 text-[11.5px] font-medium text-[#0b0a0f] transition-[filter] duration-150 hover:brightness-[1.05] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+            className="h-8 rounded-md bg-gradient-to-b from-[#ffffff] to-[#d6d6db] px-3 text-[11.5px] font-medium text-[#0b0a0f] transition-[filter] duration-150 hover:brightness-[1.05] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
           >
             {primary}
           </button>
