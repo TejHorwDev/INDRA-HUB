@@ -1,8 +1,8 @@
 {
   "name": "indra-hub",
-  "version": "2.9.29",
+  "version": "2.9.30",
   "private": true,
-  "description": "INDRA HUB — desktop workspace",
+  "description": "INDRA HUB \u2014 desktop workspace",
   "author": "TejHorwDev",
   "main": "./out/main/bootstrap.js",
   "engines": {

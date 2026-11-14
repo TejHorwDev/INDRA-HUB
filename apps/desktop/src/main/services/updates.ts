@@ -12,6 +12,14 @@ import {
   runningVersion,
   writePending
 } from '../lib/payload'
+import {
+  assetUrl,
+  manifestUrl,
+  releaseListUrl,
+  selectRelease,
+  type Release,
+  type SelectedRelease
+} from '../lib/releases'
 
 /*
  * In-app updates.
@@ -29,8 +37,19 @@ import {
  */
 
 const REPO = 'TejHorwDev/INDRA-HUB'
-const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/payload.json`
-const API_URL = `https://api.github.com/repos/${REPO}/releases/latest`
+
+/*
+ * Two applications publish releases from this repository, so `releases/latest`
+ * is no longer a question with one answer: it returns whichever app released most
+ * recently. The hub tags `v<version>` and the loader tags `loader-v<version>`, and
+ * the prefix is the whole separation between them.
+ *
+ * This is not hypothetical. The day `loader-v1.0.0` was published, `latest`
+ * started answering with the loader's manifest — harmless only because 1.0.0 sorts
+ * below 2.9.x. At loader 3.0.0 the hub would have downloaded the loader's payload
+ * and booted it.
+ */
+const TAG_PREFIX = 'v'
 const FIRST_CHECK_DELAY_MS = 3_000
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 const FOCUS_CHECK_AFTER_MS = 60 * 60 * 1000
@@ -182,14 +201,13 @@ interface Diagnosis {
 }
 
 async function diagnose(): Promise<Diagnosis> {
-  const api = await probe('https://api.github.com/repos/TejHorwDev/INDRA-HUB/releases/latest', {
+  const api = await probe(releaseListUrl(REPO), {
     headers: { accept: 'application/vnd.github+json' }
   })
   const apiOk = /HTTP 2\d\d/.test(api)
-  const download = await probe(
-    'https://github.com/TejHorwDev/INDRA-HUB/releases/latest/download/payload.json',
-    { headers: { range: 'bytes=0-0' } }
-  )
+  // The repository page, not a derived asset path: what is being tested is
+  // whether the download host answers at all.
+  const download = await probe(`https://github.com/${REPO}`, { headers: { range: 'bytes=0-0' } })
   const githubOk = /HTTP [23]\d\d/.test(download)
 
   const text = `api.github.com ${api} · github.com ${download}`
@@ -239,38 +257,31 @@ export async function diagnoseConnection(): Promise<UpdateDiagnostics> {
     }
   }
 
-  const apiOk = await run('GitHub API', async () => {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 10_000)
-    try {
-      const response = await request(API_URL, {
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: { accept: 'application/vnd.github+json' }
-      })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const body = (await response.json()) as { tag_name?: string }
-      latestVersion = typeof body.tag_name === 'string' ? body.tag_name.replace(/^v/i, '') : null
-      return latestVersion ? `newest release is ${latestVersion}` : 'reachable'
-    } finally {
-      clearTimeout(timer)
-    }
+  const apiOk = await run('Release list', async () => {
+    const release = await latestRelease()
+    if (!release) return 'reachable — no release of this app has been published yet'
+    latestVersion = release.version
+    return `newest release is ${release.tag}`
   })
 
   const manifestOk = await run('Update manifest', async () => {
-    const manifest = await fetchManifest()
+    const release = await latestRelease()
+    if (!release) throw new Error('no release of this app has been published yet')
+    const manifest = await fetchManifest(release)
     if (!latestVersion) latestVersion = manifest.version
     return `version ${manifest.version}, payload ${Math.round(manifest.size / 1024)} KB`
   })
 
   const downloadOk = await run('Payload download', async () => {
-    const manifest = await fetchManifest()
+    const release = await latestRelease()
+    if (!release) throw new Error('no release of this app has been published yet')
+    const manifest = await fetchManifest(release)
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15_000)
     try {
       // One byte is enough: this proves the host serves the file, not just that
       // the URL exists.
-      const response = await request(manifestUrl(manifest), {
+      const response = await request(payloadUrl(manifest, release), {
         signal: controller.signal,
         cache: 'no-store',
         headers: { range: 'bytes=0-0' }
@@ -298,16 +309,43 @@ export async function diagnoseConnection(): Promise<UpdateDiagnostics> {
   }
 }
 
-function manifestUrl(manifest: Manifest): string {
+function payloadUrl(manifest: Manifest, release: SelectedRelease): string {
+  // The manifest may name its own asset; otherwise the tag it came from decides.
   if (manifest.url) return manifest.url
-  return `https://github.com/TejHorwDev/INDRA-HUB/releases/latest/download/${manifest.file}`
+  return assetUrl(REPO, release.tag, manifest.file)
 }
 
-async function fetchManifest(): Promise<Manifest> {
+/**
+ * Asks GitHub which release is this app's newest. `null` when there is none.
+ *
+ * The prefix does the filtering: a `loader-v1.0.0` tag cannot match `v`, so the
+ * other application's releases are not merely deprioritised, they are invisible.
+ */
+async function latestRelease(): Promise<SelectedRelease | null> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), MANIFEST_TIMEOUT_MS)
   try {
-    const response = await request(MANIFEST_URL, {
+    const response = await request(releaseListUrl(REPO), {
+      signal: controller.signal,
+      cache: 'no-store',
+      redirect: 'follow',
+      headers: { accept: 'application/vnd.github+json', 'cache-control': 'no-cache' }
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+    const body = (await response.json()) as Release[]
+    if (!Array.isArray(body)) throw new Error('the release list is not valid')
+    return selectRelease(body, TAG_PREFIX)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function fetchManifest(release: SelectedRelease): Promise<Manifest> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), MANIFEST_TIMEOUT_MS)
+  try {
+    const response = await request(manifestUrl(REPO, release.tag), {
       signal: controller.signal,
       redirect: 'follow',
       cache: 'no-store',
@@ -335,6 +373,12 @@ async function fetchManifest(): Promise<Manifest> {
       throw new Error('the update manifest is not valid')
     }
 
+    // The tag is the authority on version. A manifest that disagrees with the
+    // release it came from is a publishing mistake, not an upgrade.
+    if (compareVersions(body.version, release.version) !== 0) {
+      throw new Error(`the manifest says ${body.version} but the release is ${release.version}`)
+    }
+
     return { ...body, size: Number(body.size) || 0 } as Manifest
   } finally {
     clearTimeout(timer)
@@ -347,19 +391,19 @@ async function fetchManifest(): Promise<Manifest> {
  * A first request on a cold network routinely loses its TLS handshake or waits
  * out the first byte; a second attempt a moment later almost never does.
  */
-async function fetchManifestWithRetry(): Promise<Manifest> {
+async function fetchManifestWithRetry(release: SelectedRelease): Promise<Manifest> {
   try {
-    return await fetchManifest()
+    return await fetchManifest(release)
   } catch (error) {
     if (/HTTP 4\d\d/i.test(technical(error))) throw error
     console.warn('[updates] manifest attempt failed, retrying once', technical(error))
     await new Promise((resolve) => setTimeout(resolve, 1_500))
-    return fetchManifest()
+    return fetchManifest(release)
   }
 }
 
 /** Streams the payload to disk, reporting progress, and proves what arrived. */
-async function downloadPayload(manifest: Manifest): Promise<string> {
+async function downloadPayload(manifest: Manifest, release: SelectedRelease): Promise<string> {
   // The manifest names a release asset; never a path.
   const name = basename(manifest.file)
 
@@ -390,7 +434,7 @@ async function downloadPayload(manifest: Manifest): Promise<string> {
   let lastProgress = 0
 
   try {
-    const response = await request(manifestUrl(manifest), {
+    const response = await request(payloadUrl(manifest, release), {
       signal: controller.signal,
       redirect: 'follow',
       cache: 'no-store'
@@ -460,7 +504,24 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
   setState({ phase: 'checking', message: manual ? 'Checking for updates…' : null, detail: null })
 
   try {
-    const manifest = await fetchManifestWithRetry()
+    const release = await latestRelease()
+
+    // Nothing of *this* app has been published. The other application in this
+    // repository may well have releases; they are none of our business.
+    if (!release) {
+      setState({
+        phase: 'up-to-date',
+        version: null,
+        percent: 0,
+        canInstall: false,
+        detail: null,
+        checkedAt: new Date().toISOString(),
+        message: `You are on the newest version (${runningVersion()}).`
+      })
+      return updateState()
+    }
+
+    const manifest = await fetchManifestWithRetry(release)
     const current = runningVersion()
 
     if (compareVersions(manifest.version, current) <= 0) {
@@ -500,7 +561,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
       message: `Version ${manifest.version} is downloading.`
     })
 
-    const file = await downloadPayload(manifest)
+    const file = await downloadPayload(manifest, release)
     writePending({ version: manifest.version, file, sha256: manifest.sha256, size: manifest.size })
 
     setState({
