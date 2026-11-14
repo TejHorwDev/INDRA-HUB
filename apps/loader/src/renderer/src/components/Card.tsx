@@ -2,7 +2,12 @@ import type { InstallView, LoaderApp } from '@shared/types'
 import Monogram from './Monogram'
 
 /*
- * One product, 296 tall.
+ * One product, one square.
+ *
+ * The rail hands every card the same 232×232 box, so the artwork is the same size
+ * whether there are two products or twenty, and a row of them lines up on every
+ * edge. The image keeps the top of the square and everything that can be read is
+ * underneath it.
  *
  * The lift on hover is two pixels and the border brightens — no scale, no glow.
  * A card that is not openable still looks deliberate: same surface, dimmer
@@ -24,7 +29,7 @@ export default function Card({ app, available, install, onOpen }: Props): React.
       className="group relative flex h-full flex-col overflow-hidden border border-[var(--hairline)] bg-[var(--color-surface)] text-left transition-[transform,border-color,box-shadow] duration-200 ease-[cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:border-[var(--hairline-strong)] hover:shadow-[0_18px_40px_-18px_rgba(0,0,0,0.9)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
       style={{ borderRadius: 14, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
     >
-      <div className="relative h-[132px] w-full shrink-0 overflow-hidden border-b border-[var(--hairline)]">
+      <div className="relative h-[128px] w-full shrink-0 overflow-hidden border-b border-[var(--hairline)]">
         <Monogram name={app.name} image={app.image} />
         {available ? null : (
           <div className="absolute inset-0 grid place-items-center bg-[#08080a]/55 backdrop-blur-[1px]">
@@ -33,7 +38,7 @@ export default function Card({ app, available, install, onOpen }: Props): React.
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 py-3.5">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-[13.5px] font-semibold text-[var(--color-ink)]">
             {app.name}

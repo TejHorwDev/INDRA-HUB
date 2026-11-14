@@ -90,6 +90,32 @@ const offenders = walk(renderer).filter((file) => {
 })
 check('no component makes itself draggable', offenders.length === 0, offenders.map((f) => relative(root, f)).join(', '))
 
+console.log('\nThe library grid')
+/*
+ * Three squares, one size, one left edge.
+ *
+ * The cards used to be `flex-1`, so two products produced two wide cards and three
+ * produced three narrow ones — the artwork changed size with the length of the
+ * catalogue, and a row never lined up twice. The rail is now arithmetic, and the
+ * arithmetic is checked here rather than in a screenshot.
+ */
+const dash = code(readFileSync(join(renderer, 'screens/Dashboard.tsx'), 'utf8'))
+const num = (name) => Number((dash.match(new RegExp(`const ${name} = ([\\d.]+)`)) ?? [])[1])
+
+const pageSize = num('PAGE_SIZE')
+const card = num('CARD')
+const gap = num('GAP')
+/* The rail is the expression, not a number — so the expression is what is read. */
+const railFits = /const RAIL_WIDTH = PAGE_SIZE \* CARD \+ \(PAGE_SIZE - 1\) \* GAP/.test(dash)
+const span = pageSize * card + (pageSize - 1) * gap
+
+check('three to a page', pageSize === 3, String(pageSize))
+check('the cards are square and the same size', card > 0 && /style=\{\{ width: CARD \}\}/.test(dash), String(card))
+check('the rail is exactly three cards and two gaps', railFits, 'the width is not derived from both')
+check('the rail fits inside the window with room for the arrows', span <= 900 - 96, `${span}px of 804`)
+check('nothing stretches a card to fill the row', !/min-w-0 flex-1/.test(dash))
+check('more than three becomes a page, not a smaller card', /Math\.ceil\(apps\.length \/ PAGE_SIZE\)/.test(dash))
+
 console.log('\nThe landing page')
 const landing = code(readFileSync(join(renderer, 'screens/Landing.tsx'), 'utf8'))
 check('has no social row', !/FOLLOW US|Follow us|instagram-icon|SocialMark/i.test(landing))
