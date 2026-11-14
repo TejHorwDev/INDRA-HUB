@@ -90,6 +90,13 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
         setProbe(null)
         toast.success('Background video installed. The sign-in screen now plays it.')
         await refresh()
+      } else {
+        /*
+         * The dialog closed without a file. Saying so is not noise: it is the
+         * difference between "the app refused my video" and "I never actually
+         * handed it one", and the two used to look identical.
+         */
+        setError('No video was chosen, so nothing changed. The reason is also in Activity.')
       }
     } catch (caught) {
       setError(errorMessage(caught))

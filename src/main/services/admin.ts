@@ -1088,6 +1088,22 @@ export function installAppearanceVideo(sourcePath: string, originalName: string)
   return next
 }
 
+/**
+ * Recording a background video that was refused, or never chosen.
+ *
+ * Uploading a file and having nothing happen is the worst kind of failure: no
+ * error, no change, and no way to tell whether the app disagreed with the file
+ * or the dialog simply closed. Every outcome is written to the audit trail now,
+ * so the Activity screen answers the question instead of the guesswork.
+ */
+export function noteAppearanceOutcome(message: string): void {
+  try {
+    audit('appearance_updated', message, adminRow()?.id ?? 'appearance')
+  } catch {
+    // Logging must never be the reason a dialog fails.
+  }
+}
+
 export function clearAppearanceVideo(): LoginAppearance {
   const admin = requireAdmin()
   const next = removeLoginBackground()

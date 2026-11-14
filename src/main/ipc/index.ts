@@ -142,7 +142,8 @@ import {
   requireAdmin,
   updateAdminIdentity,
   updateAppearanceTreatment,
-  updateSettings
+  updateSettings,
+  noteAppearanceOutcome
 } from '../services/admin'
 import { publicStatus } from '../services/settings'
 import {
@@ -1067,8 +1068,26 @@ export function registerIpcHandlers(): void {
         ? await dialog.showOpenDialog(window, options)
         : await dialog.showOpenDialog(options)
       const chosen = result.canceled ? null : (result.filePaths[0] ?? null)
-      if (!chosen) return null
-      const next = installAppearanceVideo(chosen, basename(chosen))
+      if (!chosen) {
+        /*
+         * Said out loud, in Activity. A dialog that closes without a file used
+         * to be indistinguishable from a file the app quietly refused.
+         */
+        noteAppearanceOutcome('Background video: the file dialog was closed without choosing a file.')
+        return null
+      }
+
+      let next: LoginAppearance
+      try {
+        next = installAppearanceVideo(chosen, basename(chosen))
+      } catch (error) {
+        noteAppearanceOutcome(
+          `Background video refused: ${basename(chosen)} — ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+        throw error
+      }
       // The bytes are published by the workspace client, which uploads them
       // before it updates the row.
       queuePush()
