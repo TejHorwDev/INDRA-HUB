@@ -13,7 +13,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -29,7 +29,7 @@ const check = (label, ok, detail = '') => {
   if (!ok) failures += 1
 }
 
-async function bundle(entry, outfile) {
+async function bundle(entry, outfile, stubElectron = false) {
   await build({
     entryPoints: [join(root, entry)],
     outfile,
@@ -37,9 +37,29 @@ async function bundle(entry, outfile) {
     platform: 'node',
     format: 'esm',
     target: 'node20',
-    logLevel: 'silent'
+    logLevel: 'silent',
+    plugins: stubElectron ? [electronStub] : []
   })
   return import(`${pathToFileURL(outfile).href}?t=${Date.now()}`)
+}
+
+/** Only the two facts the install registry asks of `app`. */
+const electronStub = {
+  name: 'electron-stub',
+  setup(build) {
+    build.onResolve({ filter: /^electron$/ }, () => ({ path: 'electron', namespace: 'stub' }))
+    build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
+      contents: `
+        const stub = globalThis.__electron__ ?? {}
+        export const app = {
+          getPath: (name) => (name === 'userData' ? stub.userData : stub.documents),
+          getVersion: () => '0.0.0',
+          isPackaged: true
+        }
+      `,
+      loader: 'js'
+    }))
+  }
 }
 
 async function main() {
@@ -176,7 +196,54 @@ async function main() {
   check('stops when it is cancelled', cancelCode !== 'no error', cancelCode)
   check('never produces an installed file', !existsSync(cancelTarget))
 
-  /* ------------------------------------------------------------- 5. names */
+  /* ------------------------------------------------- 5. downloaded once */
+
+  /*
+   * "Downloaded once" is the whole feature: a machine that already has the file must
+   * not fetch it again, must remember that across restarts, and must notice when the
+   * file has gone. That last one is what brings the Download button back.
+   */
+  console.log('\nDownloaded once')
+  const userData = join(work, 'userdata')
+  mkdirSync(userData, { recursive: true })
+  globalThis.__electron__ = { userData, documents: join(work, 'documents') }
+
+  const installed = await bundle('src/main/services/installed.ts', join(work, 'installed.mjs'), true)
+  const library = installed.downloadTarget('Nova Drift')
+
+  check(
+    'the library lives inside the loader folder',
+    library.exe.startsWith(join(userData, 'downloads')),
+    library.exe
+  )
+  check('one folder per product', library.dir.endsWith(join('downloads', 'Nova Drift')), library.dir)
+
+  mkdirSync(library.dir, { recursive: true })
+  writeFileSync(library.exe, Buffer.alloc(4096, 7))
+  installed.record({
+    id: 'nova',
+    name: 'Nova Drift',
+    version: '1.0.0',
+    exe: library.exe,
+    bytes: 4096,
+    downloadedAt: new Date().toISOString()
+  })
+
+  check('a recorded file counts as downloaded', installed.installed('nova') !== null)
+  check('and it is in the list the screens read', installed.allInstalled().length === 1)
+
+  // Truncated by anything — a failed copy, a disk that filled up — is not downloaded.
+  writeFileSync(library.exe, Buffer.alloc(1024, 7))
+  check('a file of the wrong size is not downloaded', installed.installed('nova') === null)
+
+  writeFileSync(library.exe, Buffer.alloc(4096, 7))
+  check('restoring the right bytes restores the state', installed.installed('nova') !== null)
+
+  unlinkSync(library.exe)
+  check('deleting the file brings the download back', installed.installed('nova') === null)
+  check('and takes it out of the list', installed.allInstalled().length === 0)
+
+  /* ------------------------------------------------------------- 6. names */
 
   console.log('\nFile names from a hostile field')
   const safe = paths.safeName('../../Windows/System32')

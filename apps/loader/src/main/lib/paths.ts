@@ -1,8 +1,13 @@
+import { join } from 'node:path'
+
 /*
  * Where a downloaded application lives, and what it is called.
  *
- * The rules are the ones the design fixes: a folder per product under
- * `Documents\INDRA APPS`, holding an executable with the product's own name.
+ * One folder per product under `%APPDATA%\INDRA LOADER\downloads`, holding an
+ * executable with the product's own name. It used to be `Documents\INDRA APPS`, which
+ * scattered the loader's own files across a folder that belongs to the user — and left
+ * the app unable to answer "what have I already downloaded?" without a second place to
+ * look. Everything this app owns is now in the one folder it owns.
  *
  * Names come from a database an admin types into, so they are treated as hostile
  * input: every character Windows refuses in a file name becomes an underscore and
@@ -30,15 +35,19 @@ export function exeName(name: string): string {
   return `${base}.exe`
 }
 
+/** The library: `%APPDATA%\INDRA LOADER\downloads`. */
+export function libraryDir(userData: string): string {
+  return join(userData, 'downloads')
+}
+
 export interface AppPaths {
-  /** `…\Documents\INDRA APPS\<name>` */
+  /** `…\INDRA LOADER\downloads\<name>` */
   dir: string
-  /** `…\Documents\INDRA APPS\<name>\<name>.exe` */
+  /** `…\INDRA LOADER\downloads\<name>\<name>.exe` */
   exe: string
 }
 
-export function appPaths(documents: string, name: string): AppPaths {
-  const folder = safeName(name)
-  const dir = `${documents}\\INDRA APPS\\${folder}`
-  return { dir, exe: `${dir}\\${exeName(name)}` }
+export function appPaths(library: string, name: string): AppPaths {
+  const dir = join(library, safeName(name))
+  return { dir, exe: join(dir, exeName(name)) }
 }

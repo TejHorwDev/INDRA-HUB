@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const renderer = join(root, 'src/renderer/src')
+const main = join(root, 'src/main')
 
 let failures = 0
 const check = (label, ok, detail = '') => {
@@ -186,6 +187,26 @@ check(
   /left=\{28\}/.test(detail) && /left=\{834\}/.test(detail)
 )
 check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detail))
+
+/*
+ * Downloaded once, and never twice.
+ *
+ * The Download button used to exist whether or not the file did — and on a restart the
+ * loader forgot what it had, because the state came from an in-memory map that starts
+ * empty. Both are checked here and in sim:download, from the disk.
+ */
+check('the download button is rendered once, for the not-downloaded case', (detail.match(/onClick=\{onDownload\}/g) ?? []).length === 1)
+check('the installed state offers launch instead', /installed \? \([\s\S]{0,1200}onLaunch/.test(detail))
+check('and says so in the status line', /Downloaded/.test(detail))
+
+const service = code(readFileSync(join(main, 'services/downloads.ts'), 'utf8'))
+const registry = code(readFileSync(join(main, 'services/installed.ts'), 'utf8'))
+
+check('the screens read the disk, not a memory of it', /for \(const entry of allInstalled\(\)\)/.test(service))
+check('a restart cannot forget a download', /readRegistry\(\)/.test(service))
+check('an existing file is never fetched again', /const already = installed\(id\)/.test(service))
+check('a truncated file counts as missing', /info\.size !== entry\.bytes/.test(registry))
+check('the library lives in the loader folder', /libraryDir\(app\.getPath\('userData'\)\)/.test(registry))
 
 console.log('\nThe connecting screen')
 /*
