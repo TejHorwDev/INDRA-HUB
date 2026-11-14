@@ -1,0 +1,38 @@
+name: Check loader API
+
+# The panel is a separate deployment, so it gets a separate check. Runs only when
+# something under apps/loader-api changed — a loader release should not have to
+# wait for a Next.js build, and vice versa.
+on:
+  push:
+    paths: ['apps/loader-api/**', '.github/workflows/loader-api.yml']
+    branches: [main]
+  pull_request:
+    paths: ['apps/loader-api/**', '.github/workflows/loader-api.yml']
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/loader-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/loader-api/package-lock.json
+
+      - run: npm ci
+
+      - name: Types
+        run: npm run lint
+
+      # Passwords, session tokens, storage keys, and that no admin route is
+      # reachable without a session.
+      - name: Behaviour
+        run: npm run sim
+
+      - name: Build
+        run: npm run build

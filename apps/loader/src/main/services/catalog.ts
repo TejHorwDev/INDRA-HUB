@@ -10,7 +10,18 @@ import type { Catalogue, LoaderApp, LoaderConfig } from '@shared/types'
  * and both should look calm.
  */
 
-const API_BASE = (process.env['INDRA_LOADER_API'] ?? '').replace(/\/+$/, '')
+/*
+ * Where the catalogue lives.
+ *
+ * `__LOADER_API__` is replaced at build time (see `electron.vite.config.ts`), so a
+ * released installer carries the address inside it. A runtime environment variable
+ * still works for development, where nobody wants to rebuild to change a URL.
+ */
+declare const __LOADER_API__: string
+
+const API_BASE = (
+  typeof __LOADER_API__ === 'string' && __LOADER_API__ ? __LOADER_API__ : (process.env['INDRA_LOADER_API'] ?? '')
+).replace(/\/+$/, '')
 
 const EMPTY_CONFIG: LoaderConfig = { website: '' }
 
