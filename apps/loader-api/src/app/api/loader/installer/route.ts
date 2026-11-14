@@ -30,6 +30,36 @@ export async function GET(request: Request): Promise<Response> {
     const name = `INDRA-LOADER-Setup-${release.version}.exe`
     const url = `https://github.com/TejHorwDev/INDRA-HUB/releases/download/${release.tag}/${name}`
 
+    /*
+     * `?probe=1` answers with the size instead of the bytes.
+     *
+     * A 120 MB window is not a way to check whether a download works, and the panel
+     * wants to print "what is published" without pulling the file. One range request
+     * for the first byte gets GitHub's own `content-range`, which carries the total.
+     */
+    if (new URL(request.url).searchParams.get('probe') === '1') {
+      const probe = await fetch(url, {
+        redirect: 'follow',
+        cache: 'no-store',
+        headers: { range: 'bytes=0-0' }
+      })
+      const total = Number(
+        /\/(\d+)$/.exec(probe.headers.get('content-range') ?? '')?.[1] ??
+          probe.headers.get('content-length') ??
+          0
+      )
+      return Response.json(
+        {
+          version: release.version,
+          tag: release.tag,
+          name,
+          bytes: Number.isFinite(total) ? total : 0,
+          reachable: probe.ok || probe.status === 206
+        },
+        { headers: { 'cache-control': 'no-store' } }
+      )
+    }
+
     const range = request.headers.get('range')
     const upstream = await fetch(url, {
       redirect: 'follow',
