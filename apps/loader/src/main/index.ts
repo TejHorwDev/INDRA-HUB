@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import { APP_NAME, applyIdentity } from './lib/identity'
 import { markHealthy } from './lib/payload'
+import { forgetStoredSession } from './services/auth'
 import { registerIpc } from './ipc'
 import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 import { startWithLaunchCard } from './launch'
@@ -201,6 +202,13 @@ app.whenReady().then(() => {
    * "healthy" was always meant to mean.
    */
   markHealthy()
+
+  /*
+   * A token from a release that remembered sessions is deleted, not ignored.
+   * This build never reads it — which is exactly why it should not exist.
+   */
+  forgetStoredSession()
+
   applyContentSecurityPolicy()
   registerIpc({
     closeWindow: () => mainWindow?.close(),

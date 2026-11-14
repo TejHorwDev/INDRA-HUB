@@ -1,5 +1,5 @@
-import { app, safeStorage } from 'electron'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { app } from 'electron'
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AuthResult, SessionInfo } from '@shared/types'
 import { deviceId } from '../lib/device'
@@ -10,14 +10,13 @@ import { deviceId } from '../lib/device'
  * Talks to INDRA Auth's client API (`/v1/*`) from the main process only. Two
  * consequences, both deliberate:
  *
- *  - The token never enters the renderer. It lives in the module below and is
- *    written to disk only through the operating system's secret store — DPAPI on
- *    Windows, via Electron's `safeStorage` — so what is on disk is ciphertext that
- *    only this user on this machine can open. Nothing ever logs it.
+ *  - The token never enters the renderer and is never written down. It lives in
+ *    the module below for the length of the session and is gone when the app is.
  *
- * The session is remembered because of what a forgotten one costs: this app
- * restarts itself to apply updates, and a restart that lands on a password box is
- * indistinguishable from a crash. Remembered, an update is a two-second blink.
+ * There was a release in which it was remembered — encrypted with the OS secret
+ * store, restored after an update restart — and it was wrong twice over: it removed
+ * the sign-in screen from the app, and it decided who was signed in on somebody's
+ * behalf. The app asks. Every time, on every launch, without exceptions.
  *  - Requests are not browser requests, so there is no CORS preflight and no
  *    origin allowlist to negotiate with the auth service.
  *
@@ -51,121 +50,19 @@ interface Session {
 
 let session: Session | null = null
 
-/** The remembered session, in the OS secret store. Ciphertext, never the token. */
-const SESSION_FILE = 'session.bin'
-const sessionFile = (): string => join(app.getPath('userData'), SESSION_FILE)
-
-/**
- * Writes the session down, encrypted.
+/*
+ * Nothing of a previous release's remembered session is left behind.
  *
- * `safeStorage` is not available on every Linux desktop (no keyring, no libsecret),
- * and a session that cannot be encrypted is not written at all — a plaintext token
- * on disk is worse than signing in again.
+ * That file held a real token, encrypted with the OS secret store. It is not used by
+ * this build at all, so the only honest thing to do with it is delete it — a token on
+ * disk is a token on disk whether or not the code that wrote it still exists.
  */
-function remember(next: Session): void {
-  try {
-    if (!safeStorage.isEncryptionAvailable()) return
-    writeFileSync(sessionFile(), safeStorage.encryptString(JSON.stringify(next)))
-  } catch (error) {
-    console.warn('[auth] could not remember the session', error instanceof Error ? error.message : error)
-  }
-}
-
-function forget(): void {
-  try {
-    rmSync(sessionFile(), { force: true })
-  } catch {
-    /* nothing to forget */
-  }
-}
-
-function recalled(): Session | null {
-  try {
-    if (!existsSync(sessionFile()) || !safeStorage.isEncryptionAvailable()) return null
-    const raw = safeStorage.decryptString(readFileSync(sessionFile()))
-    const parsed = JSON.parse(raw) as Partial<Session>
-    if (typeof parsed.token !== 'string' || !parsed.token) return null
-    return {
-      token: parsed.token,
-      username: typeof parsed.username === 'string' ? parsed.username : '',
-      expires: typeof parsed.expires === 'string' ? parsed.expires : null
-    }
-  } catch {
-    return null
-  }
-}
-
-/** Past its own expiry, by the clock rather than by a guess. Never tried. */
-function expired(next: Session): boolean {
-  if (!next.expires) return false
-  const at = Date.parse(next.expires)
-  return Number.isFinite(at) && at < Date.now()
-}
-
-/**
- * Does the token still work?
- *
- * `GET /v1/apps` is the one endpoint this app already calls with the token, so it is
- * also the cheapest way to ask. An explicit refusal drops the session and shows the
- * form; no answer at all keeps it, because being offline is not the same as being
- * signed out and demanding a password for a flat network would be a bug of its own.
- */
-async function stillValid(token: string): Promise<boolean> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 12_000)
-  try {
-    const response = await fetch(`${AUTH_BASE}/v1/apps`, {
-      signal: controller.signal,
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${token}`,
-        'x-session-token': token
-      },
-      cache: 'no-store'
-    })
-    if (response.status === 401 || response.status === 403) return false
-    return true
-  } catch {
-    return true
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-/** Reused instead of relogging: null until asked for, once. */
-let restoring: Promise<SessionInfo | null> | null = null
-
-/**
- * The session from the last run, if it is still good.
- *
- * Called once as the window comes up. Everything about it is a refusal to make
- * somebody type a password they already typed: the file is only accepted when the
- * OS can decrypt it, the expiry is checked before any request, and the token is
- * checked before any screen is skipped.
- */
-export function restoreSession(): Promise<SessionInfo | null> {
-  if (session) return Promise.resolve(currentSession())
-  restoring ??= (async () => {
-    const saved = recalled()
-    if (!saved) return null
-    if (expired(saved) || !(await stillValid(saved.token))) {
-      forget()
-      return null
-    }
-    session = saved
-    return currentSession()
-  })().finally(() => {
-    restoring = null
-  })
-  return restoring
-}
-
 /**
  * The bearer token, for the one service that needs it.
  *
- * Module-private by intent: this is the only way anything outside this file can
- * reach the token, and it exists solely so the entitlement lookup can present it.
- * It is never passed to the renderer, never written down, never logged.
+ * Module-private by intent: this is the only way anything outside this file can reach
+ * the token, and it exists solely so the entitlement lookup can present it. It is never
+ * passed to the renderer, never written down, never logged.
  */
 export function sessionToken(): string | null {
   return session?.token ?? null
@@ -177,6 +74,14 @@ export function authBase(): string {
 
 export function currentSession(): SessionInfo | null {
   return session ? { username: session.username, expires: session.expires } : null
+}
+
+export function forgetStoredSession(): void {
+  try {
+    rmSync(join(app.getPath('userData'), 'session.bin'), { force: true })
+  } catch {
+    /* nothing to forget */
+  }
 }
 
 /**
@@ -279,7 +184,6 @@ export async function login(username: string, password: string): Promise<AuthRes
     username: typeof body.username === 'string' && body.username ? body.username : user,
     expires: typeof body.expires === 'string' ? body.expires : null
   }
-  remember(session)
 
   return { ok: true, username: session.username, expires: session.expires }
 }
@@ -293,7 +197,7 @@ export async function login(username: string, password: string): Promise<AuthRes
 export async function logout(): Promise<void> {
   const active = session
   session = null
-  forget()
+  forgetStoredSession()
   if (!active) return
 
   try {

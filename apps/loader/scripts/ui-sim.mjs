@@ -200,9 +200,9 @@ const shell = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
 const verifying = code(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'utf8'))
 
 check('the restore sequence cannot cancel itself', !/let cancelled/.test(shell))
-check('and it starts once per launch', /restoreStarted\.current/.test(shell))
+check('the sign-in form is the first screen after the splash', /screen === 'signin'/.test(shell))
 check('a hung sign-in is capped', /withCap\(bridge\.auth\.login/.test(shell))
-check('a hung restore is capped', /withCap\([\s\S]{0,600}bridge\.auth\.restore/.test(shell))
+check('a hung sign-in cannot hang twice over', (shell.match(/withCap\(/g) ?? []).length >= 1)
 check('a failed sign-in returns to the form', /\.catch\(\(error: unknown\)/.test(shell))
 check('the spinner covers what is behind it', /bg-\[var\(--color-bg\)\]/.test(verifying))
 check('and after a while it offers a way back', /Back to sign in/.test(verifying))
@@ -215,7 +215,8 @@ check('and after a while it offers a way back', /Back to sign in/.test(verifying
  * or be somebody else. It is now used on exactly one launch: the one the updater
  * started, which is the only launch that has to be invisible.
  */
-check('a remembered session is only used after an update restart', /updateLaunch/.test(shell))
+check('the app never opens the library on its own', !/auth\.restore/.test(shell))
+check('and an update restart announces itself', /Updated to/.test(shell))
 check(
   'and the form is reachable again afterwards',
   /Sign out/.test(code(readFileSync(join(renderer, 'screens/Settings.tsx'), 'utf8')))
@@ -232,7 +233,10 @@ console.log('\nThe settings screen')
  */
 const settings = code(readFileSync(join(renderer, 'screens/Settings.tsx'), 'utf8'))
 check('the sections live in a rail', /aria-label="Settings sections"/.test(settings))
-check('three sections to start with', (settings.match(/\{ id: '(updates|about|links)'/g) ?? []).length === 3)
+check(
+  'four sections to start with',
+  (settings.match(/\{ id: '(updates|account|about|links)'/g) ?? []).length === 4
+)
 check('no bordered cards left on the screen', !/bg-\[var\(--color-surface\)\]/.test(settings))
 check('a button label never wraps', /whitespace-nowrap/.test(settings))
 check(

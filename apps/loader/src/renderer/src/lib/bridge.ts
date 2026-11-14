@@ -183,7 +183,6 @@ const mock: LoaderBridge = {
     check: async () => idle,
     install: async () => idle,
     log: async () => [],
-    updateLaunch: async () => false,
     // The browser preview has no main process to report to.
     activity: () => undefined,
     diagnose: async () => ({
@@ -217,8 +216,7 @@ const mock: LoaderBridge = {
     logout: async () => {
       mockSession = null
     },
-    session: async () => mockSession,
-    restore: async () => null
+    session: async () => mockSession
   },
 
   files: filesMock(),

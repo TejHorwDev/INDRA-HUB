@@ -170,29 +170,25 @@ function restartAlreadyTried(version: string): boolean {
 }
 
 /**
- * Was this launch a silent restart into a new version?
+ * The version this launch was restarted into, when it was the updater that did it.
  *
- * Read once, from the same claim the updater writes a second before it relaunches.
- * It answers one question and only one: may the app open the library instead of the
- * sign-in form? A normal launch has no claim, so a normal launch always signs in.
- *
- * The distinction is the whole point. Restoring a remembered session on *every*
- * launch quietly removed the sign-in screen from the app, which is not what an
- * updater was ever allowed to do. Restoring it on the one launch that the app
- * started by itself — the update — is the thing that makes an update look like a
- * blink instead of a crash.
+ * Read once at startup from the claim written a second before the relaunch, and only
+ * trusted when the running version is the one the claim named — so this is never a
+ * guess about what happened, it is the updater's own receipt. Used to say "updated"
+ * out loud, because an update that applies silently and then asks for a password is
+ * indistinguishable from one that never happened.
  */
-const updatedLaunch = (() => {
+const applied = (() => {
   try {
     const guard = readGuard()
-    return Boolean(guard && guard.target === runningVersion())
+    return guard && guard.target === runningVersion() ? guard.target : null
   } catch {
-    return false
+    return null
   }
 })()
 
-export function wasUpdatedLaunch(): boolean {
-  return updatedLaunch
+export function appliedUpdateVersion(): string | null {
+  return applied
 }
 
 function clearGuard(): void {
@@ -787,6 +783,33 @@ export function noteActivity(next: { screen?: string; typing?: boolean }): void 
 }
 
 /**
+ * Relaunch into the payload, once, correctly.
+ *
+ * Two lines here were the difference between an update and an app that closes:
+ *
+ *   app.relaunch(); app.exit(0)
+ *
+ * This app takes the single-instance lock at startup. `relaunch` spawns the new
+ * process while this one is still alive and still holding that lock, so the new
+ * process lost the race, `requestSingleInstanceLock()` answered false, and it exited
+ * before drawing anything. The old process then quit too. The update had applied; the
+ * window simply never came back, which from the outside looks exactly like "the
+ * updater is broken, sometimes".
+ *
+ * Releasing the lock first makes the handover ordered, and the short delay before
+ * `exit` lets the child start rather than being born into a dying parent.
+ */
+function relaunchNow(): void {
+  try {
+    app.releaseSingleInstanceLock()
+  } catch {
+    /* a lock that cannot be released is one less thing that can go wrong */
+  }
+  app.relaunch()
+  setTimeout(() => app.exit(0), 250)
+}
+
+/**
  * Restart into a ready payload, without asking, when nothing is at risk.
  *
  * The payload is on disk and verified before this is called — the restart only
@@ -875,8 +898,7 @@ function maybeAutoRestart(): void {
     }
 
     logLine(`restarting into ${pending.version}`)
-    app.relaunch()
-    app.exit(0)
+    relaunchNow()
   }, AUTO_RESTART_DELAY_MS)
 }
 
@@ -928,10 +950,7 @@ export function installUpdate(options: { manual?: boolean } = {}): UpdateState {
     return updateState()
   }
 
-  setImmediate(() => {
-    app.relaunch()
-    app.exit(0)
-  })
+  setImmediate(relaunchNow)
 
   return updateState()
 }

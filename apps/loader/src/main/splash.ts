@@ -42,7 +42,16 @@ const HEIGHT = 300
  * long as it needs — three minutes of visible progress — and anything past either
  * budget closes the card and finishes in the background, exactly as before.
  */
-const CHECK_GRACE_MS = 30_000
+/*
+ * A cold host is not a failure.
+ *
+ * Thirty seconds was chosen when the panel was assumed warm. On the first launch of a
+ * day it is not: a Render instance waking up plus a manifest fetch can cross half a
+ * minute, and the card would close with the answer still in the air — the update then
+ * arrived after the sign-in form was already up, which reads as "the update does not
+ * work at first". Forty-five is still bounded, and the card is a spinner, not a hang.
+ */
+const CHECK_GRACE_MS = 45_000
 const DOWNLOAD_GRACE_MS = 180_000
 
 export interface LaunchResult {
