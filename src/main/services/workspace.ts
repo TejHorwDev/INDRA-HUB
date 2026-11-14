@@ -460,7 +460,15 @@ export async function applyRemote(next: RemoteWorkspace): Promise<string | null>
      */
     try {
       if (!assetId) {
-        if (local) removeLoginBackground()
+        /*
+         * A shared row with no video erases the one on screen — but only when
+         * this machine is allowed to write that row. When the workspace belongs
+         * to another account, the admin could install a video, watch it vanish
+         * on the next reconcile, and have nothing to explain it: the push was
+         * silently skipped because this account owns nothing. Keep the local
+         * file in that case; it is the only copy that exists.
+         */
+        if (local && next.owned_by_me) removeLoginBackground()
       } else if (local?.id !== assetId) {
         if (!WORKSPACE_VIDEO_TYPES.includes(mime) || !next.background_path) {
           throw new Error('The shared workspace describes a video the app cannot play, so it was not installed.')
