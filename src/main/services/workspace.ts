@@ -14,6 +14,7 @@ import {
   normaliseUrl
 } from '@shared/workspace'
 import { getDatabase } from '../db/database'
+import { liveAccount, readStoredAccount } from '../lib/accountSession'
 import { errors } from '../lib/errors'
 import { sealSecret, unsealSecret } from '../lib/seal'
 import { adoptBackground, readLoginAppearance, readLoginBackgroundFile, removeLoginBackground, writeTreatment, treatmentPending, clearTreatmentPending
@@ -597,6 +598,7 @@ async function reconcileOnce(): Promise<void> {
   if (!readBackendCredentials()) return
 
   try {
+    await adoptAccountSession()
     if (session && session.expiresAt - 60_000 < Date.now()) await refreshSession()
     const next = await fetchRemote()
     if (!next) {
@@ -657,12 +659,69 @@ function messageOf(error: unknown): string {
 /* Publishing local changes                                            */
 /* ------------------------------------------------------------------ */
 
+/*
+ * The workspace speaks as the human signed in to this PC.
+ *
+ * It used to need a second, separate sign-in inside the administration panel,
+ * and until that happened every change the administrator made was kept on one
+ * machine while the panel said "saved". A person is signed in; that is the
+ * session the server should be told about. There is no second account to
+ * create, and nothing to remember to do.
+ */
+async function adoptAccountSession(): Promise<boolean> {
+  let live: Awaited<ReturnType<typeof liveAccount>> | null = null
+  try {
+    live = await liveAccount()
+  } catch {
+    return false
+  }
+  if (!live?.accessToken || !live.uid) return false
+  if (
+    session &&
+    session.uid === live.uid &&
+    session.accessToken === live.accessToken &&
+    session.expiresAt === live.expiresAt
+  ) {
+    return false
+  }
+  saveSession({
+    accessToken: live.accessToken,
+    refreshToken: live.refreshToken,
+    expiresAt: live.expiresAt,
+    email: live.email,
+    uid: live.uid
+  })
+  return true
+}
+
+/**
+ * Called when someone signs in: their session becomes the workspace's, and any
+ * change that has been waiting for a publisher is sent straight away.
+ */
+export async function adoptSignedInAccount(): Promise<WorkspaceState> {
+  const before = session?.uid ?? null
+  const changed = await adoptAccountSession()
+  if (!session) return workspaceState()
+  if (changed && before !== session.uid) remote = null
+  // A treatment this machine saved but never managed to publish is a local
+  // edit that is still owed to the server, not a stale one to be overwritten.
+  if (treatmentPending()) pending = true
+  if (pending) await push()
+  else await reconcile()
+  broadcastWorkspaceChange()
+  return workspaceState()
+}
+
 /** Called after any administrator change that the workspace should inherit. */
 export function queuePush(): void {
   if (applying) return
-  // Nothing to publish without an account. Ownership is re-checked in push(),
-  // so a change made in the first seconds after launch still gets out.
-  if (!session) return
+  /*
+   * Nothing to publish without a person. Ownership is re-checked in push(), so
+   * a change made in the first seconds after launch still gets out — and the
+   * session is taken from the account that is signed in, not from a separate
+   * workspace sign-in that might never have happened.
+   */
+  if (!session && !readStoredAccount().session) return
   pending = true
   broadcastWorkspaceChange()
   if (pushTimer) clearTimeout(pushTimer)
@@ -674,6 +733,9 @@ export function queuePush(): void {
 
 export async function push(): Promise<WorkspaceState> {
   if (!pending || pushing) return workspaceState()
+  // The person signed in to this PC is the workspace's account; take their
+  // session before deciding anything, so no publish needs a second sign-in.
+  await adoptAccountSession()
   if (!session) {
     pending = false
     return workspaceState()
@@ -1198,6 +1260,11 @@ export function startWorkspaceSync(): void {
   if (started) return
   started = true
   session = loadSession()
+  // The account session survives a restart; the workspace's own copy is a
+  // fallback for a PC where nobody has signed in.
+  void adoptAccountSession().then(() => {
+    if (pending) void push()
+  })
   if (!readBackendCredentials()) {
     transport = 'offline'
     return

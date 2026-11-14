@@ -158,7 +158,8 @@ import {
   reconcile,
   signInWorkspace,
   signOutWorkspace,
-  signUpWorkspace
+  signUpWorkspace,
+  adoptSignedInAccount
 } from '../services/workspace'
 import {
   backgroundHealth,
@@ -564,7 +565,11 @@ export function registerIpcHandlers(): void {
           password: (credentials as { password?: string }).password ?? ''
         })
         /* The local row mirrors the account; the panel and the workspace need one. */
-        return openSessionFor(result.user.id)
+        const session = openSessionFor(result.user.id)
+        // The workspace publishes as this person from now on, with no second
+        // sign-in: a change made a second later already has a publisher.
+        void adoptSignedInAccount()
+        return session
       })
     }
 
@@ -598,9 +603,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('account:state', () => toResult(() => currentAccountState()))
 
   ipcMain.handle('account:sign-in', (_event, input: AccountCredentialsInput) =>
-    toResult(() =>
-      signInAccount(input ?? ({ email: '', password: '' } as AccountCredentialsInput))
-    )
+    toResult(async () => {
+      const account = await signInAccount(
+        input ?? ({ email: '', password: '' } as AccountCredentialsInput)
+      )
+      void adoptSignedInAccount()
+      return account
+    })
   )
 
   ipcMain.handle('account:create', (_event, input: AccountCreateInput) =>
