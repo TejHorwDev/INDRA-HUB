@@ -242,6 +242,7 @@ async function main() {
    */
   console.log('\nA film takes the short way')
   check('local disk has no second address to offer', (await storage.directUrl('videos/a.mp4')) === null)
+  check('artwork keeps its extension in the key', storage.objectKey('image', 'clip.mp4').endsWith('.mp4'))
   check('an animated card is allowed the room it needs', storage.capFor('image') >= 20 * 1024 * 1024)
 
   const filesRoute = readFileSync(join(root, 'src/app/api/files/[...key]/route.ts'), 'utf8')
@@ -251,6 +252,8 @@ async function main() {
   check('an image is cached as immutable', /max-age=31536000, immutable/.test(filesRoute))
   // A GIF is a picture the browser animates by itself; nothing in the app has to know.
   check('every image type is served with a type', ['gif', 'webp', 'png', 'jpg'].every((ext) => new RegExp(`${ext}: 'image/`).test(filesRoute)))
+  // A card can be a short loop, stored as artwork and served as a film.
+  check('a video card is served as video', /mp4: 'video\/mp4'/.test(filesRoute) && /webm: 'video\/webm'/.test(filesRoute))
   check('and the redirect is short-lived', /directUrl\(path\)/.test(filesRoute))
 
   /*
