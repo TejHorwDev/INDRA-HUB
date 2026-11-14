@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { UpdateDiagnostics, UpdateState } from '@shared/types'
 import Button from '../components/Button'
+import { bridge } from '../lib/bridge'
 
 /*
  * Temporary screen for stage 0.
@@ -13,6 +14,7 @@ import Button from '../components/Button'
 interface Props {
   update: UpdateState
   version: { running: string; installed: string; packaged: boolean } | null
+  username: string | null
 }
 
 const PHASE_LABEL: Record<UpdateState['phase'], string> = {
@@ -26,11 +28,10 @@ const PHASE_LABEL: Record<UpdateState['phase'], string> = {
   error: 'Check failed'
 }
 
-export default function BuildPanel({ update, version }: Props): React.JSX.Element {
+export default function BuildPanel({ update, version, username }: Props): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [diagnostics, setDiagnostics] = useState<UpdateDiagnostics | null>(null)
 
-  const bridge = window.loader
 
   async function run<T>(work: () => Promise<T>): Promise<void> {
     setBusy(true)
@@ -75,7 +76,8 @@ export default function BuildPanel({ update, version }: Props): React.JSX.Elemen
         <div>
           <h1 className="wordmark text-[24px] leading-none">INDRA CHEATS LOADER</h1>
           <p className="mt-2 text-[12px] text-[var(--color-ink-2)]">
-            Stage 0 — shell, identity and the update pipeline.
+            {username ? `Signed in as ${username}. ` : ''}
+            Stage 2 — the flow works; the catalogue is next.
           </p>
         </div>
 
