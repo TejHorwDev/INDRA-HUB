@@ -25,8 +25,8 @@ export const WORKSPACE_BUCKET = 'indra-media'
 /** The media types the app can decode, and therefore the only ones it accepts. */
 export const WORKSPACE_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/x-m4v', 'video/ogg']
 
-/** 96 MB, matching the local upload cap. */
-export const WORKSPACE_MAX_VIDEO_BYTES = 96 * 1024 * 1024
+/** 300 MB, matching the storage bucket's own limit. */
+export const WORKSPACE_MAX_VIDEO_BYTES = 300 * 1024 * 1024
 
 /** The image types a developer portrait may be. Same list as about.ts checks. */
 export const WORKSPACE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
