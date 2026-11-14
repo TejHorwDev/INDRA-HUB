@@ -187,6 +187,26 @@ check(
 )
 check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detail))
 
+console.log('\nThe connecting screen')
+/*
+ * It became a way to lose the app.
+ *
+ * The remembered-session effect cancelled itself — `setScreen('verifying')` changed a
+ * dependency, React ran the cleanup, and the continuation that opens the library saw
+ * `cancelled` and returned. The spinner ran forever, and it painted nothing behind
+ * itself, so the window looked like somebody else's half-drawn screen.
+ */
+const shell = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+const verifying = code(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'utf8'))
+
+check('the restore sequence cannot cancel itself', !/let cancelled/.test(shell))
+check('and it starts once per launch', /restoreStarted\.current/.test(shell))
+check('a hung sign-in is capped', /withCap\(bridge\.auth\.login/.test(shell))
+check('a hung restore is capped', /withCap\(bridge\.auth\.restore/.test(shell))
+check('a failed sign-in returns to the form', /\.catch\(\(error: unknown\)/.test(shell))
+check('the spinner covers what is behind it', /bg-\[var\(--color-bg\)\]/.test(verifying))
+check('and after a while it offers a way back', /Back to sign in/.test(verifying))
+
 console.log('\nThe settings screen')
 /*
  * A rail and a page, not a pile of cards.

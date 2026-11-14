@@ -30,6 +30,23 @@ type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings
 const SPLASH_MS = 2_000
 const MIN_VERIFY_MS = 1_300
 
+/**
+ * The longest anything may wait behind a spinner.
+ *
+ * The auth service is a Render instance that sleeps, and a request to a sleeping host
+ * can take half a minute — so the wait is generous. It is not infinite: at this point
+ * the screen says what happened and offers the only useful thing left, which is to try
+ * again. A spinner that never ends is worse than a failure that does.
+ */
+const WAIT_CAP_MS = 25_000
+
+function withCap<T>(work: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    work.catch(() => fallback),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), WAIT_CAP_MS))
+  ])
+}
+
 const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
 
 interface Confirmation {
@@ -56,6 +73,8 @@ export default function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
 
   const [selected, setSelected] = useState<LoaderApp | null>(null)
+  /** The remembered-session attempt happens once per launch, never twice. */
+  const restoreStarted = useRef(false)
   const [installs, setInstalls] = useState<Record<string, InstallView>>({})
   const [dialog, setDialog] = useState<Confirmation | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -151,10 +170,15 @@ export default function App(): React.JSX.Element {
    * too late, which is exactly how a working feature looks broken.
    */
   useEffect(() => {
-    void bridge.catalogue.load().then((catalogue) => {
-      setApps(catalogue.apps)
-      setConfig(catalogue.config)
-    })
+    void bridge.catalogue
+      .load()
+      .then((catalogue) => {
+        setApps(catalogue.apps)
+        setConfig(catalogue.config)
+      })
+      // The film and the links are the two things this feeds, and both have sane
+      // defaults. A failed read must not become an unhandled rejection.
+      .catch(() => undefined)
   }, [])
 
   /** Catalogue, then entitlement. Both before the library is shown as loaded. */
@@ -184,29 +208,43 @@ export default function App(): React.JSX.Element {
    * It never takes the form away from somebody: if a field has focus or text by the
    * time the answer arrives, the restore stands down and the form stays where it is.
    */
+  /*
+   * Once per launch, and it always finishes.
+   *
+   * This had a bug worth naming, because it is the shape of every stuck spinner: the
+   * effect cancelled itself. `setScreen('verifying')` changed `screen`, which is a
+   * dependency, so React ran the cleanup — `cancelled = true` — and the continuation
+   * that was about to open the library saw the flag and returned. The spinner ran
+   * forever, over the sign-in screen nobody could reach.
+   *
+   * So there is no cancellation here at all: the sequence is started once (`started`
+   * ref), and once started it runs to the end, whether or not the screen changed
+   * underneath it. Nothing in it can wait indefinitely either — the restore is capped.
+   */
   useEffect(() => {
-    if (screen !== 'landing') return
-    let cancelled = false
+    if (screen !== 'landing' || restoreStarted.current) return
+    restoreStarted.current = true
 
-    void bridge.auth.restore().then(async (info) => {
-      if (cancelled || !info) return
-      const active = document.activeElement
-      const busy =
-        active instanceof HTMLInputElement ||
-        active instanceof HTMLTextAreaElement ||
-        Boolean((document.querySelector('input:not([type="hidden"])') as HTMLInputElement | null)?.value)
-      if (busy) return
+    void withCap(bridge.auth.restore(), null)
+      .then(async (info) => {
+        if (!info) return
+        const active = document.activeElement
+        const busy =
+          active instanceof HTMLInputElement ||
+          active instanceof HTMLTextAreaElement ||
+          Boolean((document.querySelector('input:not([type="hidden"])') as HTMLInputElement | null)?.value)
+        if (busy) return
 
-      setScreen('verifying')
-      await new Promise((resolve) => setTimeout(resolve, MIN_VERIFY_MS))
-      if (cancelled) return
-      setScreen('home')
-      await loadLibrary()
-    })
-
-    return () => {
-      cancelled = true
-    }
+        setScreen('verifying')
+        await new Promise((resolve) => setTimeout(resolve, MIN_VERIFY_MS))
+        setScreen('home')
+        await loadLibrary()
+      })
+      .catch(() => {
+        // A remembered session that cannot be used is not an error to show. It is
+        // simply the sign-in form, which is already on screen.
+        setScreen((current) => (current === 'verifying' ? 'signin' : current))
+      })
   }, [screen, loadLibrary])
 
   const submit = useCallback(
@@ -216,7 +254,12 @@ export default function App(): React.JSX.Element {
 
       const started = Date.now()
       void (async () => {
-        const result = await bridge.auth.login(user, pass)
+        // Capped, and caught. A rejected IPC call used to leave this screen up
+        // forever with no way back, because nothing in the chain had a `catch`.
+        const result = await withCap(bridge.auth.login(user, pass), {
+          ok: false,
+          error: 'Connection failed'
+        })
 
         // Never a flash: the spinner is on screen long enough to be read.
         const remaining = MIN_VERIFY_MS - (Date.now() - started)
@@ -229,8 +272,13 @@ export default function App(): React.JSX.Element {
         }
 
         setScreen('home')
-        await loadLibrary()
-      })()
+        // A library that fails to load must not take the app down with it; the
+        // screen is already open and the host is already reachable or not.
+        await loadLibrary().catch(() => undefined)
+      })().catch((error: unknown) => {
+        setError(error instanceof Error ? error.message : 'Connection failed')
+        setScreen('signin')
+      })
     },
     [loadLibrary]
   )
@@ -315,7 +363,15 @@ export default function App(): React.JSX.Element {
         />
       ) : null}
 
-      {screen === 'verifying' ? <Verifying /> : null}
+      {screen === 'verifying' ? (
+        <Verifying
+          onBack={() => {
+            restoreStarted.current = false
+            setError(null)
+            setScreen('signin')
+          }}
+        />
+      ) : null}
 
       {/*
         * Maintenance closes the door without taking the app away: the header stays,
