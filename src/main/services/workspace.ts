@@ -968,6 +968,23 @@ export async function push(): Promise<WorkspaceState> {
   return workspaceState()
 }
 
+/**
+ * Publishes what this PC holds, on demand, and reports what the server said.
+ *
+ * `push` is normally a background thing triggered by a change and forgotten, so
+ * the only way to learn that it was refused was to notice the numbers were
+ * wrong the next morning. This runs it to completion and hands back the state
+ * the panel can read out loud: published, still pending, or the reason.
+ */
+export async function publishNow(): Promise<WorkspaceState> {
+  syncSession()
+  if (!session) await adoptAccountSession()
+  if (!session) return workspaceState()
+  pending = true
+  await push()
+  return workspaceState()
+}
+
 /** Forgets a local change that could not be published, then reloads the truth. */
 export async function discardPending(): Promise<WorkspaceState> {
   pending = false

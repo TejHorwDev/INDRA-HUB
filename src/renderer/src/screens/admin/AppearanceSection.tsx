@@ -38,7 +38,7 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
   const appearance = overview.appearance
   const background = appearance.background
 
-  const [busy, setBusy] = useState<'choose' | 'remove' | 'save' | 'check' | null>(null)
+  const [busy, setBusy] = useState<'choose' | 'remove' | 'save' | 'check' | 'publish' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [probe, setProbe] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null)
@@ -100,7 +100,11 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
           })
           return
         }
-        setShare({ tone: 'good', text: `Publishing as ${state.email ?? 'your account'}.` })
+        setShare(
+          state.lastError
+            ? { tone: 'bad', text: `Publishing as ${state.email ?? 'your account'}, but the last publish was refused: ${state.lastError}` }
+            : { tone: 'good', text: `Publishing as ${state.email ?? 'your account'}.` }
+        )
       } catch {
         if (live && attempt < 2) setTimeout(() => void read(attempt + 1), 1500)
       }
@@ -179,38 +183,61 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
     }
   }
 
+  /**
+   * Saving, then publishing, then saying what happened.
+   *
+   * "Saved" used to be the end of the sentence, and it was true — the numbers
+   * were on this disk. What matters is whether the shared row took them, so the
+   * publish is run to completion here and its answer is what the panel shows.
+   */
+  function describe(state: {
+    signedIn: boolean
+    owner: boolean
+    email: string | null
+    pending: boolean
+    lastError: string | null
+  }): { tone: 'good' | 'bad'; text: string } {
+    if (!state.signedIn) {
+      return { tone: 'bad', text: 'Saved on this PC only: no server account is signed in.' }
+    }
+    if (!state.owner) {
+      return {
+        tone: 'bad',
+        text: `Saved on this PC only: ${state.email ?? 'this account'} does not own the shared workspace.`
+      }
+    }
+    if (state.lastError) {
+      return { tone: 'bad', text: `Saved here, but the server did not take it: ${state.lastError}` }
+    }
+    if (state.pending) {
+      return { tone: 'bad', text: 'Saved here, but it has not reached the server yet.' }
+    }
+    return { tone: 'good', text: `Saved and published to the server as ${state.email ?? 'your account'}.` }
+  }
+
   async function saveTreatment() {
     setError(null)
     setBusy('save')
     try {
       await api.admin.updateAppearanceTreatment({ blur, dim })
-      toast.success('Background treatment saved.')
-      /*
-       * Saving is local: the numbers are on this PC the moment this returns.
-       * Whether the shared row took them is a different question, and it is
-       * the one that decides if the change survives a restart anywhere else —
-       * so it is asked, out loud, instead of being assumed.
-       */
-      try {
-        const state = await api.workspace.state()
-        if (!state.signedIn) {
-          setShare({ tone: 'bad', text: 'Saved on this PC only: the workspace account is not signed in.' })
-        } else if (!state.owner) {
-          setShare({
-            tone: 'bad',
-            text: `Saved on this PC only: ${state.email ?? 'this account'} does not own the shared workspace, so nothing was published.`
-          })
-        } else if (state.lastError) {
-          setShare({ tone: 'bad', text: `Saved here, but publishing failed: ${state.lastError}` })
-        } else if (state.pending) {
-          setShare({ tone: 'bad', text: 'Saved here, still being published to the shared workspace.' })
-        } else {
-          setShare({ tone: 'good', text: 'Saved and published to the shared workspace.' })
-        }
-      } catch {
-        setShare(null)
-      }
+      const state = await api.workspace.publishNow()
+      setShare(describe(state))
+      toast.success(state.lastError ? 'Saved on this PC; the server refused it.' : 'Background treatment saved.')
       await refresh()
+    } catch (caught) {
+      setError(errorMessage(caught))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Publishes what this PC holds without changing a control. */
+  async function publishOnly() {
+    setError(null)
+    setBusy('publish')
+    try {
+      const state = await api.workspace.publishNow()
+      setShare(describe(state))
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -518,6 +545,14 @@ export default function AppearanceSection({ overview, refresh }: SectionProps) {
             >
               {busy === 'save' && <span className="spinner" aria-hidden="true" />}
               {busy === 'save' ? 'Saving…' : 'Save treatment'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost w-auto"
+              onClick={() => void publishOnly()}
+              disabled={busy !== null}
+            >
+              {busy === 'publish' ? 'Publishing…' : 'Publish again'}
             </button>
           </div>
 

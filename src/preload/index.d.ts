@@ -270,6 +270,7 @@ export interface IndraBridge {
     claim: (input: WorkspaceClaimInput) => Promise<ApiResult<WorkspaceState>>
     claimAsAdmin: () => Promise<ApiResult<WorkspaceState>>
     sync: () => Promise<ApiResult<WorkspaceState>>
+    publishNow: () => Promise<ApiResult<WorkspaceState>>
     discard: () => Promise<ApiResult<WorkspaceState>>
     onChange: (listener: (state: WorkspaceState) => void) => () => void
   }

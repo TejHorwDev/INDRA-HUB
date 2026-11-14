@@ -159,7 +159,8 @@ import {
   signInWorkspace,
   signOutWorkspace,
   signUpWorkspace,
-  adoptSignedInAccount
+  adoptSignedInAccount,
+  publishNow
 } from '../services/workspace'
 import {
   backgroundHealth,
@@ -1168,6 +1169,13 @@ export function registerIpcHandlers(): void {
     toResult(() => {
       requireAdmin()
       return claimWorkspace(input?.code ?? '')
+    })
+  )
+
+  ipcMain.handle('admin:workspace:publish-now', () =>
+    toResult(async () => {
+      requireAdmin()
+      return publishNow()
     })
   )
 
