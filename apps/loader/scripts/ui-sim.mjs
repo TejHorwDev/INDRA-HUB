@@ -167,6 +167,24 @@ console.log('\nThe product screen')
  */
 const detail = code(readFileSync(join(renderer, 'screens/AppDetail.tsx'), 'utf8'))
 check('the detail screen carries no version', !/app\.version/.test(detail))
+
+/*
+ * The arrangement, which was five hand-kept coordinates that had drifted apart — a
+ * name above a void, a status line too dim to read, and two buttons of different
+ * sizes stopping a few pixels past the text column. A grid cannot drift: every edge
+ * is another edge's business.
+ */
+check('the artwork and the text are one centred row', /items-center justify-center/.test(detail))
+check('the column is at least as tall as the artwork', /minHeight: ART/.test(detail))
+check('the actions sit at the foot of that column', /mt-auto/.test(detail))
+check(
+  'the two actions are the same width',
+  (detail.match(/flex-1/g) ?? []).length >= 2 && !/width: (312|180)/.test(detail)
+)
+check(
+  'the circles share the artwork gutter',
+  /left=\{28\}/.test(detail) && /left=\{834\}/.test(detail)
+)
 check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detail))
 
 console.log('\nThe landing page')
