@@ -18,7 +18,7 @@ services:
     buildCommand: npm install && npm run build
     # Next reads $PORT from the environment; the start command must not pin one.
     startCommand: npm start
-    healthCheckPath: /api/loader/config
+    healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
