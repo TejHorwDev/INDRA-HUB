@@ -41,6 +41,7 @@ function toApp(raw: unknown): LoaderApp | null {
     image: text(record['image']),
     fileUrl: text(record['fileUrl']),
     keyauthAppId: text(record['keyauthAppId']),
+    sha256: text(record['sha256']).toLowerCase(),
     status: record['status'] === 'locked' ? 'locked' : 'active'
   }
 }

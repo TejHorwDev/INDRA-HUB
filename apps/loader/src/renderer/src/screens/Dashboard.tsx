@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { LoaderApp, LoaderConfig } from '@shared/types'
+import type { InstallView, LoaderApp, LoaderConfig } from '@shared/types'
 import { isAvailable } from '@shared/access'
 import Card from '../components/Card'
 import WindowControls from '../components/WindowControls'
@@ -20,6 +20,7 @@ const PAGE_SIZE = 3
 interface Props {
   apps: LoaderApp[]
   owned: string[]
+  installs: Record<string, InstallView>
   config: LoaderConfig
   username: string | null
   loading: boolean
@@ -32,6 +33,7 @@ interface Props {
 export default function Dashboard({
   apps,
   owned,
+  installs,
   config,
   username,
   loading,
@@ -105,6 +107,7 @@ export default function Dashboard({
                 <Card
                   app={app}
                   available={available}
+                  install={installs[app.id] ?? null}
                   onOpen={() => {
                     if (available) onOpen(app)
                     else onLocked(app)

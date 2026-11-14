@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { UpdateState } from '@shared/types'
+import type { InstallView, UpdateState } from '@shared/types'
 import { lockedReason } from '@shared/access'
 import type { LoaderApp, LoaderConfig } from '@shared/types'
 import { bridge } from './lib/bridge'
@@ -54,6 +54,7 @@ export default function App(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
 
   const [selected, setSelected] = useState<LoaderApp | null>(null)
+  const [installs, setInstalls] = useState<Record<string, InstallView>>({})
   const [dialog, setDialog] = useState<Confirmation | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -84,6 +85,24 @@ export default function App(): React.JSX.Element {
     void bridge.updates.state().then(setUpdate)
     return bridge.updates.onState(setUpdate)
   }, [])
+
+  useEffect(() => {
+    void bridge.files.states().then(setInstalls)
+    return bridge.files.onState(setInstalls)
+  }, [])
+
+  /*
+   * While a detail panel is open on something installed, ask again every few
+   * seconds. A launched process can exit at any moment and nothing tells the app
+   * about it, so "Running" would otherwise stay on screen after the game closed.
+   */
+  useEffect(() => {
+    if (!selected) return
+    const timer = setInterval(() => {
+      void bridge.files.states().then(setInstalls)
+    }, 4_000)
+    return () => clearInterval(timer)
+  }, [selected])
 
   /** Catalogue, then entitlement. Both before the library is shown as loaded. */
   const loadLibrary = useCallback(async () => {
@@ -199,6 +218,7 @@ export default function App(): React.JSX.Element {
         <Dashboard
           apps={apps}
           owned={owned}
+          installs={installs}
           config={config}
           username={username}
           loading={loading}
@@ -225,13 +245,27 @@ export default function App(): React.JSX.Element {
       {selected ? (
         <AppDetail
           app={selected}
-          install="absent"
-          percent={0}
           onBack={() => setSelected(null)}
-          onDownload={() =>
-            toast('Downloads — the engine ships in the next update. Nothing to install yet.')
-          }
-          onLaunch={() => toast('Nothing to launch yet.')}
+          install={installs[selected.id] ?? null}
+          running={installs[selected.id]?.running ?? false}
+          onCancel={() => void bridge.files.cancel(selected.id)}
+          onReveal={() => void bridge.files.reveal(selected.id)}
+          onDownload={() => {
+            void bridge.files.download(selected.id).then((view) => {
+              if (view.state === 'error') toast(`Download failed — ${view.error ?? 'try again.'}`)
+              else if (view.state === 'installed') toast(`${selected.name} — downloaded and ready.`)
+            })
+          }}
+          onLaunch={() => {
+            void bridge.files.launch(selected.id).then((result) => {
+              if (result.ok) {
+                toast(`Launching — ${selected.name}`)
+                void bridge.files.states().then(setInstalls)
+              } else {
+                toast(`Could not launch — ${result.error ?? 'unknown error'}`)
+              }
+            })
+          }}
         />
       ) : null}
 

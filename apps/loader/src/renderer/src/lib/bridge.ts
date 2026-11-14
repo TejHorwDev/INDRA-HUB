@@ -1,4 +1,10 @@
-import type { Catalogue, LoaderBridge, SessionInfo, UpdateState } from '@shared/types'
+import type {
+  Catalogue,
+  InstallView,
+  LoaderBridge,
+  SessionInfo,
+  UpdateState
+} from '@shared/types'
 
 /*
  * The bridge, or a stand-in for it.
@@ -51,6 +57,7 @@ const staged: Catalogue = {
       image: '',
       fileUrl: 'https://example.invalid/aurora.exe',
       keyauthAppId: '',
+      sha256: '',
       status: 'active'
     },
     {
@@ -61,6 +68,7 @@ const staged: Catalogue = {
       image: '',
       fileUrl: 'https://example.invalid/nova.exe',
       keyauthAppId: 'mock-nova',
+      sha256: '',
       status: 'active'
     },
     {
@@ -71,6 +79,7 @@ const staged: Catalogue = {
       image: '',
       fileUrl: 'https://example.invalid/vantage.exe',
       keyauthAppId: '',
+      sha256: '',
       status: 'locked'
     }
   ],
@@ -80,6 +89,95 @@ const staged: Catalogue = {
     tiktok: 'https://tiktok.com/@indra',
     discord: 'https://discord.gg/indra',
     youtube: 'https://youtube.com/@indra'
+  }
+}
+
+/*
+ * A download that behaves like the real one, without a network or a disk.
+ *
+ * Three seconds, a progress curve, and the same two endings the service has: an
+ * install, or a cancel. It exists so the action row's states can be looked at —
+ * which is the only reason the preview exists at all.
+ */
+function filesMock(): LoaderBridge['files'] {
+  const views = new Map<string, InstallView>()
+  const timers = new Map<string, ReturnType<typeof setInterval>>()
+  const listeners = new Set<(states: Record<string, InstallView>) => void>()
+
+  const snapshot = (): Record<string, InstallView> => Object.fromEntries(views)
+  const publish = (): void => {
+    const states = snapshot()
+    for (const listener of listeners) listener(states)
+  }
+
+  const set = (id: string, patch: Partial<InstallView>): void => {
+    const current: InstallView = views.get(id) ?? {
+      id,
+      state: 'absent',
+      running: false,
+      percent: 0,
+      received: 0,
+      total: 0,
+      bytesPerSecond: 0,
+      error: null
+    }
+    views.set(id, { ...current, ...patch })
+    publish()
+  }
+
+  function stop(id: string): void {
+    const timer = timers.get(id)
+    if (timer) clearInterval(timer)
+    timers.delete(id)
+  }
+
+  return {
+    states: async () => snapshot(),
+    onState: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    download: (id) => {
+      stop(id)
+      set(id, { state: 'downloading', percent: 0, received: 0, total: 42_000_000, error: null })
+
+      return new Promise((resolve) => {
+        const total = 42_000_000
+        const started = Date.now()
+        const timer = setInterval(() => {
+          const elapsed = Date.now() - started
+          const percent = Math.min(99, Math.round((elapsed / 2_800) * 100))
+          if (Date.now() - started >= 2_800) {
+            stop(id)
+            set(id, { state: 'installed', percent: 100, received: total, bytesPerSecond: 0 })
+            resolve(views.get(id) as InstallView)
+            return
+          }
+          set(id, {
+            state: 'downloading',
+            percent,
+            received: Math.round((total * percent) / 100),
+            bytesPerSecond: 18_000_000
+          })
+        }, 120)
+        timers.set(id, timer)
+      })
+    },
+    cancel: async (id) => {
+      stop(id)
+      set(id, { state: 'absent', percent: 0, received: 0, bytesPerSecond: 0 })
+      return views.get(id) as InstallView
+    },
+    uninstall: async (id) => {
+      stop(id)
+      set(id, { state: 'absent', percent: 0, received: 0, bytesPerSecond: 0 })
+      return views.get(id) as InstallView
+    },
+    launch: async (id) =>
+      views.get(id)?.state === 'installed'
+        ? { ok: true }
+        : { ok: false, error: 'That application is not installed on this machine.' },
+    reveal: async () => undefined
   }
 }
 
@@ -121,6 +219,8 @@ const mock: LoaderBridge = {
     },
     session: async () => mockSession
   },
+
+  files: filesMock(),
 
   links: {
     open: async (url) => {

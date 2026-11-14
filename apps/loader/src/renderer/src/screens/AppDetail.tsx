@@ -1,4 +1,4 @@
-import type { LoaderApp } from '@shared/types'
+import type { InstallView, LoaderApp } from '@shared/types'
 import Monogram from '../components/Monogram'
 
 /*
@@ -7,32 +7,42 @@ import Monogram from '../components/Monogram'
  * Fills the window: preview on the left at x28, 340x332; everything written on
  * the right from x396, 476 wide; the action row across the bottom at y444.
  *
- * The action row is a state machine, not a fixed pair of buttons — what it shows
- * depends on whether the app is downloaded, whether an update exists, and whether
- * it is running. Right now the only state that can be reached is "not installed",
- * so that is the only state that is drawn.
+ * The action row is a state machine, not a fixed pair of buttons. Four states
+ * exist and all four are reachable:
+ *
+ *   not installed → Download (546 wide) · Launch (disabled)
+ *   downloading   → progress and speed in the left slot · Cancel in the right
+ *   installed     → "Installed · open folder" · Launch in #34c395
+ *   running       → the same, with Launch reading "Running" and disabled
+ *
+ * Failed downloads keep the same shape: the left button becomes "Try again" and
+ * the sentence explaining why sits above it, in the detail column.
  */
-
-export type InstallState = 'absent' | 'downloading' | 'installed' | 'running'
 
 interface Props {
   app: LoaderApp
-  install: InstallState
-  percent: number
+  install: InstallView | null
+  running: boolean
   onBack: () => void
   onDownload: () => void
+  onCancel: () => void
   onLaunch: () => void
+  onReveal: () => void
 }
 
 export default function AppDetail({
   app,
   install,
-  percent,
+  running,
   onBack,
   onDownload,
-  onLaunch
+  onCancel,
+  onLaunch,
+  onReveal
 }: Props): React.JSX.Element {
-  const installed = install === 'installed' || install === 'running'
+  const state = install?.state ?? 'absent'
+  const percent = install?.percent ?? 0
+  const installed = state === 'installed'
 
   return (
     <div className="absolute inset-0 z-30 bg-[var(--color-bg)]">
@@ -80,7 +90,23 @@ export default function AppDetail({
 
         <div className="mt-6 border-t border-[var(--hairline)] pt-3">
           <Row label="Version" value={app.version} />
-          <Row label="Status" value={installed ? 'Installed' : 'Not installed'} />
+          <Row
+            label="Status"
+            value={
+              running
+                ? 'Running'
+                : state === 'downloading'
+                  ? `Downloading ${percent}%`
+                  : installed
+                    ? 'Installed'
+                    : state === 'error'
+                      ? 'Download failed'
+                      : 'Not installed'
+            }
+          />
+          {install?.error ? (
+            <p className="mt-2 text-[10.5px] leading-[16px] text-[var(--color-danger)]">{install.error}</p>
+          ) : null}
           <Row label="Licence" value={app.keyauthAppId ? 'INDRA Auth' : 'Included'} />
         </div>
       </div>
@@ -89,34 +115,58 @@ export default function AppDetail({
       <div className="absolute flex gap-[14px]" style={{ left: 28, top: 444, height: 50 }}>
         <button
           type="button"
-          onClick={installed ? undefined : onDownload}
-          disabled={install === 'downloading'}
-          className="relative grid place-items-center overflow-hidden rounded-[10px] border border-[var(--hairline)] bg-[var(--color-raised)] text-[12.5px] font-medium text-[var(--color-ink)] transition-[border-color,background] duration-150 hover:border-[var(--hairline-strong)] hover:bg-[#17171b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:opacity-80"
+          onClick={
+            state === 'downloading'
+              ? undefined
+              : installed
+                ? onReveal
+                : onDownload
+          }
+          disabled={state === 'downloading'}
+          className="relative grid place-items-center overflow-hidden rounded-[10px] border border-[var(--hairline)] bg-[var(--color-raised)] text-[12.5px] font-medium text-[var(--color-ink)] transition-[border-color,background] duration-150 hover:border-[var(--hairline-strong)] hover:bg-[#17171b] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:cursor-default"
           style={{ width: 546, height: 50 }}
         >
-          {install === 'downloading' ? (
+          {state === 'downloading' ? (
             <>
               <span
                 aria-hidden
                 className="absolute inset-y-0 left-0 bg-[var(--color-accent)]/20 transition-[width] duration-200"
                 style={{ width: `${percent}%` }}
               />
-              <span className="relative">Downloading… {percent}%</span>
+              <span className="relative">
+                Downloading… {percent}%
+                {install && install.bytesPerSecond > 0
+                  ? ` · ${Math.round(install.bytesPerSecond / 1_000_000)} MB/s`
+                  : ''}
+              </span>
             </>
           ) : (
-            <span>{installed ? 'Downloaded' : 'Download'}</span>
+            <span>
+              {installed ? 'Installed · open folder' : state === 'error' ? 'Try again' : 'Download'}
+            </span>
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={onLaunch}
-          disabled={!installed}
-          className="grid place-items-center rounded-[10px] bg-[var(--color-success)] text-[12.5px] font-semibold text-[#06110d] transition-[filter] duration-150 hover:brightness-[1.06] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-success)] disabled:bg-[var(--color-raised)] disabled:text-[var(--color-ink-3)] disabled:hover:brightness-100"
-          style={{ width: 284, height: 50 }}
-        >
-          Launch
-        </button>
+        {state === 'downloading' ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="grid place-items-center rounded-[10px] border border-[var(--hairline)] bg-[var(--color-raised)] text-[12.5px] font-medium text-[var(--color-ink-2)] transition-[color,border-color] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+            style={{ width: 284, height: 50 }}
+          >
+            Cancel
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onLaunch}
+            disabled={!installed || running}
+            className="grid place-items-center rounded-[10px] bg-[var(--color-success)] text-[12.5px] font-semibold text-[#06110d] transition-[filter] duration-150 hover:brightness-[1.06] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-success)] disabled:bg-[var(--color-raised)] disabled:text-[var(--color-ink-3)] disabled:hover:brightness-100"
+            style={{ width: 284, height: 50 }}
+          >
+            {running ? 'Running' : 'Launch'}
+          </button>
+        )}
       </div>
     </div>
   )

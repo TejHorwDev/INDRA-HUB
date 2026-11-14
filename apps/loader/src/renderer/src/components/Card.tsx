@@ -1,4 +1,4 @@
-import type { LoaderApp } from '@shared/types'
+import type { InstallView, LoaderApp } from '@shared/types'
 import Monogram from './Monogram'
 
 /*
@@ -12,10 +12,11 @@ import Monogram from './Monogram'
 interface Props {
   app: LoaderApp
   available: boolean
+  install: InstallView | null
   onOpen: () => void
 }
 
-export default function Card({ app, available, onOpen }: Props): React.JSX.Element {
+export default function Card({ app, available, install, onOpen }: Props): React.JSX.Element {
   return (
     <button
       type="button"
@@ -50,16 +51,37 @@ export default function Card({ app, available, onOpen }: Props): React.JSX.Eleme
           <span
             className={
               'h-1 w-1 rounded-full ' +
-              (available ? 'bg-[var(--color-success)]' : 'bg-[var(--color-ink-3)]')
+              (install?.state === 'installed'
+                ? 'bg-[var(--color-success)]'
+                : available
+                  ? 'bg-[var(--color-accent)]'
+                  : 'bg-[var(--color-ink-3)]')
             }
           />
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-3)]">
-            {available ? 'Ready' : 'Locked'}
+            {label(available, install)}
           </span>
         </div>
       </div>
+
+      {/* A downloaded file has a state the footer can only describe in words. */}
+      {install?.state === 'downloading' ? (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-[2px] bg-[var(--color-accent)] transition-[width] duration-200"
+          style={{ width: `${install.percent}%`, left: 0 }}
+        />
+      ) : null}
     </button>
   )
+}
+
+function label(available: boolean, install: InstallView | null): string {
+  if (!available) return 'Locked'
+  if (install?.state === 'downloading') return `Downloading ${install.percent}%`
+  if (install?.state === 'installed') return 'Installed'
+  if (install?.state === 'error') return 'Download failed'
+  return 'Ready'
 }
 
 function LockGlyph(): React.JSX.Element {
