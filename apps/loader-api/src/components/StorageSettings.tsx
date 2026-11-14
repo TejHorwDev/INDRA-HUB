@@ -38,7 +38,11 @@ interface Status {
 }
 
 const DRIVERS: Array<{ id: DriverChoice; label: string; note: string }> = [
-  { id: 'auto', label: 'Automatic', note: 'Use whichever bucket has complete credentials.' },
+  {
+    id: 'auto',
+    label: 'Automatic',
+    note: 'Uses whichever bucket has complete credentials — B2 and R2 can be filled in below without choosing them first.'
+  },
   { id: 'b2', label: 'Backblaze B2', note: 'No per-file ceiling, 10 GB free, cheap egress. Best for installers.' },
   { id: 'r2', label: 'Cloudflare R2', note: 'No per-file ceiling, 10 GB free, free egress.' },
   { id: 'supabase', label: 'Supabase Storage', note: '50 MB per file on the free plan. Fine for images and the film.' },
@@ -134,6 +138,14 @@ export default function StorageSettings(): React.JSX.Element {
             </>
           ) : null}
         </p>
+      ) : null}
+
+      {status && status.driver === 'supabase' ? (
+        <p className="hint">
+          <span className="mono">Note</span> — installers are capped at {status.capsLabel.exe}{' '}
+          here. A bigger build needs B2 or R2: fill in the fields below and save, and this
+          switches over on its own.
+        </p>
       ) : (
         <p className="hint">Reading the current bucket…</p>
       )}
@@ -150,9 +162,18 @@ export default function StorageSettings(): React.JSX.Element {
         <p className="hint">{DRIVERS.find((entry) => entry.id === driver)?.note}</p>
       </div>
 
-      {driver === 'b2' ? (
+      {driver === 'b2' || driver === 'auto' ? (
         <div className="field">
-          <span className="label">Backblaze B2</span>
+          <span className="label">
+            Backblaze B2{driver === 'auto' ? ' — optional' : ''}
+          </span>
+          {driver === 'auto' ? (
+            <p className="hint">
+              Fill these in and save: Automatic will switch to B2 by itself, because it is
+              the first bucket with complete credentials. You do not have to select it
+              first.
+            </p>
+          ) : null}
           <input
             placeholder={status?.saved.b2.keyId || 'keyID'}
             value={b2.keyId}
@@ -190,9 +211,11 @@ export default function StorageSettings(): React.JSX.Element {
         </div>
       ) : null}
 
-      {driver === 'r2' ? (
+      {driver === 'r2' || driver === 'auto' ? (
         <div className="field">
-          <span className="label">Cloudflare R2</span>
+          <span className="label">
+            Cloudflare R2{driver === 'auto' ? ' — optional' : ''}
+          </span>
           <input
             placeholder={status?.saved.r2.accountId || 'Account ID'}
             value={r2.accountId}
