@@ -7,6 +7,8 @@ import type {
 } from '@shared/types'
 import { getDatabase } from '../db/database'
 import { errors } from '../lib/errors'
+import { recheckConnectivity } from './connectivity'
+import { supabaseRequest } from '../lib/supabase'
 
 /*
  * Local activation keys ("keyauth").
@@ -203,4 +205,102 @@ export function consumeActivationKey(keyId: string, userId: string): void {
   if (Number(result.changes) !== 1) {
     throw errors.validation('That activation key was just used. Try another one.', 'activationKey')
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* The server's list                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * One list, in Postgres, for every PC.
+ *
+ * The functions below are the only writers. What is kept locally is a mirror of
+ * that list, refreshed whenever the console opens and after every change, so
+ * the panel shows the truth without the local table ever being able to disagree
+ * with it — the mistake that made a key minted on one machine invalid on
+ * another.
+ */
+
+export interface ServerKeyRow {
+  id: string
+  masked_code: string
+  label: string
+  created_at: string
+  expires_at: string | null
+  used_at: string | null
+  used_by_email: string | null
+  revoked_at: string | null
+}
+
+/** Replaces the local mirror with the server's list. */
+export function mirrorServerKeys(rows: ServerKeyRow[]): void {
+  const db = getDatabase()
+  db.exec('BEGIN')
+  try {
+    db.prepare('DELETE FROM activation_keys').run()
+    const insert = db.prepare(
+      `INSERT INTO activation_keys
+         (id, code_hash, masked_code, label, created_at, expires_at, used_at, used_by_user_id, revoked_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`
+    )
+    for (const row of rows) {
+      insert.run(
+        row.id,
+        `server:${row.id}`,
+        row.masked_code,
+        row.label ?? '',
+        row.created_at,
+        row.expires_at,
+        row.used_at,
+        row.revoked_at
+      )
+    }
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+}
+
+/**
+ * The local table is now only ever a mirror, so the old writers are gone: a key
+ * invented here could not be redeemed anywhere else. Kept as an exported check
+ * so nothing silently falls back to the local table.
+ */
+export function requireServerKeys(): void {
+  if (recheckConnectivity().online === false) {
+    throw errors.cloud(
+      'Activation keys live on the server. Reconnect to create, revoke or delete one.'
+    )
+  }
+}
+
+/** Asked before the account exists. Answers yes or no, consumes nothing. */
+export async function checkServerActivationKey(code: string): Promise<boolean> {
+  const normalized = normalizeActivationCode(code)
+  if (!normalized) return false
+  try {
+    return await supabaseRequest<boolean>('/rest/v1/rpc/indra_check_activation_key', {
+      method: 'POST',
+      body: { p_code: normalized }
+    })
+  } catch {
+    // A network failure is not "the key is bad": the caller says which it was.
+    throw errors.cloud('The activation key could not be checked. Reconnect and try again.')
+  }
+}
+
+/**
+ * Marks the key used by the account that was just created. Returns false when
+ * somebody else took it in the meantime, which the caller turns into a refusal
+ * rather than two people sharing one key.
+ */
+export async function redeemServerActivationKey(code: string, token: string): Promise<boolean> {
+  const normalized = normalizeActivationCode(code)
+  if (!normalized) return false
+  return supabaseRequest<boolean>('/rest/v1/rpc/indra_redeem_activation_key', {
+    method: 'POST',
+    body: { p_code: normalized },
+    token
+  })
 }

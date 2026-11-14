@@ -154,7 +154,10 @@ function lockMessage(minutes: number): string {
   return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`
 }
 
-export function register(input: RegisterInput): SessionUser {
+export function register(
+  input: RegisterInput,
+  options: { keyCheckedOnServer?: boolean } = {}
+): SessionUser {
   requireConnectionForCredentials()
   const settings = readSettings()
   // Maintenance closes the workspace, never the front door: an account created
@@ -173,7 +176,7 @@ export function register(input: RegisterInput): SessionUser {
   // Activation keys are optional app-wide; when required, the account and the
   // key are consumed in one transaction so neither can exist without the other.
   let keyId: string | null = null
-  if (settings.requireActivationKey) {
+  if (settings.requireActivationKey && !options.keyCheckedOnServer) {
     const provided = (input.activationKey ?? '').trim()
     if (!provided) throw errors.validation('Enter your activation key.', 'activationKey')
     const key = findUsableKey(provided)

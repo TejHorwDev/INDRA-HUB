@@ -18,6 +18,7 @@ import type {
   AdminSettings,
   AdminStatus,
   AdminSystemInfo,
+  ActivationKeyRow,
   AppearanceTreatment,
   CreateActivationKeyInput,
   CreatedActivationKey,
@@ -37,10 +38,10 @@ import {
 } from './appearance'
 import { readSettings, writeSettings } from './settings'
 import {
-  createActivationKeys,
-  deleteActivationKey,
   listActivationKeys,
-  revokeActivationKey
+  mirrorServerKeys,
+  requireServerKeys,
+  type ServerKeyRow
 } from './activation'
 
 /*
@@ -1016,40 +1017,93 @@ export function updateSettings(input: AdminSettings): AdminSettings {
 /* Activation keys                                                     */
 /* ------------------------------------------------------------------ */
 
-export function createKeys(input: CreateActivationKeyInput): CreatedActivationKey[] {
+export async function syncActivationKeys(): Promise<ActivationKeyRow[]> {
+  requireAdmin()
   const admin = requireAdmin()
-  const created = createActivationKeys(admin.id, input)
-  const label = (input?.label ?? '').trim()
+  const rows = await adminCloudRequest<ServerKeyRow[]>(admin.id, '/rest/v1/rpc/indra_admin_keys', {
+    method: 'POST',
+    body: {}
+  })
+  mirrorServerKeys(rows ?? [])
+  return listActivationKeys()
+}
+
+export async function createKeys(input: CreateActivationKeyInput): Promise<CreatedActivationKey[]> {
+  const admin = requireAdmin()
+  requireServerKeys()
+
+  const count = Math.max(1, Math.min(25, Number(input?.count ?? 1) || 1))
+  const label = String(input?.label ?? '').trim().slice(0, 60)
+  const days = input?.expiresInDays
+  const expiresAt =
+    days === null || days === undefined
+      ? null
+      : new Date(Date.now() + Math.max(1, Math.min(365, Number(days))) * 86_400_000).toISOString()
+
+  let created: { id: string; code: string; masked_code: string; label: string; expires_at: string | null }[]
+  try {
+    created = await adminCloudRequest(
+      admin.id,
+      '/rest/v1/rpc/indra_admin_create_keys',
+      { method: 'POST', body: { p_count: count, p_label: label, p_expires_at: expiresAt } }
+    )
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    if (/not_an_administrator/.test(text)) {
+      throw errors.validation(
+        'The server does not recognise this account as the administrator, so no key was created.',
+        'code'
+      )
+    }
+    throw new Error(`The server refused to create a key: ${text}`)
+  }
+
+  await syncActivationKeys().catch(() => undefined)
   audit(
     'keys_created',
     `${created.length} activation key${created.length === 1 ? '' : 's'} generated${
       label ? ` for “${label}”` : ''
-    }.`,
+    } on the server.`,
     admin.id
   )
-  return created
+
+  return created.map((row) => ({
+    id: row.id,
+    code: row.code,
+    label: row.label,
+    expiresAt: row.expires_at
+  }))
 }
 
 function keyLabel(id: string): string {
   const row = getDatabase()
     .prepare('SELECT masked_code FROM activation_keys WHERE id = ?')
     .get(id) as { masked_code: string } | undefined
-  if (!row) throw errors.notFound('That activation key no longer exists.')
-  return row.masked_code
+  return row?.masked_code ?? id
 }
 
-export function revokeKey(id: string): void {
+export async function revokeKey(id: string): Promise<void> {
   const admin = requireAdmin()
+  requireServerKeys()
   const masked = keyLabel(id)
-  revokeActivationKey(id)
-  audit('key_revoked', `Activation key ${masked} revoked.`, admin.id)
+  await adminCloudRequest(admin.id, '/rest/v1/rpc/indra_admin_revoke_key', {
+    method: 'POST',
+    body: { p_id: id }
+  })
+  await syncActivationKeys().catch(() => undefined)
+  audit('key_revoked', `Activation key ${masked} revoked on the server.`, admin.id)
 }
 
-export function removeKey(id: string): void {
+export async function removeKey(id: string): Promise<void> {
   const admin = requireAdmin()
+  requireServerKeys()
   const masked = keyLabel(id)
-  deleteActivationKey(id)
-  audit('key_deleted', `Activation key ${masked} deleted.`, admin.id)
+  await adminCloudRequest(admin.id, '/rest/v1/rpc/indra_admin_delete_key', {
+    method: 'POST',
+    body: { p_id: id }
+  })
+  await syncActivationKeys().catch(() => undefined)
+  audit('key_deleted', `Activation key ${masked} deleted from the server.`, admin.id)
 }
 
 /* ------------------------------------------------------------------ */

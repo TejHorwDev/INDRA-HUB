@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { CreatedActivationKey } from '@shared/types'
 import { useToast } from '../../components/ToastProvider'
@@ -23,6 +23,18 @@ export default function KeysSection({ overview, refresh }: SectionProps) {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [created, setCreated] = useState<CreatedActivationKey[]>([])
+
+  /*
+   * The list comes from the server. Opening the panel pulls it, so the keys on
+   * screen are the keys every machine will accept — not a copy that only this
+   * PC knows about.
+   */
+  useEffect(() => {
+    void api.admin
+      .syncKeys()
+      .then(() => refresh())
+      .catch(() => undefined)
+  }, [refresh])
 
   const keys = overview.activationKeys
   const available = useMemo(() => keys.filter((key) => key.status === 'unused').length, [keys])
