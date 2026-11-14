@@ -155,6 +155,51 @@ async function newestFromFeed(): Promise<string | null> {
   }
 }
 
+/**
+ * The newest loader tag, read from the releases page's own search.
+ *
+ * Two things are rate limited or useless here: `api.github.com` by address, and the
+ * Atom feed by only ever listing the ten most recent releases — of which the hub's
+ * had filled every slot, so the loader's own tags were not in the feed at all.
+ *
+ * The releases page, filtered by the word in every loader release title, lists
+ * loader releases and nothing else, needs no authentication, and has no per-address
+ * budget. It is a page written for a browser, so this parses tags and nothing else —
+ * and every candidate is still checked against the release's own manifest before it
+ * is offered to anybody.
+ */
+async function newestFromSearch(): Promise<string | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15_000)
+  try {
+    const response = await fetch(`https://github.com/${REPO}/releases?q=INDRA+LOADER&expanded=true`, {
+      signal: controller.signal,
+      cache: 'no-store',
+      redirect: 'follow',
+      headers: { accept: 'text/html', 'user-agent': 'indra-loader-api' }
+    })
+    if (!response.ok) throw new Error(`GitHub answered HTTP ${response.status}`)
+
+    const html = await response.text()
+    let best: string | null = null
+    let bestVersion: string | null = null
+
+    for (const match of html.matchAll(/releases\/tag\/(loader-v[0-9][0-9.]*)/g)) {
+      const tag = match[1]
+      const version = versionFromTag(tag)
+      if (!version) continue
+      if (!bestVersion || compareVersions(version, bestVersion) > 0) {
+        best = tag
+        bestVersion = version
+      }
+    }
+
+    return best
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** The release's own manifest, which is the authority on file, hash and size. */
 async function manifestOf(tag: string, version: string): Promise<LoaderManifest> {
   const body = await json<Partial<LoaderManifest>>(
@@ -251,6 +296,14 @@ export async function latestLoaderRelease(): Promise<LatestRelease | null> {
         return null
       })
       if (tag) note(`feed: ${tag}`)
+    }
+
+    if (!tag) {
+      tag = await newestFromSearch().catch((error: unknown) => {
+        note(`page: ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
+      if (tag) note(`page: ${tag}`)
     }
 
     /*
