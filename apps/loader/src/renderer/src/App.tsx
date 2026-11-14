@@ -12,6 +12,7 @@ import AppDetail from './screens/AppDetail'
 import Settings from './screens/Settings'
 import Dialog from './components/Dialog'
 import Toasts, { type Toast } from './components/Toasts'
+import UpdatePill from './components/UpdatePill'
 
 /*
  * The whole flow, in one place.
@@ -79,6 +80,15 @@ export default function App(): React.JSX.Element {
     )
     return () => clearTimeout(timer)
   }, [])
+
+  /*
+   * The updater decides whether it may restart silently, and it can only do that
+   * if it knows what is on screen. It never renders anything from this; it is a
+   * single string on the other side of the bridge.
+   */
+  useEffect(() => {
+    bridge.updates.screen(screen)
+  }, [screen])
 
   useEffect(() => {
     void bridge.version().then(setVersion)
@@ -277,6 +287,15 @@ export default function App(): React.JSX.Element {
           onPrimary={dialog.onPrimary}
           onClose={() => setDialog(null)}
         />
+      ) : null}
+
+      {/*
+        * An update that lands while somebody is using the app is offered rather
+        * than applied: the silent restart only happens before the first screen
+        * has been left. Never shown over the splash or the sign-in form.
+        */}
+      {screen === 'home' || screen === 'settings' ? (
+        <UpdatePill update={update} onInstall={() => void bridge.updates.install()} />
       ) : null}
 
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((t) => t.id !== id))} />

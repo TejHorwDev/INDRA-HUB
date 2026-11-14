@@ -10,6 +10,7 @@ import {
   checkForUpdates,
   diagnoseConnection,
   installUpdate,
+  noteScreen,
   updateState
 } from '../services/updates'
 
@@ -38,6 +39,9 @@ export function registerIpc(handlers: Handlers): void {
   ipcMain.handle('update:check', () => checkForUpdates(true))
   ipcMain.handle('update:install', () => installUpdate())
   ipcMain.handle('update:diagnose', () => diagnoseConnection())
+  ipcMain.on('update:screen', (_event, screen: unknown) => {
+    if (typeof screen === 'string') noteScreen(screen)
+  })
 
   // The token stays in the main process; the renderer only learns who is signed
   // in.

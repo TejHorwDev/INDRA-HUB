@@ -26,6 +26,7 @@ const bridge: LoaderBridge = {
     check: (): Promise<UpdateState> => ipcRenderer.invoke('update:check'),
     install: (): Promise<UpdateState> => ipcRenderer.invoke('update:install'),
     diagnose: (): Promise<UpdateDiagnostics> => ipcRenderer.invoke('update:diagnose'),
+    screen: (screen: string): void => ipcRenderer.send('update:screen', screen),
     onState: (listener: (state: UpdateState) => void): (() => void) => {
       const handler = (_event: unknown, state: UpdateState): void => listener(state)
       ipcRenderer.on('update:state', handler)

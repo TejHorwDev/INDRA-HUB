@@ -128,6 +128,14 @@ export interface LoaderBridge {
     check: () => Promise<UpdateState>
     install: () => Promise<UpdateState>
     diagnose: () => Promise<UpdateDiagnostics>
+    /**
+     * Tells the main process which screen is showing.
+     *
+     * Only the updater uses it, and only to decide whether a silent restart is
+     * welcome — a restart while a password is being typed is a bug, and the main
+     * process cannot see the form.
+     */
+    screen: (screen: string) => void
     onState: (listener: (state: UpdateState) => void) => () => void
   }
 

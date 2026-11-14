@@ -194,6 +194,7 @@ const mock: LoaderBridge = {
       ok: true,
       summary: 'Preview mode — the updater runs in the installed app.'
     }),
+    screen: () => undefined,
     onState: () => () => undefined
   },
 

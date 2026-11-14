@@ -65,6 +65,26 @@ packs and verifies the payload, and publishes the release. A manual run without
 a tag builds the same installer as a downloadable run artifact and publishes
 nothing.
 
+## Updates
+
+The same shape as the hub, and for the same reason: a release publishes a
+`payload.json` and a ~0.3 MB `.asar`, the app fetches the manifest three seconds
+after launch, downloads what it finds, verifies size and SHA-256, and leaves it for
+the bootstrap to load on the way up.
+
+Then two ways of applying it:
+
+- **Silently**, when it is safe — before the first screen has been left, once per
+  run. Launch, and a moment later the app is current. A guard file records the
+  restart it is about to do, so a payload that fails to load cannot become a restart
+  loop: the next launch sees the claim, sees the old version, and stays quiet.
+- **Offered**, when it is not — an update that arrives while somebody is using the
+  app shows one pill at the bottom of the window instead of taking the app away.
+
+`lib/autorestart.ts` is the whole decision, as a pure function, including every
+reason it must refuse: a form with a password in it, the library, settings, after
+the first minute, a second time in the same run, or in development.
+
 ## Downloads and launching
 
 `lib/downloader.ts` is the whole of it, with no Electron in the file so it can be
