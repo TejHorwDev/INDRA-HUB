@@ -32,6 +32,7 @@ export const env = {
     keyId: text('B2_KEY_ID'),
     applicationKey: text('B2_APPLICATION_KEY'),
     bucket: text('B2_BUCKET'),
+    /** Optional: derived from the region when it is not set. See `b2Endpoint()`. */
     endpoint: text('B2_ENDPOINT'),
     region: text('B2_REGION') || 'us-west-004'
   },
@@ -40,6 +41,23 @@ export const env = {
 
   publicBaseUrl: text('PUBLIC_BASE_URL').replace(/\/+$/, '')
 } as const
+
+/**
+ * Backblaze's S3 endpoint, which is entirely a function of the region.
+ *
+ * Requiring both `B2_ENDPOINT` and `B2_REGION` meant a deployment could look complete
+ * and still fall back to local disk because one of two variables that always agree was
+ * missing. The region is the fact; the endpoint is arithmetic.
+ */
+export function b2Endpoint(): string {
+  if (env.b2.endpoint) return env.b2.endpoint.replace(/\/+$/, '')
+  return `https://s3.${env.b2.region}.backblazeb2.com`
+}
+
+/** Everything B2 needs, without demanding the variable that can be derived. */
+export function b2Ready(): boolean {
+  return Boolean(env.b2.keyId && env.b2.applicationKey && env.b2.bucket)
+}
 
 export function databaseReady(): boolean {
   return Boolean(env.supabaseUrl && env.supabaseServiceKey)
@@ -53,7 +71,7 @@ export function adminReady(): boolean {
 export function storageDriverConfigured(): boolean {
   if (env.storageDriver) return env.storageDriver !== 'local'
   const r2 = Boolean(env.r2.accountId && env.r2.accessKeyId && env.r2.secretAccessKey && env.r2.bucket)
-  const b2 = Boolean(env.b2.keyId && env.b2.applicationKey && env.b2.bucket && env.b2.endpoint)
+  const b2 = b2Ready()
   const supabase = Boolean(env.supabaseUrl && env.supabaseServiceKey)
   return r2 || b2 || supabase
 }

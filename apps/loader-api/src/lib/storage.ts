@@ -11,7 +11,7 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@supabase/supabase-js'
-import { env } from './env'
+import { b2Endpoint, b2Ready, env } from './env'
 
 /*
  * Where the files live.
@@ -34,7 +34,7 @@ const LOCAL_ROOT = join(process.cwd(), '.data', 'uploads')
 export function driver(): Driver {
   if (env.storageDriver) return env.storageDriver as Driver
   if (env.r2.accountId && env.r2.accessKeyId && env.r2.secretAccessKey && env.r2.bucket) return 'r2'
-  if (env.b2.keyId && env.b2.applicationKey && env.b2.bucket && env.b2.endpoint) return 'b2'
+  if (b2Ready()) return 'b2'
   if (env.supabaseUrl && env.supabaseServiceKey) return 'supabase'
   return 'local'
 }
@@ -56,7 +56,7 @@ function s3(): S3Client {
 
   return new S3Client({
     region: env.b2.region,
-    endpoint: env.b2.endpoint,
+    endpoint: b2Endpoint(),
     credentials: { accessKeyId: env.b2.keyId, secretAccessKey: env.b2.applicationKey },
     // B2 is path-style; R2 accepts either.
     forcePathStyle: true
