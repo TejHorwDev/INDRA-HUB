@@ -1,7 +1,7 @@
 import { app, ipcMain, shell } from 'electron'
 import { installed } from '../services/installed'
 import { runningVersion } from '../lib/payload'
-import { currentSession, login, logout } from '../services/auth'
+import { currentSession, login, logout, restoreSession } from '../services/auth'
 import { rememberVideo } from '../lib/backdrop-cache'
 import { loadCatalogue } from '../services/catalog'
 import { entitlementReport, ownedProductIds } from '../services/entitlement'
@@ -11,6 +11,7 @@ import {
   checkForUpdates,
   diagnoseConnection,
   installUpdate,
+  noteActivity,
   noteScreen,
   updateLog,
   updateState
@@ -39,11 +40,26 @@ export function registerIpc(handlers: Handlers): void {
 
   ipcMain.handle('update:state', () => updateState())
   ipcMain.handle('update:check', () => checkForUpdates(true))
-  ipcMain.handle('update:install', () => installUpdate())
+  // A press is not a loop: a person asking clears any guard that was holding back
+  // an automatic restart. See `installUpdate`.
+  ipcMain.handle('update:install', () => installUpdate({ manual: true }))
   ipcMain.handle('update:diagnose', () => diagnoseConnection())
   ipcMain.handle('update:log', () => updateLog())
   ipcMain.on('update:screen', (_event, screen: unknown) => {
     if (typeof screen === 'string') noteScreen(screen)
+  })
+  /*
+   * What the window is doing — the screen, and whether a field has focus or text in
+   * it. Reported on every focus change, so the updater can restart the moment
+   * nobody is in the middle of anything.
+   */
+  ipcMain.on('update:activity', (_event, activity: unknown) => {
+    if (!activity || typeof activity !== 'object') return
+    const report = activity as { screen?: unknown; typing?: unknown }
+    noteActivity({
+      screen: typeof report.screen === 'string' ? report.screen : undefined,
+      typing: report.typing === true
+    })
   })
 
   // The token stays in the main process; the renderer only learns who is signed
@@ -56,6 +72,12 @@ export function registerIpc(handlers: Handlers): void {
   })
   ipcMain.handle('auth:logout', () => logout())
   ipcMain.handle('auth:session', () => currentSession())
+  /*
+   * The session from the last run. Asked once as the window comes up: if the token
+   * the OS decrypts still works, the app opens into the library instead of a
+   * password box — which is what makes an update restart invisible.
+   */
+  ipcMain.handle('auth:restore', () => restoreSession())
 
   // The catalogue and its links. Public data, fetched in the main process so the
   // renderer still has no network of its own.

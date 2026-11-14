@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { open, rename, rm } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type { UpdateDiagnostics, UpdateState } from '@shared/types'
-import { shouldAutoRestart } from '../lib/autorestart'
+import { restartBlocker, shouldAutoRestart } from '../lib/autorestart'
 import {
   hashFile,
   payloadDir,
@@ -15,6 +15,7 @@ import {
   writePending
 } from '../lib/payload'
 import { compareVersions } from '../lib/version'
+import { busy as transferInFlight } from './downloads'
 import { apiBase } from './catalog'
 import {
   manifestUrl,
@@ -83,8 +84,27 @@ let running = false
 let startedAt = Date.now()
 /** The screen the renderer last reported, used only to decide about restarting. */
 let screen = 'splash'
+/**
+ * Whether a text field is focused or filled.
+ *
+ * The screen alone cannot answer this — an empty form and half a typed password are
+ * the same screen — so the window reports it and this is the one place it lands.
+ */
+let typing = false
 let restarted = false
-let restartBlocked = false
+/**
+ * A payload that was restarted into and did not load, by version.
+ *
+ * It used to be a boolean for the process's lifetime, which meant one transient
+ * failure refused every later restart for that run — including a *different* version
+ * downloaded an hour later. Scoped to the version, it expires with the guard and a
+ * fresh payload starts with a clean slate.
+ */
+let blockedVersion: string | null = null
+/** Re-asks the question later, so a ready payload can never be stranded. */
+let reconsider: NodeJS.Timeout | null = null
+/** The last refusal written to the log, so the log stays a record and not a flood. */
+let lastVerdict: string | null = null
 
 const guardFile = (): string => join(app.getPath('userData'), 'update-auto-restart.json')
 
@@ -142,7 +162,7 @@ function restartAlreadyTried(version: string): boolean {
   const guard = readGuard()
   if (!guard) return false
   if (guard.target !== version) return false
-  if (Date.now() - guard.at > RESTART_GUARD_MS * 6) {
+  if (Date.now() - guard.at > RESTART_GUARD_MS) {
     clearGuard()
     return false
   }
@@ -651,6 +671,15 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
 
     const file = await downloadPayload(manifest, release)
     writePending({ version: manifest.version, file, sha256: manifest.sha256, size: manifest.size })
+    /*
+     * A payload that has just been verified is not the payload that failed to load.
+     * The guard names a version, and a stale claim about it must not survive a new
+     * download — otherwise a machine that once had a bad restart would refuse every
+     * later one, which is exactly the "sometimes it works" this is here to end.
+     */
+    if (blockedVersion === manifest.version) blockedVersion = null
+    clearGuard()
+    lastVerdict = null
     logLine(`downloaded ${manifest.version} (${manifest.size} bytes) as ${file}`)
 
     setState({
@@ -704,11 +733,31 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
 /**
  * The renderer's current screen.
  *
- * The single input that makes a silent restart safe: the main process has no
- * other way to know whether somebody is looking at a form or at nothing at all.
+ * One of two inputs that make a silent restart safe. Kept for the launch card,
+ * which uses it to stand the rule down while it runs its own sequence.
  */
 export function noteScreen(next: string): void {
+  if (next === screen) return
   screen = next
+  maybeAutoRestart()
+}
+
+/**
+ * What the window is doing, not just what it is showing.
+ *
+ * `typing` is the fact the screen name cannot carry: an empty sign-in form and a
+ * half-typed password are both `signin`. Every report re-asks the restart
+ * question, which is the actual fix — the decision used to be made once, at the
+ * instant a download finished, and whatever was on screen *then* decided it
+ * forever. Download at launch, glance away, and the update waited for a restart
+ * nobody was going to perform.
+ */
+export function noteActivity(next: { screen?: string; typing?: boolean }): void {
+  if (typeof next.screen === 'string' && next.screen !== screen) screen = next.screen
+  const nowTyping = next.typing === true
+  const changed = nowTyping !== typing
+  typing = nowTyping
+  if (changed) maybeAutoRestart()
 }
 
 /**
@@ -717,25 +766,79 @@ export function noteScreen(next: string): void {
  * The payload is on disk and verified before this is called — the restart only
  * chooses to run what the next launch was going to run anyway.
  */
-function maybeAutoRestart(): void {
-  if (!shouldAutoRestart({
+function autoRestartInput(): Parameters<typeof restartBlocker>[0] {
+  return {
     packaged,
     phase: state.phase,
     screen,
+    idle: !typing && !transferInFlight(),
     runningForMs: Date.now() - startedAt,
     alreadyRestarted: restarted,
-    blocked: restartBlocked
-  })) {
+    blocked: blockedVersion !== null && blockedVersion === state.version
+  }
+}
+
+function maybeAutoRestart(): void {
+  const input = autoRestartInput()
+  const blocker = restartBlocker(input)
+
+  if (blocker !== null) {
+    /*
+     * Say why, once per reason. A log that repeats the same sentence every few
+     * seconds is a log nobody reads; a log that changes when the reason changes is
+     * the answer to "it did not restart — why?".
+     */
+    if (blocker !== lastVerdict && state.phase === 'ready') {
+      lastVerdict = blocker
+      logLine(`auto-restart: waiting — ${blocker}`)
+    }
+
+    /*
+     * A ready payload is never left to rot. Something is in hand now; it will not
+     * be in hand forever, and if the window never reports again (a screen that
+     * throws, a renderer that hangs) this is what still gets the update applied.
+     */
+    if (
+      state.phase === 'ready' &&
+      !blockedVersion &&
+      !restarted &&
+      screen !== 'launch-card' &&
+      reconsider === null
+    ) {
+      reconsider = setTimeout(() => {
+        reconsider = null
+        maybeAutoRestart()
+      }, 15_000)
+      reconsider.unref()
+    }
     return
   }
 
+  lastVerdict = null
   restarted = true
+  if (reconsider) {
+    clearTimeout(reconsider)
+    reconsider = null
+  }
 
   setTimeout(() => {
     const pending = readVerifiedPending()
     // The file could have been removed in the last second. Without it the
-    // restart would be a very expensive way of doing nothing.
-    if (!pending) return
+    // restart would be a very expensive way of doing nothing — and `restarted`
+    // goes back so the decision is not spent on nothing.
+    if (!pending) {
+      restarted = false
+      return
+    }
+    /*
+     * A field took focus in the last second. The restart can wait, and it will not
+     * be forgotten: `restarted` goes back to false and the next activity report —
+     * the one where the field is left — asks the question again.
+     */
+    if (typing) {
+      restarted = false
+      return
+    }
 
     // The claim on this restart, written before it happens: if the next launch is
     // still on the old version, `initUpdates` reads this and stays quiet.
@@ -758,17 +861,21 @@ function maybeAutoRestart(): void {
  * up. Nothing is spawned, nothing is installed, and a cancelled restart changes
  * nothing.
  */
-export function installUpdate(): UpdateState {
+export function installUpdate(options: { manual?: boolean } = {}): UpdateState {
   if (state.phase !== 'ready') return updateState()
 
   /*
    * One restart per version. If a previous launch claimed to install this build and
    * came back on the old one, the payload does not load — restarting again would be
    * an app that closes itself every time it opens.
+   *
+   * Unless a person asks. The guard exists to stop the *app* from looping; it was
+   * never meant to refuse somebody who pressed Install and watched nothing happen.
+   * A manual install clears it, and that cannot loop: it needs another press.
    */
   const staged = readVerifiedPending()
-  if (staged && restartAlreadyTried(staged.version)) {
-    restartBlocked = true
+  if (staged && restartAlreadyTried(staged.version) && !options.manual) {
+    blockedVersion = staged.version
     setState({
       phase: 'error',
       canInstall: false,
@@ -776,6 +883,12 @@ export function installUpdate(): UpdateState {
       detail: `guard: ${staged.version} at ${new Date(readGuard()?.at ?? Date.now()).toISOString()}`
     })
     return updateState()
+  }
+
+  if (options.manual && staged) {
+    clearGuard()
+    blockedVersion = null
+    logLine(`manual install of ${staged.version}, guard cleared`)
   }
 
   if (!readVerifiedPending()) {
@@ -894,9 +1007,11 @@ export function initUpdates(skipFirstCheck = false): void {
   const guard = readGuard()
   if (guard) {
     if (guard.target === runningVersion()) {
+      // It worked: the guard has done its job and the version is current.
       clearGuard()
     } else if (Date.now() - guard.at < RESTART_GUARD_MS) {
-      restartBlocked = true
+      blockedVersion = guard.target
+      logLine(`auto-restart: ${guard.target} did not load last launch, holding it for a while`)
     } else {
       clearGuard()
     }
@@ -905,10 +1020,15 @@ export function initUpdates(skipFirstCheck = false): void {
   // Debris from an interrupted download is never useful.
   prunePayloadDir()
 
-  // A payload downloaded in a previous session is already in place: the
-  // bootstrap is running it, so report that rather than looking for it again.
+  /*
+   * A payload downloaded in a previous session is already in place: the bootstrap
+   * consumes it on the way up, so normally there is nothing here. When there is —
+   * the file arrived after the bootstrap ran, or the adoption failed — it is
+   * announced *and* the restart question is asked immediately, instead of waiting
+   * for a four-hour tick that used to leave the update on disk for a day.
+   */
   const pending = readVerifiedPending()
-  if (pending) {
+  if (pending && compareVersions(pending.version, runningVersion()) > 0) {
     setState({
       phase: 'ready',
       version: pending.version,
@@ -916,6 +1036,7 @@ export function initUpdates(skipFirstCheck = false): void {
       canInstall: true,
       message: `Version ${pending.version} is ready. Restart to apply it.`
     })
+    maybeAutoRestart()
   }
 
   if (!skipFirstCheck) {

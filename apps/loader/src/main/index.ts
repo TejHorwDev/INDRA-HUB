@@ -189,6 +189,18 @@ function revealWindow(window: BrowserWindow): void {
 }
 
 app.whenReady().then(() => {
+  /*
+   * Healthy the moment the app is up, not five seconds later.
+   *
+   * The bootstrap gives a payload two starts to prove itself and `markHealthy`
+   * forgave the attempts — but five seconds in, so closing the app quickly, twice,
+   * was enough to have a perfectly good payload discarded and the app silently fall
+   * back to the installed copy. That is one of the "sometimes it updates, sometimes
+   * it does not" shapes: the update applied, then un-applied itself. Reaching here
+   * at all means the payload loaded and its main process is running, which is what
+   * "healthy" was always meant to mean.
+   */
+  markHealthy()
   applyContentSecurityPolicy()
   registerIpc({
     closeWindow: () => mainWindow?.close(),

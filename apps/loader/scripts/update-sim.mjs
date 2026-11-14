@@ -17,7 +17,7 @@
  * Nothing here touches the network, and nothing is published.
  */
 import { createHash } from 'node:crypto'
-import { mkdirSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -186,6 +186,7 @@ async function main() {
     packaged: true,
     phase: 'ready',
     screen: 'landing',
+    idle: true,
     runningForMs: 4_000,
     alreadyRestarted: false,
     blocked: false
@@ -194,9 +195,26 @@ async function main() {
 
   check('restarts before anything has been started', ask({}) === true)
   check('restarts on the splash too', ask({ screen: 'splash' }) === true)
-  check('never while a password is being typed', ask({ screen: 'signin' }) === false)
-  check('never with the library open', ask({ screen: 'home' }) === false)
-  check('never with settings open', ask({ screen: 'settings' }) === false)
+  check('restarts while a session is being verified', ask({ screen: 'verifying' }) === true)
+
+  /*
+   * The screen is not the thing being protected; the work on it is. These two pairs
+   * are the whole rewrite, and the reason an update used to sit on disk until the
+   * next manual restart: the sign-in form with empty fields and the library with
+   * nothing downloading are both moments a restart costs nothing.
+   */
+  check('restarts on an untouched sign-in form', ask({ screen: 'signin' }) === true)
+  check('never while a password is being typed', ask({ screen: 'signin', idle: false }) === false)
+  check('restarts over an idle library', ask({ screen: 'home' }) === true)
+  check('never while a product is downloading', ask({ screen: 'home', idle: false }) === false)
+  check('restarts from settings when nothing is running', ask({ screen: 'settings' }) === true)
+  check('never while a setting is being typed', ask({ screen: 'settings', idle: false }) === false)
+
+  // The launch card runs its own sequence and would fight this rule for the same
+  // payload. Unknown screens are somebody's work, not ours to interrupt.
+  check('never while the launch card is up', ask({ screen: 'launch-card' }) === false)
+  check('never on a screen it does not know', ask({ screen: 'something-new' }) === false)
+
   check(
     'never after the welcome window has passed',
     ask({ runningForMs: AUTO_RESTART_WINDOW_MS + 1 }) === false
@@ -205,6 +223,40 @@ async function main() {
   check('never when the last restart changed nothing', ask({ blocked: true }) === false)
   check('never before the payload is ready', ask({ phase: 'downloading' }) === false)
   check('never in development', ask({ packaged: false }) === false)
+
+  /* Every refusal can explain itself, which is what goes in the log the panel shows. */
+  const { restartBlocker } = await bundle('src/main/lib/autorestart.ts', join(work, 'ar2.mjs'))
+  check('the refusal names the reason', restartBlocker({ ...base, screen: 'home', idle: false }).includes('in hand'))
+  check('an allowed restart has no reason', restartBlocker(base) === null)
+
+  /*
+   * The two facts the rewrite exists for, checked in the source rather than in a
+   * decision function, because they are wiring and wiring is what silently rots:
+   *
+   *  - the window reports what is in hand, and the report re-asks the question,
+   *  - a ready payload that was refused is asked about again later, so it can never
+   *    be stranded on disk until somebody happens to restart the app by hand.
+   */
+  const service = readFileSync(join(root, 'src/main/services/updates.ts'), 'utf8')
+  const renderer = readFileSync(join(root, 'src/renderer/src/App.tsx'), 'utf8')
+  const ipc = readFileSync(join(root, 'src/main/ipc/index.ts'), 'utf8')
+
+  check('the window reports what is in hand', /update:activity/.test(ipc))
+  check('a focus change reports it', /focusin/.test(renderer) && /focusout/.test(renderer))
+  check('the report re-asks the restart question', /noteActivity[\s\S]{0,400}maybeAutoRestart/.test(service))
+  check('a ready payload is asked about again', /reconsider/.test(service))
+  check('and the log says why it waited', /auto-restart: waiting/.test(service))
+  check(
+    'the guard cannot outlive the version it names',
+    /blockedVersion/.test(service) && !/restartBlocked/.test(service)
+  )
+  check('a manual install clears the guard', /installUpdate\(\{ manual: true \}\)/.test(ipc))
+
+  /* A restart that lands on a password box is the bug this pairs with. */
+  const auth = readFileSync(join(root, 'src/main/services/auth.ts'), 'utf8')
+  check('the session is remembered through the OS secret store', /safeStorage\.encryptString/.test(auth))
+  check('and never written in the clear', !/writeFileSync\(sessionFile\(\), JSON\.stringify/.test(auth))
+  check('the remembered session is asked for at boot', /auth\.restore\(\)/.test(renderer))
 
   /* --------------------------------------------------------- the launch card */
 
