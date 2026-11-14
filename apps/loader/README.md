@@ -65,6 +65,31 @@ packs and verifies the payload, and publishes the release. A manual run without
 a tag builds the same installer as a downloadable run artifact and publishes
 nothing.
 
+## The launch card
+
+The installed app opens behind a small dark card — a ring, one sentence, "Checking
+for updates…" — and the app window is revealed when the card is done. Same card as
+the hub's, deliberately: one way of waiting for both products.
+
+Three rules make it safe to put in front of the real window:
+
+1. **It never blocks.** A check that fails, or takes longer than ten seconds,
+   closes the card and opens the app. Offline still works.
+2. **It restarts rather than asks.** An update found at launch is downloaded,
+   proved and applied by relaunching — the payload is verified on disk before the
+   restart, so a failed restart changes nothing.
+3. **Every sentence is held for a readable moment** even when the work is instant.
+   The payload downloads in under a second; without a floor the card would flash
+   three sentences and read as a glitch.
+
+`launch.ts` holds the startup order, which is the part that bit the hub: the app
+window is created *first* and the card is closed only once the app is on screen,
+because a card that is the last window makes `window-all-closed` quit the app
+before it ever opens.
+
+Installed builds open the renderer with `?card=1`, so it starts on the landing page
+instead of replaying its own two-second opening. Two waits in a row is one too many.
+
 ## Updates
 
 The same shape as the hub, and for the same reason: a release publishes a

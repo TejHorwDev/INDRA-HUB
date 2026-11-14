@@ -38,8 +38,15 @@ interface Confirmation {
   onPrimary: () => void
 }
 
+/*
+ * Installed builds open behind the launch card, which has already been the
+ * splash. Replaying the two-second opening after it would be two waits in a row,
+ * so the renderer starts where the card leaves off.
+ */
+const LAUNCHED_BY_CARD = new URLSearchParams(window.location.search).get('card') === '1'
+
 export default function App(): React.JSX.Element {
-  const [screen, setScreen] = useState<Screen>('splash')
+  const [screen, setScreen] = useState<Screen>(LAUNCHED_BY_CARD ? 'landing' : 'splash')
   const [error, setError] = useState<string | null>(null)
   const [username, setUsername] = useState<string | null>(null)
 
