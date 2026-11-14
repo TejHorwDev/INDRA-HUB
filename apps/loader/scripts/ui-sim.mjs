@@ -129,6 +129,7 @@ check('the card carries no version', !/app\.version/.test(shelf))
 check('the card carries no description', !/app\.description/.test(shelf))
 check('the artwork fills the card', /absolute inset-0/.test(shelf) && !/h-\[128px\]/.test(shelf))
 check('the library is called Browse library', /Browse library/.test(dash))
+check('and the library has no corner label', !/Indra Loader/i.test(dash) && !/\{username\}/.test(dash))
 
 console.log('\nThe landing page')
 const landing = code(readFileSync(join(renderer, 'screens/Landing.tsx'), 'utf8'))
