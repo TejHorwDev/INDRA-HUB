@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AdminAppRow } from '@/lib/db'
 import { parseDescription } from '@/lib/prose'
 
+/** A card whose artwork is a short loop rather than a still. */
+const MOVING = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
+
 /*
  * The catalogue, and the only screen that matters.
  *
@@ -509,28 +512,45 @@ export default function Products(): React.JSX.Element {
                 ? 'Image missing from the bucket — upload it again'
                 : current.image_url
                   ? 'Replace image'
-                  : 'Upload an image — PNG, JPG, GIF or WebP'}
+                  : 'Upload artwork — PNG, JPG, GIF, WebP, or a short MP4/WebM'}
             </div>
             {current.image_url ? (
               /*
-               * The image itself, at the size the card draws it. A GIF that only shows
-               * its first frame in the panel is a GIF nobody can check before publishing.
+               * The artwork itself, at the size the card draws it. A GIF that only showed
+               * its first frame here would be a GIF nobody could check before publishing,
+               * and a video card would not be checkable at all.
                */
-              <img
-                src={current.image_url}
-                alt=""
+              <div
                 style={{
                   marginTop: 10,
                   width: 96,
                   height: 96,
-                  objectFit: 'cover',
                   borderRadius: 10,
+                  overflow: 'hidden',
                   border: '1px solid var(--hairline)'
                 }}
-              />
+              >
+                {MOVING.test(current.image_url) ? (
+                  <video
+                    src={current.image_url}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <img
+                    src={current.image_url}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
+              </div>
             ) : null}
             <div className="hint" style={{ marginTop: 6 }}>
-              A GIF plays in the app. Up to 25 MB — animation is what takes the room.
+              PNG, JPG, GIF, WebP — or a short MP4/WebM that loops like a GIF and weighs a
+              fraction of one. Up to 25 MB.
             </div>
             {current.image_url ? (
               <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
@@ -547,7 +567,7 @@ export default function Products(): React.JSX.Element {
             <input
               ref={imageInput}
               type="file"
-              accept="image/*,.gif,.webp"
+              accept="image/*,.gif,.webp,video/mp4,video/webm,.mp4,.webm,.mov"
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0]

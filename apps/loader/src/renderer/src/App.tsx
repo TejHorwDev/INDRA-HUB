@@ -64,6 +64,8 @@ const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', mainten
 function warmImages(apps: LoaderApp[]): void {
   for (const app of apps) {
     if (!app.image) continue
+    // A video card warms itself by starting; asking again here would fetch it twice.
+    if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(app.image)) continue
     const image = new Image()
     image.decoding = 'async'
     image.src = app.image

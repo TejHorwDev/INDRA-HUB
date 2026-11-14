@@ -27,6 +27,19 @@ function hash(value: string): number {
   return result
 }
 
+/**
+ * A card whose artwork is a video, not a picture.
+ *
+ * A short loop says more about a product than any single frame of it, and it is the same
+ * idea as a GIF with a file that is a tenth of the size. The extension decides — nothing
+ * else needs to know, and the panel accepts both.
+ */
+const MOVING = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
+
+export function isMovingArtwork(image: string): boolean {
+  return MOVING.test(image.trim())
+}
+
 interface Props {
   name: string
   image: string
@@ -44,17 +57,36 @@ export default function Monogram({
   if (image) {
     return (
       /*
-       * A plain `<img>`, which is also what animates a GIF or an animated WebP: the
-       * format decides, not the component. `decoding="async"` keeps a large card from
-       * blocking the paint of the grid around it.
+       * A video card: muted, inline, looping — a moving picture where a still one would be,
+       * with no controls and nothing to click. It is scenery, exactly like the film behind
+       * the window, and the same rules apply: it must never ask for a gesture to start.
        */
-      <img
-        src={image}
-        alt=""
-        draggable={false}
-        decoding="async"
-        className={`h-full w-full object-cover ${className}`}
-      />
+      isMovingArtwork(image) ? (
+        <video
+          src={image}
+          muted
+          loop
+          autoPlay
+          playsInline
+          preload="auto"
+          tabIndex={-1}
+          disablePictureInPicture
+          className={`h-full w-full object-cover ${className}`}
+        />
+      ) : (
+        /*
+         * A plain `<img>`, which is also what animates a GIF or an animated WebP: the
+         * format decides, not the component. `decoding="async"` keeps a large card from
+         * blocking the paint of the grid around it.
+         */
+        <img
+          src={image}
+          alt=""
+          draggable={false}
+          decoding="async"
+          className={`h-full w-full object-cover ${className}`}
+        />
+      )
     )
   }
 

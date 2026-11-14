@@ -306,6 +306,18 @@ check('every card is asked for, not just the visible ones', /new Image\(\)/.test
 check('a big picture never blocks the paint', /decoding="async"/.test(monogram))
 check('and a GIF is left to animate', !/imageRendering|freeze|poster/.test(monogram))
 
+/*
+ * A card can be a short loop.
+ *
+ * The same idea as a GIF with a tenth of the bytes, and the card is the only place it
+ * shows — so it has to be a muted, inline, self-starting video, or Windows will refuse to
+ * play it and the card will sit there black.
+ */
+check('a video card renders as a video', /isMovingArtwork\(image\) \?/.test(monogram))
+check('it starts without a click', /autoPlay/.test(monogram) && /muted/.test(monogram))
+check('and loops quietly', /loop/.test(monogram) && !/controls/.test(monogram))
+check('warmed by playing, not by fetching twice', /mp4\|webm/.test(appShell))
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.
