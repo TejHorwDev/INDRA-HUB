@@ -1,0 +1,42 @@
+appId: com.indra.loader
+productName: INDRA LOADER
+copyright: Copyright © 2026 TejHorwDev
+
+# Installers are build artifacts, never committed.
+directories:
+  output: release
+  buildResources: build
+
+# Only the compiled app travels inside the installer — no sources, no tooling.
+files:
+  - out/**/*
+  - '!**/*.map'
+
+asar: true
+
+# The updater does not use electron-builder's feed (it reads its own
+# payload.json), but app-update.yml is still written so the build is complete and
+# a future switch to electron-updater would not be a rewrite.
+publish:
+  provider: github
+  owner: TejHorwDev
+  repo: INDRA-HUB
+  releaseType: release
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  # Per-user install: no UAC, and an update never needs administrator rights.
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: INDRA LOADER
+  # Downloaded apps and the device identity must survive an uninstall.
+  deleteAppDataOnUninstall: false
+  artifactName: INDRA-LOADER-Setup-${version}.${ext}
