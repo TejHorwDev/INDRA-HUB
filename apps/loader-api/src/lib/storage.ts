@@ -2,7 +2,13 @@ import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
-import { GetObjectCommand, PutObjectCommand, S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createClient } from '@supabase/supabase-js'
 import { env } from './env'
@@ -83,6 +89,138 @@ export function objectKey(kind: Kind, filename: string): string {
   const stamp = Date.now().toString(36)
   const random = Math.random().toString(36).slice(2, 8)
   return `${FOLDER[kind]}/${stamp}-${random}-${safe}`
+}
+
+/* ------------------------------------------------------------- size limits */
+
+/**
+ * How large a file may be, per kind and per driver.
+ *
+ * The rule is not ours to choose: it is whatever the bucket in front of us will
+ * accept. Supabase Storage takes **50 MB per file** by default on a free project (the
+ * ceiling can be raised in the dashboard, but the free plan's 1 GB of storage and 5 GB
+ * of monthly egress are the real limits) — and a Windows installer for this app is
+ * around 120 MB. That combination is a wall, and the panel has to say so *before* a
+ * browser spends ten minutes uploading into it.
+ *
+ * R2 and B2 have no such per-file ceiling, and their egress is free or nearly free, so
+ * the same installer is fine there. Local disk is development only.
+ */
+const MB = 1024 * 1024
+
+export function capFor(kind: Kind): number {
+  const active = driver()
+  if (active === 'local') return 2048 * MB
+  if (active === 'supabase') return kind === 'image' ? 10 * MB : 48 * MB
+  return kind === 'image' ? 20 * MB : kind === 'video' ? 400 * MB : 2048 * MB
+}
+
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
+  const mb = bytes / MB
+  if (mb < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  if (mb < 1024) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`
+  return `${(mb / 1024).toFixed(2)} GB`
+}
+
+/**
+ * Why this file cannot be uploaded here, or null when it can.
+ *
+ * A sentence, not a status code: the person reading it needs to know which wall they
+ * hit and what to do instead.
+ */
+export function refusalFor(kind: Kind, bytes: number): string | null {
+  const cap = capFor(kind)
+  if (bytes <= cap) return null
+
+  const what = kind === 'exe' ? 'installer' : kind === 'video' ? 'video' : 'image'
+  const active = driver()
+
+  if (active === 'supabase') {
+    return kind === 'exe'
+      ? `That ${what} is ${formatBytes(bytes)}; this bucket takes ${formatBytes(cap)} per file (Supabase Storage). A build that size belongs in a GitHub release — or set R2_BUCKET, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and this bucket takes 2 GB.`
+      : `That ${what} is ${formatBytes(bytes)}; this bucket takes ${formatBytes(cap)} per file. Compress it, or move storage to R2.`
+  }
+  return `That ${what} is ${formatBytes(bytes)}; this bucket takes ${formatBytes(cap)} per file.`
+}
+
+/**
+ * What is stored, per kind.
+ *
+ * Counted rather than guessed. It exists because "where do the exes go?" deserves an
+ * answer with a number in it, and because a bucket filling up is the kind of thing
+ * that should be visible in the panel before it is visible as a failed upload.
+ */
+export interface Usage {
+  count: number
+  bytes: number
+}
+
+export async function usageByKind(): Promise<Record<Kind, Usage> | { error: string }> {
+  const empty = (): Record<Kind, Usage> => ({ exe: { count: 0, bytes: 0 }, image: { count: 0, bytes: 0 }, video: { count: 0, bytes: 0 } })
+  const result = empty()
+  const active = driver()
+
+  try {
+    if (active === 'local') {
+      const { readdir } = await import('node:fs/promises')
+      for (const kind of Object.keys(FOLDER) as Kind[]) {
+        const dir = join(LOCAL_ROOT, FOLDER[kind])
+        const names = await readdir(dir).catch(() => [] as string[])
+        for (const name of names) {
+          const info = await stat(join(dir, name)).catch(() => null)
+          if (!info) continue
+          result[kind].count += 1
+          result[kind].bytes += info.size
+        }
+      }
+      return result
+    }
+
+    if (active === 'supabase') {
+      const supabase = createClient(env.supabaseUrl, env.supabaseServiceKey, {
+        auth: { persistSession: false }
+      })
+      for (const kind of Object.keys(FOLDER) as Kind[]) {
+        let offset = 0
+        for (;;) {
+          const { data, error } = await supabase.storage
+            .from(env.supabaseBucket)
+            .list(FOLDER[kind], { limit: 100, offset })
+          if (error || !data?.length) break
+          for (const entry of data) {
+            const size = Number((entry.metadata as { size?: unknown } | null)?.size ?? 0)
+            result[kind].count += 1
+            result[kind].bytes += Number.isFinite(size) ? size : 0
+          }
+          if (data.length < 100) break
+          offset += data.length
+        }
+      }
+      return result
+    }
+
+    for (const kind of Object.keys(FOLDER) as Kind[]) {
+      let token: string | undefined
+      do {
+        const page = await s3().send(
+          new ListObjectsV2Command({
+            Bucket: bucket(),
+            Prefix: `${FOLDER[kind]}/`,
+            ContinuationToken: token
+          })
+        )
+        for (const object of page.Contents ?? []) {
+          result[kind].count += 1
+          result[kind].bytes += object.Size ?? 0
+        }
+        token = page.IsTruncated ? page.NextContinuationToken : undefined
+      } while (token)
+    }
+    return result
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'the bucket could not be listed' }
+  }
 }
 
 export interface UploadTarget {
