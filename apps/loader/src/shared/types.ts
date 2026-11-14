@@ -158,6 +158,17 @@ export interface LoaderBridge {
       updated?: string | null
     }>
 
+  video: {
+    /**
+     * How this machine is decoding video.
+     *
+     * `hardware` is true when Chromium is using the graphics card. When it is false,
+     * every 1080p surface in this app is being decoded by the CPU and dropping frames —
+     * which looks like lag, and is worth being able to read rather than guess at.
+     */
+    status: () => Promise<{ hardware: boolean; decode: string; rasterization: string; compositing: string }>
+  }
+
   media: {
     /**
      * What to point the backdrop at, right now.

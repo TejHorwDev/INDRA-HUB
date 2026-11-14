@@ -298,6 +298,21 @@ async function main() {
   check('the example in the field parses', example.features.length === 3, JSON.stringify(example.features))
   check('and reads as a claim plus a list', example.about === 'Best external cheats in the market', example.about)
 
+  /*
+   * A card is 232px square and people upload 1080p. The panel shrinks it at upload time,
+   * in the browser, so the app only ever plays the small copy — and so an H.265 or
+   * variable-frame-rate source becomes a plain WebM any Chromium decodes without thinking.
+   */
+  console.log('\nA video prepared for a card')
+  const clip = readFileSync(join(root, 'src/components/card-clip.ts'), 'utf8')
+  check('it targets the card, not the screen', /const TARGET = 512/.test(clip))
+  check('and a short loop is enough', /const MAX_SECONDS = 4/.test(clip))
+  check('it re-encodes only what the browser can', /MediaRecorder\.isTypeSupported/.test(clip))
+  check('an already-small clip is left alone', /side <= TARGET && file\.size < 2 \* 1024 \* 1024/.test(clip))
+  check('and a failure uploads the original', /return \{ file, note: 'Uploaded as it is/.test(clip))
+  check('a card copy is never bigger than the original', /blob\.size >= file\.size/.test(clip))
+  check('the panel runs it before anything is uploaded', /prepareCardClip\(original/.test(readFileSync(join(root, 'src/components/Products.tsx'), 'utf8')))
+
   const range = await bundle('src/lib/http-range.ts', 'http-range')
   check('`bytes=0-` is the whole file', JSON.stringify(range.parseRange('bytes=0-')) === '{"start":0}')
   check('`bytes=5-9` is a slice', range.parseRange('bytes=5-9')?.end === 9)

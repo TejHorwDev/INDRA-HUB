@@ -325,6 +325,22 @@ check('warmed by playing, not by fetching twice', /mp4\|webm/.test(appShell))
 check('a picture that fails falls back to the wash', /if \(usable\)/.test(monogram) && /onError=\{\(\) => setFailed\(true\)\}/.test(monogram))
 check('and so does a video', (monogram.match(/onError/g) ?? []).length === 2)
 
+/* ------------------------------------------------------------ video, fast -- */
+
+/*
+ * Every screen here is a video surface. When Chromium falls back to decoding on the
+ * processor there is no amount of app code that makes 1080p smooth — so the app asks for
+ * the graphics card, and then says what it got, in Settings, instead of leaving it to be
+ * guessed at from a screenshot.
+ */
+const entrySource = code(readFileSync(join(main, 'index.ts'), 'utf8'))
+check('the blocklist is not allowed to decide', /ignore-gpu-blocklist/.test(entrySource))
+check('hardware video decode is requested', /enable-accelerated-video-decode/.test(entrySource))
+check('the answer is available, not assumed', /getGPUFeatureStatus/.test(readFileSync(join(main, 'ipc/index.ts'), 'utf8')))
+const settingsForVideo = code(readFileSync(join(renderer, 'screens/Settings.tsx'), 'utf8'))
+check('and Settings reports it', /Video decode/.test(settingsForVideo))
+check('with a measured frame rate beside it', /Frame rate/.test(settingsForVideo) && /requestAnimationFrame/.test(settingsForVideo))
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.

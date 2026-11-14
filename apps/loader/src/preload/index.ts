@@ -67,6 +67,12 @@ const bridge: LoaderBridge = {
     }
   },
 
+  video: {
+    /* Is this machine decoding video on the GPU, or on the processor? */
+    status: (): Promise<{ hardware: boolean; decode: string; rasterization: string; compositing: string }> =>
+      ipcRenderer.invoke('app:video')
+  },
+
   media: {
     /*
      * The film, from the disk when it has been fetched once. Null on the very first

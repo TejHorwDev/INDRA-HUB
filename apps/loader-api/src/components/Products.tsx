@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AdminAppRow } from '@/lib/db'
 import { parseDescription } from '@/lib/prose'
+import { isVideoFile, prepareCardClip } from './card-clip'
 
 /** A card whose artwork is a short loop rather than a still. */
 const MOVING = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
@@ -202,9 +203,28 @@ export default function Products(): React.JSX.Element {
     })
   }
 
-  async function upload(app: AdminAppRow, file: File, kind: 'exe' | 'image'): Promise<void> {
+  async function upload(app: AdminAppRow, original: File, kind: 'exe' | 'image'): Promise<void> {
     setBusy(true)
     setNotice(null)
+
+    /*
+     * A video card is shrunk here, in this browser, before a byte is uploaded.
+     *
+     * The card is 232 pixels square; a 1080p clip is a hundred times the pixels it will
+     * ever show, and on a machine without hardware decode that is a slideshow. Doing it
+     * now means the app only ever downloads and plays the small copy — and it launders
+     * every awkward source into a WebM that any Chromium decodes without thinking.
+     */
+    let file = original
+    if (kind === 'image' && isVideoFile(original)) {
+      setProgress({ id: app.id, percent: 0, label: 'Preparing the card copy' })
+      const prepared = await prepareCardClip(original, (step) =>
+        setProgress({ id: app.id, percent: 0, label: step })
+      )
+      file = prepared.file
+      if (prepared.file !== original) setNotice({ tone: 'info', text: prepared.note })
+    }
+
     setProgress({ id: app.id, percent: 0, label: kind === 'exe' ? 'Uploading installer' : 'Uploading image' })
 
     try {
@@ -249,7 +269,9 @@ export default function Products(): React.JSX.Element {
         text:
           kind === 'exe'
             ? `Installer stored — ${size(final.bytes ?? 0)}, SHA-256 ${final.sha256?.slice(0, 16)}…`
-            : 'Image stored.'
+            : file !== original
+              ? `Card copy stored — ${size(final.bytes ?? 0)}, prepared from ${size(original.size)}.`
+              : 'Image stored.'
       })
       await load()
     } catch (error) {

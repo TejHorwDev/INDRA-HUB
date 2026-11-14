@@ -86,6 +86,44 @@ export default function Settings({
    * downloaded. Each is a request, and this runs all three in order and prints what
    * came back — so the answer is a sentence rather than another guess.
    */
+  /*
+   * How this machine is drawing video, and how fast it is managing.
+   *
+   * The film and the cards are all video surfaces. When Chromium falls back to the
+   * processor they play — slowly, and the app looks broken while it is in fact doing
+   * exactly what it was told. Two numbers answer that in a way no amount of guessing
+   * from a screenshot can.
+   */
+  const [video, setVideo] = useState<{
+    hardware: boolean
+    decode: string
+    rasterization: string
+    compositing: string
+  } | null>(null)
+  const [fps, setFps] = useState(0)
+
+  useEffect(() => {
+    void bridge.video.status().then(setVideo).catch(() => undefined)
+
+    // A two-second measurement of what the window can actually paint.
+    let frames = 0
+    let started = 0
+    let handle = 0
+    const tick = (time: number): void => {
+      if (!started) started = time
+      frames += 1
+      const elapsed = time - started
+      if (elapsed < 1_500) {
+        handle = requestAnimationFrame(tick)
+        return
+      }
+      setFps(Math.round((frames * 1000) / elapsed))
+    }
+    handle = requestAnimationFrame(tick)
+
+    return () => cancelAnimationFrame(handle)
+  }, [])
+
   const [diagnosis, setDiagnosis] = useState<UpdateDiagnostics | null>(null)
   const [testing, setTesting] = useState(false)
   const [log, setLog] = useState<string[]>([])
@@ -300,6 +338,14 @@ export default function Settings({
               {version?.packaged ? 'Installed copy' : 'Development copy'}
             </Setting>
             <Setting label="Application">INDRA LOADER</Setting>
+            <Setting label="Video decode">
+              {video
+                ? video.hardware
+                  ? `Hardware (${video.decode.replace(/^enabled_/, '').replace(/_/g, ' ')})`
+                  : `Software — no GPU decode (${video.decode})`
+                : '—'}
+            </Setting>
+            <Setting label="Frame rate">{fps ? `${fps} fps` : '—'}</Setting>
           </Page>
         ) : null}
 
