@@ -293,6 +293,19 @@ check('the screen draws the parsed form', /parseDescription\(app\.description\)/
 check('features are a list, not a paragraph', /aria-label="Features"/.test(detailScreen))
 check('a very long list is capped', /prose\.features\.slice\(0, 6\)/.test(detailScreen))
 
+/* ------------------------------------------------------------- artwork ---- */
+
+/*
+ * The library is a grid of pictures, and each one used to start downloading when its card
+ * mounted — art arriving behind the names, one card at a time. Asking for all of them the
+ * moment the catalogue is known is what makes the grid paint whole.
+ */
+const monogram = code(readFileSync(join(renderer, 'components/Monogram.tsx'), 'utf8'))
+check('artwork is warmed when the catalogue arrives', /warmImages\(catalogue\.apps\)/.test(appShell))
+check('every card is asked for, not just the visible ones', /new Image\(\)/.test(appShell))
+check('a big picture never blocks the paint', /decoding="async"/.test(monogram))
+check('and a GIF is left to animate', !/imageRendering|freeze|poster/.test(monogram))
+
 console.log('\nThe connecting screen')
 /*
  * It became a way to lose the app.

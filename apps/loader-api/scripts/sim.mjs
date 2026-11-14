@@ -242,9 +242,15 @@ async function main() {
    */
   console.log('\nA film takes the short way')
   check('local disk has no second address to offer', (await storage.directUrl('videos/a.mp4')) === null)
+  check('an animated card is allowed the room it needs', storage.capFor('image') >= 20 * 1024 * 1024)
 
   const filesRoute = readFileSync(join(root, 'src/app/api/files/[...key]/route.ts'), 'utf8')
-  check('only a film is redirected', /path\.startsWith\('videos\/'\)/.test(filesRoute))
+  check('a film is redirected', /path\.startsWith\('videos\/'\)/.test(filesRoute))
+  check('and so is a card image', /path\.startsWith\('images\/'\)/.test(filesRoute))
+  // An image keeps its key for life, so it can be cached for one.
+  check('an image is cached as immutable', /max-age=31536000, immutable/.test(filesRoute))
+  // A GIF is a picture the browser animates by itself; nothing in the app has to know.
+  check('every image type is served with a type', ['gif', 'webp', 'png', 'jpg'].every((ext) => new RegExp(`${ext}: 'image/`).test(filesRoute)))
   check('and the redirect is short-lived', /directUrl\(path\)/.test(filesRoute))
 
   /*

@@ -509,7 +509,28 @@ export default function Products(): React.JSX.Element {
                 ? 'Image missing from the bucket — upload it again'
                 : current.image_url
                   ? 'Replace image'
-                  : 'Upload an image (PNG or JPG)'}
+                  : 'Upload an image — PNG, JPG, GIF or WebP'}
+            </div>
+            {current.image_url ? (
+              /*
+               * The image itself, at the size the card draws it. A GIF that only shows
+               * its first frame in the panel is a GIF nobody can check before publishing.
+               */
+              <img
+                src={current.image_url}
+                alt=""
+                style={{
+                  marginTop: 10,
+                  width: 96,
+                  height: 96,
+                  objectFit: 'cover',
+                  borderRadius: 10,
+                  border: '1px solid var(--hairline)'
+                }}
+              />
+            ) : null}
+            <div className="hint" style={{ marginTop: 6 }}>
+              A GIF plays in the app. Up to 25 MB — animation is what takes the room.
             </div>
             {current.image_url ? (
               <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
@@ -526,7 +547,7 @@ export default function Products(): React.JSX.Element {
             <input
               ref={imageInput}
               type="file"
-              accept="image/*"
+              accept="image/*,.gif,.webp"
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0]

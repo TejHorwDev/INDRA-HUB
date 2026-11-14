@@ -43,10 +43,16 @@ export default function Monogram({
 }: Props): React.JSX.Element {
   if (image) {
     return (
+      /*
+       * A plain `<img>`, which is also what animates a GIF or an animated WebP: the
+       * format decides, not the component. `decoding="async"` keeps a large card from
+       * blocking the paint of the grid around it.
+       */
       <img
         src={image}
         alt=""
         draggable={false}
+        decoding="async"
         className={`h-full w-full object-cover ${className}`}
       />
     )

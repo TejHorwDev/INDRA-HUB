@@ -49,6 +49,27 @@ function withCap<T>(work: Promise<T>, fallback: T): Promise<T> {
 
 const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
 
+/*
+ * Every card's artwork, fetched once and kept in the browser's cache.
+ *
+ * The library is a grid of pictures, and without this each one begins downloading when
+ * its card mounts — so the screen paints in the order the cards were rendered, art
+ * arriving behind the names. Asking for them all the moment the catalogue is known means
+ * the cards are already painted by the time they slide in. The API serves them immutable,
+ * because every upload gets a new address, so the second launch fetches nothing.
+ *
+ * A GIF is included: it animates in an `<img>` like any other picture, and warming it is
+ * what stops the card flickering from a still frame into motion.
+ */
+function warmImages(apps: LoaderApp[]): void {
+  for (const app of apps) {
+    if (!app.image) continue
+    const image = new Image()
+    image.decoding = 'async'
+    image.src = app.image
+  }
+}
+
 interface Confirmation {
   title: string
   body: string
@@ -209,6 +230,7 @@ export default function App(): React.JSX.Element {
       .then((catalogue) => {
         setApps(catalogue.apps)
         setConfig(catalogue.config)
+        warmImages(catalogue.apps)
       })
       // The film and the links are the two things this feeds, and both have sane
       // defaults. A failed read must not become an unhandled rejection.
