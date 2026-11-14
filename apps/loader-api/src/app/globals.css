@@ -57,6 +57,10 @@
   --ease-io: cubic-bezier(0.65, 0.05, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
+  /* One gutter for the whole frame, so the bar and the content share an edge at every
+     width. It grows with the window: on a 27-inch screen a 28px margin looks like a
+     screenshot of a phone. */
+  --gutter: clamp(22px, 3.4vw, 88px);
   --shadow-lift: 0 24px 48px -32px rgba(0, 0, 0, 0.9);
   --shadow-deep: 0 40px 90px -50px rgba(0, 0, 0, 1);
 
@@ -231,17 +235,21 @@ a:hover {
 .shell {
   position: relative;
   z-index: 2;
-  max-width: 1160px;
-  margin: 0 auto;
-  padding: 0 28px 120px;
+  /* Full bleed. The panel is an instrument panel: it fills the glass, and the only
+     thing that stays narrow is prose — a 180-character line is unreadable however
+     premium the font. */
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0 var(--gutter) 120px;
 }
 
 .bar {
   position: sticky;
   top: 0;
   z-index: 40;
-  margin: 0 -28px 44px;
-  padding: 0 28px;
+  margin: 0 calc(var(--gutter) * -1) 46px;
+  padding: 0 var(--gutter);
   background: rgba(8, 9, 10, 0.68);
   backdrop-filter: blur(22px) saturate(0.4);
   -webkit-backdrop-filter: blur(22px) saturate(0.4);
@@ -262,8 +270,8 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  max-width: 1160px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .brand {
@@ -451,6 +459,19 @@ h1 {
   animation: rise 800ms var(--ease) both;
 }
 
+/*
+ * The head of every page: the eyebrow, the title, the sentence under it. It drifts up
+ * and dims a little as you scroll away from it, so the content below owns the screen
+ * once you are reading the content below.
+ */
+.page-head {
+  margin-bottom: 34px;
+}
+
+.page-head .lede {
+  margin-bottom: 0;
+}
+
 h1 .thin {
   color: var(--ink-4);
   font-weight: 300;
@@ -555,30 +576,91 @@ h1 .thin {
     var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  padding: 22px;
-  margin-bottom: 18px;
+  padding: 24px 26px;
+  margin-bottom: 20px;
   box-shadow: var(--shadow-lift);
+  /*
+   * The tilt. Two variables, written by the pointer handler in Ambience — three degrees
+   * at most, because the point is that the panel is an object, not that it is a toy.
+   */
+  transform: perspective(1400px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+    translateY(var(--lift, 0px));
+  transform-style: preserve-3d;
   transition:
     border-color 400ms var(--ease),
-    transform 500ms var(--ease),
+    transform 260ms var(--ease),
     box-shadow 500ms var(--ease);
   animation: rise 820ms var(--ease) both;
   animation-delay: calc(var(--i, 0) * 55ms + 90ms);
 }
 
-/* The top edge catches light where the gradient starts — the difference between a box
- * and a panel. It fades at both ends so it never looks like a border. */
+.card:hover {
+  --lift: -2px;
+}
+
+/*
+ * Light inside the card, under the pointer. It is the same idea as the page-wide pool
+ * in Ambience, repeated on every surface, so the whole panel feels lit from one place.
+ */
+.card::after,
+.stat::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    340px circle at var(--px, 50%) var(--py, 0%),
+    rgba(255, 255, 255, 0.055),
+    transparent 62%
+  );
+  opacity: 0;
+  transition: opacity 460ms var(--ease);
+}
+
+.card:hover::after,
+.stat:hover::after {
+  opacity: 1;
+}
+
+/*
+ * The top edge. A hairline that stays, and a band of light that travels along it once
+ * every seven seconds — slow enough to catch out of the corner of the eye, subtle
+ * enough that it never pulls the eye away from the numbers.
+ */
 .card::before {
   content: '';
   position: absolute;
   top: -1px;
-  left: 14px;
-  right: 14px;
+  left: 0;
+  right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
-  opacity: 0.75;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18) 30%, rgba(255, 255, 255, 0.16) 70%, transparent)
+      0 0 / 100% 100% no-repeat,
+    linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.75),
+        transparent
+      )
+      0 0 / 34% 100% no-repeat;
+  background-position: 0 0, -40% 0;
+  opacity: 0.8;
   transition: opacity 400ms var(--ease);
   pointer-events: none;
+  animation: edge-shine 7.5s var(--ease-io) infinite;
+  animation-delay: calc(var(--i, 0) * 900ms);
+}
+
+@keyframes edge-shine {
+  0% {
+    background-position: 0 0, -40% 0;
+  }
+  45%,
+  100% {
+    background-position: 0 0, 140% 0;
+  }
 }
 
 .card:hover {
@@ -687,6 +769,13 @@ h1 .thin {
     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     align-items: start;
   }
+}
+
+@media (min-width: 1320px) {
+  .grid.cols {
+    grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+    gap: 22px;
+  }
 
   .grid.cols > .col {
     display: flex;
@@ -696,6 +785,17 @@ h1 .thin {
 
   .grid.cols > .col > .card {
     margin-bottom: 0;
+  }
+}
+
+/* Two short panels side by side, each filling half the glass. */
+.grid.pair {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 860px) {
+  .grid.pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1437,9 +1537,9 @@ pre {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
-  gap: 12px;
-  margin-bottom: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 26px;
 }
 
 .stat {
@@ -1447,7 +1547,9 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 18px 20px 20px;
+  padding: 20px 22px 22px;
+  transform: perspective(1400px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+    translateY(var(--lift, 0px));
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.004)),
     var(--surface);
@@ -1463,8 +1565,8 @@ pre {
 }
 
 .stat:hover {
+  --lift: -3px;
   border-color: var(--line-2);
-  transform: translateY(-2px);
   box-shadow: var(--shadow-lift);
 }
 
@@ -1712,6 +1814,72 @@ pre {
   margin: 18px 0;
 }
 
+/* ------------------------------------------------------------------ foot ---- */
+
+/*
+ * The floor: a hairline, the product, a clock, and a way back up. It is deliberately
+ * the quietest thing on the page — it exists so the page ends somewhere, not to be read.
+ */
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 42px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  animation: fade 1400ms var(--ease) 400ms both;
+}
+
+.foot-brand {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.foot-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.foot-live i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse 2.6s var(--ease-io) infinite;
+}
+
+.foot-live .mono {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rows land a beat apart, so a table assembles instead of appearing. */
+tbody tr {
+  animation: row-in 460ms var(--ease) both;
+}
+
+tbody tr:nth-child(1) { animation-delay: 40ms; }
+tbody tr:nth-child(2) { animation-delay: 80ms; }
+tbody tr:nth-child(3) { animation-delay: 120ms; }
+tbody tr:nth-child(4) { animation-delay: 160ms; }
+tbody tr:nth-child(5) { animation-delay: 200ms; }
+tbody tr:nth-child(6) { animation-delay: 240ms; }
+tbody tr:nth-child(n + 7) { animation-delay: 280ms; }
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 /* ------------------------------------------------------------- responsive ---- */
 
 /*
@@ -1814,6 +1982,325 @@ pre {
   }
   to {
     background-position: -40% 0;
+  }
+}
+
+/* ------------------------------------------------------- scroll-driven rise ---- */
+
+/*
+ * Below the fold, content should arrive when *you* get there, not while the page was
+ * still painting. Scroll-driven animations do that with no JavaScript at all: the
+ * element's position in the viewport is the clock.
+ *
+ * Everything is scoped to @supports, so a browser without it silently keeps the
+ * on-mount stagger above rather than leaving blank cards behind.
+ */
+@supports (animation-timeline: view()) {
+  .card,
+  .stat,
+  .tile {
+    animation: rise 700ms var(--ease) both;
+    animation-delay: 0ms;
+    animation-timeline: view();
+    animation-range: entry 2% entry 52%;
+  }
+
+  /* The tape at the top of the overview is held to the scroll, so it feels attached. */
+  .page-head {
+    animation: head-drift linear both;
+    animation-timeline: scroll();
+    animation-range: 0 240px;
+  }
+
+  @keyframes head-drift {
+    to {
+      opacity: 0.55;
+      transform: translateY(-8px);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ cursor ---- */
+
+/*
+ * A ring that follows the pointer a beat behind it, and opens over anything you can
+ * press. The real cursor is never hidden — this is an echo, not a replacement.
+ */
+.ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 80;
+  opacity: 0;
+  transform: translate3d(var(--cx, -50px), var(--cy, -50px), 0) scale(var(--cs, 1));
+  transition:
+    opacity 260ms var(--ease),
+    transform 160ms var(--ease),
+    border-color 220ms var(--ease),
+    background 260ms var(--ease);
+}
+
+.ring[data-live='true'] {
+  opacity: 1;
+}
+
+/* Over a link or a button: it opens up and goes quiet, so the target keeps the attention. */
+.ring[data-over='true'] {
+  --cs: 1.75;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .ring {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------- tape ---- */
+
+/*
+ * One line of live facts, running slowly under the title, paused on hover. It is the
+ * only thing on any page that moves without being asked, and it says only true things.
+ */
+.tape {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 30px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.tape-track {
+  display: flex;
+  width: max-content;
+  gap: 44px;
+  animation: tape 46s linear infinite;
+  will-change: transform;
+}
+
+.tape:hover .tape-track {
+  animation-play-state: paused;
+}
+
+.tape-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  white-space: nowrap;
+  transition: color 300ms var(--ease);
+}
+
+.tape-item::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.tape-item b {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.tape:hover .tape-item {
+  color: var(--ink-3);
+}
+
+@keyframes tape {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* ----------------------------------------------------------------- palette ---- */
+
+/*
+ * ⌘K. The panel has four sections and a handful of endpoints; this is not a command
+ * system, it is a door that opens with the keyboard. It exists because the fastest
+ * way around a tool is never the mouse.
+ */
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition:
+    color 200ms var(--ease),
+    border-color 200ms var(--ease),
+    background 200ms var(--ease);
+}
+
+.kbd-hint:hover {
+  color: var(--ink);
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.kbd-hint kbd {
+  font-family: inherit;
+  font-size: 9.5px;
+  color: var(--ink-2);
+}
+
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: start center;
+  padding: 12vh 20px 20px;
+  background: rgba(5, 5, 6, 0.62);
+  backdrop-filter: blur(16px) saturate(0.4);
+  -webkit-backdrop-filter: blur(16px) saturate(0.4);
+  animation: fade 200ms var(--ease) both;
+}
+
+.palette {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: rgba(14, 16, 17, 0.96);
+  box-shadow: 0 60px 120px -40px rgba(0, 0, 0, 1);
+  overflow: hidden;
+  animation: palette-in 260ms var(--ease) both;
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.985);
+    filter: blur(6px);
+  }
+}
+
+.palette input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 17px 20px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.palette input:focus {
+  box-shadow: none;
+  background: transparent;
+}
+
+.palette-list {
+  max-height: 46vh;
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+
+.palette-item small {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.palette-item[data-active='true'] {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink);
+}
+
+.palette-item[data-active='true'] small {
+  color: var(--ink-3);
+}
+
+.palette-empty {
+  padding: 28px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-4);
+}
+
+.palette-foot {
+  display: flex;
+  gap: 16px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* ------------------------------------------------------------------ page ---- */
+
+/*
+ * Every route fades up a little as it mounts, so a navigation reads as one space
+ * changing rather than a document being replaced.
+ */
+.page {
+  animation: page-in 620ms var(--ease) both;
+}
+
+/* On a wide screen the prose keeps a readable measure even though the page does not. */
+.lede {
+  max-width: 74ch;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
 }
 

@@ -50,12 +50,14 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
     : kinds.reduce((sum, kind) => sum + usage[kind].count, 0)
 
   return (
-    <>
-      <p className="eyebrow">
-        <span className="dot" data-tone="off" />
-        Infrastructure
-      </p>
-      <h1>Storage</h1>
+    <div className="page">
+      <div className="page-head">
+        <p className="eyebrow">
+          <span className="dot" data-tone="off" />
+          Infrastructure
+        </p>
+        <h1>Storage</h1>
+      </div>
 
       <StorageSettingsCard />
 
@@ -201,6 +203,6 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
           </p>
         )}
       </div>
-    </>
+    </div>
   )
 }

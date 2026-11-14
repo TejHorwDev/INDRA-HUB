@@ -363,6 +363,17 @@ async function main() {
   check('the sections slide rather than blink', /\.nav-pill/.test(css) && /translateX\(var\(--x/.test(css))
   check('content rises on a stagger', /\.rise/.test(css) && /var\(--i/.test(css))
   check('and any machine that asked for less motion gets none', /prefers-reduced-motion: reduce/.test(css))
+  check(
+    'the page fills the glass rather than sitting in the middle',
+    /\.shell \{[^}]*max-width: none/.test(css)
+  )
+  check('the frame and the content share one gutter', /--gutter: clamp/.test(css))
+  check('cards are lit and tilted from the pointer', /--rx/.test(css) && /--px/.test(css))
+  check('below the fold, content waits for the scroll', /animation-timeline: view\(\)/.test(css))
+  check('the tape moves, and stops when you point at it', /\.tape-track/.test(css) && /animation-play-state: paused/.test(css))
+  const layout = readFileSync(join(root, 'src/app/admin/(panel)/layout.tsx'), 'utf8')
+  check('the keyboard opens the jump box', /CommandPalette/.test(layout) && /metaKey/.test(readFileSync(join(root, 'src/components/CommandPalette.tsx'), 'utf8')))
+  check('and Escape closes it', /key === 'Escape'/.test(readFileSync(join(root, 'src/components/CommandPalette.tsx'), 'utf8')))
 
   console.log('\nThe public surface is read-only')
   const publicRoutes = walk(join(root, 'src/app/api/loader')).filter((file) => file.endsWith('route.ts'))
