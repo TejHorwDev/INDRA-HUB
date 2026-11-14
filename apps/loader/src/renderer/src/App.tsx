@@ -91,6 +91,33 @@ export default function App(): React.JSX.Element {
     bridge.updates.screen(screen)
   }, [screen])
 
+  /*
+   * And what is *in hand* on that screen.
+   *
+   * The updater used to decide whether it could restart by looking at the screen
+   * name, so an empty sign-in form and half a typed password counted as the same
+   * thing — and the library counted as busy forever, which is why an update
+   * downloaded at launch could sit on disk all day. A field having focus or text is
+   * the fact that actually matters, and only the window knows it.
+   */
+  useEffect(() => {
+    const report = (): void => {
+      const active = document.activeElement
+      const typing =
+        active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+      bridge.updates.activity({ screen, typing })
+    }
+    report()
+    document.addEventListener('focusin', report)
+    document.addEventListener('focusout', report)
+    window.addEventListener('blur', report)
+    return () => {
+      document.removeEventListener('focusin', report)
+      document.removeEventListener('focusout', report)
+      window.removeEventListener('blur', report)
+    }
+  }, [screen])
+
   useEffect(() => {
     void bridge.version().then(setVersion)
     void bridge.updates.state().then(setUpdate)
@@ -145,6 +172,42 @@ export default function App(): React.JSX.Element {
       setLoading(false)
     }
   }, [])
+
+  /*
+   * A remembered session, picked up as the landing screen appears.
+   *
+   * This is the other half of a silent update. The app restarts itself to apply one,
+   * and until now every restart ended on a password box — the update worked, and the
+   * experience was indistinguishable from the app crashing. With the token the OS
+   * decrypted, the restart lands back in the library instead.
+   *
+   * It never takes the form away from somebody: if a field has focus or text by the
+   * time the answer arrives, the restore stands down and the form stays where it is.
+   */
+  useEffect(() => {
+    if (screen !== 'landing') return
+    let cancelled = false
+
+    void bridge.auth.restore().then(async (info) => {
+      if (cancelled || !info) return
+      const active = document.activeElement
+      const busy =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        Boolean((document.querySelector('input:not([type="hidden"])') as HTMLInputElement | null)?.value)
+      if (busy) return
+
+      setScreen('verifying')
+      await new Promise((resolve) => setTimeout(resolve, MIN_VERIFY_MS))
+      if (cancelled) return
+      setScreen('home')
+      await loadLibrary()
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [screen, loadLibrary])
 
   const submit = useCallback(
     (user: string, pass: string) => {

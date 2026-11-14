@@ -167,10 +167,25 @@ export interface LoaderBridge {
      * process cannot see the form.
      */
     screen: (screen: string) => void
+    /**
+     * What the window is doing, on every focus change.
+     *
+     * `typing` is the part the screen name cannot carry: an empty sign-in form and
+     * a half-typed password are both `signin`, and only one of them may be
+     * restarted out from under. Sent whenever a field gains or loses focus.
+     */
+    activity: (activity: { screen: string; typing: boolean }) => void
     onState: (listener: (state: UpdateState) => void) => () => void
   }
 
   auth: {
+    /**
+     * The session from the last run, if the OS can decrypt it and it still works.
+     *
+     * `null` means sign in. A remembered session is the difference between an update
+     * restart and a crash, from where somebody is sitting.
+     */
+    restore: () => Promise<SessionInfo | null>
     /** What `/v1/apps` actually answered, for when a card is wrongly locked. */
     probe: () => Promise<EntitlementReport>
     /** The token never leaves the main process — this returns who, not what. */

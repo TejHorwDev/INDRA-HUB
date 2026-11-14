@@ -42,6 +42,20 @@ function set(id: string, patch: Partial<InstallView>): void {
   broadcast()
 }
 
+/**
+ * Is anything downloading right now?
+ *
+ * Asked by the updater, which will not restart the app out from under a transfer
+ * it would then have to start again. Read from memory on purpose: this is asked
+ * on every window event, and the answer is only ever about work in flight.
+ */
+export function busy(): boolean {
+  for (const view of entries.values()) {
+    if (view.state === 'downloading') return true
+  }
+  return false
+}
+
 /** Every product's state, with the disk consulted rather than remembered. */
 export function states(): Record<string, InstallView> {
   const result: Record<string, InstallView> = {}
