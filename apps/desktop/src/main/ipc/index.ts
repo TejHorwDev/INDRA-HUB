@@ -131,6 +131,7 @@ import {
   renameProject,
   resetAccountPassword,
   revokeKey,
+  syncActivationKeys,
   setAccountSuspended,
   setupAdmin,
   signInAdminFromLogin,
@@ -1206,10 +1207,12 @@ export function registerIpcHandlers(): void {
     })
   )
 
+  ipcMain.handle('admin:keys:sync', () => toResult(async () => syncActivationKeys()))
+
   ipcMain.handle(
     'admin:keys:create',
     (_event, input: { count?: unknown; label?: unknown; expiresInDays?: unknown }) =>
-      toResult(() =>
+      toResult(async () =>
         createKeys({
           count: Number(input?.count ?? 1),
           label: typeof input?.label === 'string' ? input.label : '',
@@ -1222,15 +1225,15 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('admin:keys:revoke', (_event, id: unknown) =>
-    toResult(() => {
-      revokeKey(requireRecordId(id))
+    toResult(async () => {
+      await revokeKey(requireRecordId(id))
       return null
     })
   )
 
   ipcMain.handle('admin:keys:delete', (_event, id: unknown) =>
-    toResult(() => {
-      removeKey(requireRecordId(id))
+    toResult(async () => {
+      await removeKey(requireRecordId(id))
       return null
     })
   )

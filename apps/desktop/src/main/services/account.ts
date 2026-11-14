@@ -25,6 +25,9 @@ import { SupabaseError, asRow, supabaseRpc, supabaseRequest } from '../lib/supab
 import { activeSessionUserId, clearLocalPassword, discardLocalAccount, openSessionFor, register, signOut } from './auth'
 import { recheckConnectivity } from './connectivity'
 import { syncAfterSignIn } from './sync'
+import { checkServerActivationKey, redeemServerActivationKey } from './activation'
+import { liveAccount } from '../lib/accountSession'
+import { readSettings } from './settings'
 import { findUserById } from './users'
 
 /*
@@ -413,7 +416,31 @@ export async function createAccount(input: AccountCreateInput): Promise<AccountS
  * address is confirmed, so the message says exactly that.
  */
 export async function registerOnServer(input: RegisterInput): Promise<SessionUser> {
-  const user = register(input)
+  /*
+   * The activation key is the server's, checked and consumed there.
+   *
+   * It used to be checked against this PC's own key table, which meant a key
+   * minted on the administrator's machine was unknown to every other machine,
+   * and a key spent here was still listed as unused everywhere else. The check
+   * happens before anything is created, and the redemption after — with the new
+   * account's own token, so the row records who used it.
+   */
+  const settings = readSettings()
+  const needsKey = settings.requireActivationKey
+  const suppliedKey = (input?.activationKey ?? '').trim()
+
+  if (needsKey) {
+    if (!suppliedKey) throw errors.validation('Enter your activation key.', 'activationKey')
+    const usable = await checkServerActivationKey(suppliedKey)
+    if (!usable) {
+      throw errors.validation(
+        'That activation key is not valid, has already been used, or has expired.',
+        'activationKey'
+      )
+    }
+  }
+
+  const user = register(needsKey ? input : input, { keyCheckedOnServer: needsKey })
   try {
     await createAccountFromLocal(input.password ?? '')
     /*
@@ -422,6 +449,32 @@ export async function registerOnServer(input: RegisterInput): Promise<SessionUse
      * as a credential store for somebody's account.
      */
     clearLocalPassword(user.id)
+
+    if (needsKey) {
+      const live = await liveAccount().catch(() => null)
+      const redeemed = live?.accessToken
+        ? await redeemServerActivationKey(suppliedKey, live.accessToken).catch(() => false)
+        : false
+      if (!redeemed) {
+        /*
+         * Two people raced for the same code. The account that was just made
+         * must not survive without a key, so it is taken back off the server
+         * and off this PC before the person is told to try another one.
+         */
+        if (live?.accessToken) {
+          await supabaseRequest('/rest/v1/rpc/indra_delete_my_account', {
+            method: 'POST',
+            body: {},
+            token: live.accessToken
+          }).catch(() => undefined)
+        }
+        discardLocalAccount(user.id)
+        throw errors.validation(
+          'That activation key was used by someone else a moment ago. Try another one.',
+          'activationKey'
+        )
+      }
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
     if (/confirm the address/i.test(message)) throw error

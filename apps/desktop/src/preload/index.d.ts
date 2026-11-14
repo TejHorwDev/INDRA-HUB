@@ -1,6 +1,7 @@
 import type {
   AboutInfo,
   AccountCreateInput,
+  ActivationKeyRow,
   AccountCredentialsInput,
   AccountSignInResult,
   AccountState,
@@ -349,6 +350,7 @@ export interface IndraBridge {
     deletePresentation: (presentationId: string) => Promise<ApiResult<null>>
     updateSettings: (input: AdminSettings) => Promise<ApiResult<AdminSettings>>
     createKeys: (input: CreateActivationKeyInput) => Promise<ApiResult<CreatedActivationKey[]>>
+    syncKeys: () => Promise<ApiResult<ActivationKeyRow[]>>
     revokeKey: (id: string) => Promise<ApiResult<null>>
     deleteKey: (id: string) => Promise<ApiResult<null>>
     changePassword: (payload: {

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AboutInfo,
   AccountCreateInput,
+  ActivationKeyRow,
   AccountCredentialsInput,
   AccountSignInResult,
   AccountState,
@@ -489,6 +490,8 @@ const api = {
       ipcRenderer.invoke('admin:settings:update', input),
     createKeys: (input: CreateActivationKeyInput): Promise<ApiResult<CreatedActivationKey[]>> =>
       ipcRenderer.invoke('admin:keys:create', input),
+    /** Pulls the server's key list into the panel. */
+    syncKeys: (): Promise<ApiResult<ActivationKeyRow[]>> => ipcRenderer.invoke('admin:keys:sync'),
     revokeKey: (id: string): Promise<ApiResult<null>> =>
       ipcRenderer.invoke('admin:keys:revoke', id),
     deleteKey: (id: string): Promise<ApiResult<null>> =>

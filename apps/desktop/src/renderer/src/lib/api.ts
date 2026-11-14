@@ -1,4 +1,5 @@
 import type {
+  ActivationKeyRow,
   AboutInfo,
   AccountCreateInput,
   AccountCredentialsInput,
@@ -363,6 +364,7 @@ export const api = {
       unwrap(bridge().admin.updateSettings(input)),
     createKeys: (input: CreateActivationKeyInput): Promise<CreatedActivationKey[]> =>
       unwrap(bridge().admin.createKeys(input)),
+    syncKeys: (): Promise<ActivationKeyRow[]> => unwrap(bridge().admin.syncKeys()),
     revokeKey: (id: string): Promise<null> => unwrap(bridge().admin.revokeKey(id)),
     deleteKey: (id: string): Promise<null> => unwrap(bridge().admin.deleteKey(id)),
     changePassword: (currentPassword: string, newPassword: string): Promise<null> =>
