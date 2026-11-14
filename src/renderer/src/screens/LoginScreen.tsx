@@ -49,15 +49,15 @@ export default function LoginScreen() {
 
     setPending(true)
     try {
-      // The session provider records the arrival, and the app shows the
-      // opening screen for four seconds before the workspace.
-      await signIn({ identifier: identifier.trim(), password })
-    } catch (error) {
       /*
-       * One screen, two identities. If these are the administrator's
-       * credentials, the panel opens instead of an error appearing; everyone
-       * else gets the ordinary message, and a wrong password on any other
-       * address cannot touch the administrator's throttle.
+       * Administration is tried first now, and it is answered by the server.
+       *
+       * The other order worked while the panel checked a hash on this PC: the
+       * user sign-in failed for the administrator, and the second attempt let
+       * them in. With both answered by the server the administrator would have
+       * been signed in as an ordinary person and never reached the panel, so the
+       * narrow question — is this the reserved administrator? — is asked first.
+       * It returns nothing for every other address, without touching a throttle.
        */
       const admin = await api.auth
         .signInAdmin({ identifier: identifier.trim(), password })
@@ -68,6 +68,10 @@ export default function LoginScreen() {
         return
       }
 
+      // The session provider records the arrival, and the app shows the
+      // opening screen for four seconds before the workspace.
+      await signIn({ identifier: identifier.trim(), password })
+    } catch (error) {
       setFormError(errorMessage(error))
       setPending(false)
     }

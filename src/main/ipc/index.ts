@@ -57,7 +57,8 @@ import {
   signIn,
   signOut,
   startOfflineWorkspace,
-  updateProfile
+  updateProfile,
+  openSessionFor
 } from '../services/auth'
 import { readPickedPortrait, readPortraitFile } from '../services/portrait'
 import { syncNow, syncState } from '../services/sync'
@@ -542,9 +543,32 @@ export function registerIpcHandlers(): void {
     })
   )
 
-  ipcMain.handle('auth:login', (_event, input: LoginInput) =>
-    toResult(() => signIn(input ?? ({} as LoginInput)))
-  )
+  ipcMain.handle('auth:login', (_event, input: LoginInput) => {
+    const credentials = input ?? ({} as LoginInput)
+    const identifier = String((credentials as { identifier?: string }).identifier ?? '').trim()
+
+    /*
+     * An address is checked by the server; anything else is a username, which
+     * only ever existed on this PC. Offline there is no sign-in at all — the
+     * offline screen offers the writing instead — so this path simply fails
+     * with the connection error it already has.
+     */
+    if (identifier.includes('@')) {
+      return toResult(async () => {
+        if (!recheckConnectivity().online) {
+          throw errors.offline('Signing in needs a connection. Work offline instead — nothing on this PC is lost.')
+        }
+        const result = await signInAccount({
+          email: identifier,
+          password: (credentials as { password?: string }).password ?? ''
+        })
+        /* The local row mirrors the account; the panel and the workspace need one. */
+        return openSessionFor(result.user.id)
+      })
+    }
+
+    return toResult(() => signIn(credentials))
+  })
 
   // The same screen signs the administrator in; the answer is null for anyone
   // who is not the administrator, so nothing about them is revealed.

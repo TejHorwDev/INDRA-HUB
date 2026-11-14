@@ -63,58 +63,64 @@ module.exports = { app, net: { fetch: () => { throw new Error('offline') } }, Br
 
   const admin = createRequire(join(work, 'index.js'))(join(work, 'admin.cjs'))
 
-  if (admin.adminStatus().configured) {
-    fail('a fresh database already reports an administrator')
+  /*
+   * No seeded administrator, and no way in without the server.
+   *
+   * The build used to create an administrator whose password was written into
+   * it, so every installation shipped the same credential. The gate now asks
+   * the server, which means: nothing on this PC to guess, and nothing to enter
+   * when there is no route out.
+   */
+  const fresh = admin.adminStatus()
+  if (fresh.admin !== null || fresh.signedIn) {
+    fail('a fresh database already reports a signed-in administrator')
     return
   }
+  if (fresh.configured !== true) {
+    fail('the panel is not ready to be signed in to')
+    return
+  }
+  console.log('✓ a fresh install has no administrator of its own — only a sign-in form')
 
-  const created = admin.ensureBuiltInAdmin()
-  if (!created || !admin.adminStatus().configured) {
-    fail('the built-in administrator was not created')
-    return
-  }
   if (admin.ensureBuiltInAdmin()) {
-    fail('a second administrator was created on the next start')
+    fail('a built-in administrator was still seeded')
     return
   }
+  console.log('✓ and none is seeded, so no password is shared by every installation')
 
+  /* This stub throws for every request: the machine has no route out. */
+  let offlineRefusal = null
   try {
-    const account = admin.adminSignIn({ email: EMAIL, password: PASSWORD })
-    console.log(`✓ signed in as ${account.email}`)
+    await admin.adminSignIn({ email: EMAIL, password: PASSWORD })
   } catch (error) {
-    fail(`the documented credentials were rejected: ${error?.message}`)
+    offlineRefusal = error
+  }
+  if (!offlineRefusal) {
+    fail('the panel signed somebody in without the server')
     return
   }
+  console.log('✓ with no connection the gate refuses, rather than checking a local hash')
 
-  for (const [label, input] of [
-    ['a wrong password', { email: EMAIL, password: 'not-the-password' }],
-    ['a different email', { email: 'someone@example.com', password: PASSWORD }]
-  ]) {
-    try {
-      admin.adminSignIn(input)
-      fail(`${label} was accepted`)
-      return
-    } catch {
-      console.log(`✓ ${label} was refused`)
-    }
-  }
-
-  // The ordinary Sign in screen must recognise the administrator too.
-  const viaLogin = admin.signInAdminFromLogin({ identifier: EMAIL, password: PASSWORD })
-  if (!viaLogin || viaLogin.email !== EMAIL) {
-    fail('the administrator could not sign in from the ordinary sign-in screen')
+  const viaLogin = await admin.signInAdminFromLogin({ identifier: EMAIL, password: PASSWORD })
+  if (viaLogin) {
+    fail('the ordinary sign-in screen handed out an admin session offline')
     return
   }
-  console.log('✓ recognised on the ordinary sign-in screen')
+  console.log('✓ the ordinary sign-in screen cannot hand out administration offline')
 
-  admin.adminSignOut()
-  if (admin.signInAdminFromLogin({ identifier: 'someone@example.com', password: PASSWORD })) {
-    fail('a different email was recognised as the administrator')
+  let guarded = null
+  try {
+    admin.requireAdmin()
+  } catch (error) {
+    guarded = error
+  }
+  if (!guarded) {
+    fail('admin data was readable without a session')
     return
   }
-  console.log('✓ not recognised for any other email')
+  console.log('✓ every admin call is refused without a session')
 
-  console.log('✓ one administrator, the documented credentials, no other way in')
+  console.log('✓ one administrator, decided by the server, with nothing to guess on this PC')
 
   /*
    * The packaged app's content policy. Two things on screen are drawn from Blob

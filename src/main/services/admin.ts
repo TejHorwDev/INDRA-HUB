@@ -1,7 +1,9 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { signInAccount } from './account'
+import { adminCloudRequest, adminCloudRole } from './cloud'
 import type {
   AdminAccount,
   AdminAccountRow,
@@ -179,32 +181,28 @@ function writeSession(adminId: string): void {
  * exactly as it is. Called again after `--reset-admin` it does nothing, because
  * that flag means "let me choose", not "put the shipped account back".
  */
+/**
+ * There used to be a seeded administrator here, with a password written into the
+ * build. Every installation therefore shipped the same credentials, which is the
+ * opposite of an administrator and exactly the kind of thing that turns into a
+ * support incident. Administrating is now an account on the server; nothing is
+ * seeded, and this remains only so old callers keep compiling.
+ */
 export function ensureBuiltInAdmin(): boolean {
-  if (adminRow() || readState<boolean>(SEED_SUPPRESSED_KEY)) return false
-
-  const { hash, salt } = hashPassword(BUILT_IN_ADMIN_PASSWORD)
-  const id = randomUUID()
-  const now = new Date().toISOString()
-
-  getDatabase()
-    .prepare(
-      `INSERT INTO admin_users
-         (id, email, display_name, password_hash, password_salt, created_at, last_sign_in_at)
-       VALUES (?, ?, ?, ?, ?, ?, NULL)`
-    )
-    .run(id, BUILT_IN_ADMIN_EMAIL, BUILT_IN_ADMIN_NAME, hash, salt, now)
-
-  audit('setup', `Built-in administrator ${BUILT_IN_ADMIN_EMAIL} created.`, id)
-  return true
+  return false
 }
 
 export function adminStatus(): AdminStatus {
+  /*
+   * There is nothing to set up any more: the administrator is an account on the
+   * server, and the panel's only question is whether somebody has signed in as
+   * one. So the gate is always ready, and the first screen is the sign-in form
+   * rather than a local setup that would create credentials on this PC.
+   */
   const row = adminRow()
-  if (!row) return { configured: false, signedIn: false, admin: null }
-
   const session = readSession()
-  const signedIn = session?.adminId === row.id
-  return { configured: true, signedIn, admin: signedIn ? toAccount(row) : null }
+  const signedIn = Boolean(row && session?.adminId === row.id)
+  return { configured: true, signedIn, admin: signedIn && row ? toAccount(row) : null }
 }
 
 /**
@@ -256,10 +254,39 @@ export function setupAdmin(input: AdminSetupInput): AdminAccount {
   return toAccount(row)
 }
 
-export function adminSignIn(input: AdminLoginInput): AdminAccount {
-  const row = adminRow()
-  if (!row) throw errors.adminRequired()
+/**
+ * The address the server reserves for administration, if it reserves one.
+ *
+ * Asking the server rather than reading a constant is what makes a change of
+ * administrator a database edit instead of a new release.
+ */
+function reservedAdminEmail(): string | null {
+  return readState<{ email?: string }>('admin:reserved')?.email ?? null
+}
 
+export async function refreshReservedAdmin(): Promise<void> {
+  try {
+    const who = await adminCloudRequest<{ email?: string } | null>(
+      requireAdminRowIdOrEmpty(),
+      '/rest/v1/rpc/indra_admin_who',
+      { method: 'POST', body: {} }
+    )
+    const email = typeof who?.email === 'string' ? who.email.toLowerCase() : ''
+    if (email) writeState('admin:reserved', { email })
+  } catch {
+    // The panel still works with what it knows; this is only a shortcut.
+  }
+}
+
+function requireAdminRowIdOrEmpty(): string {
+  try {
+    return readSession()?.adminId ?? adminRow()?.id ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export async function adminSignIn(input: AdminLoginInput): Promise<AdminAccount> {
   const throttle = readState<ThrottleRecord>(THROTTLE_KEY)
   if (throttle?.lockedUntil) {
     const remaining = new Date(throttle.lockedUntil).getTime() - Date.now()
@@ -274,38 +301,89 @@ export function adminSignIn(input: AdminLoginInput): AdminAccount {
 
   const email = normalizeEmail(input.email ?? '')
   const password = input.password ?? ''
-
   if (!email || !password) {
     throw errors.validation('Enter the administrator email and password.')
   }
 
-  const matches =
-    email === row.email &&
-    verifyPassword(password, { hash: row.password_hash, salt: row.password_salt })
+  /*
+   * The password is checked by the server. Nothing here compares it to a hash
+   * on this disk, because a hash on this disk proves only that this machine
+   * once accepted it — it says nothing about whether the account still exists,
+   * or is still an administrator, anywhere else.
+   */
+  let signedIn: { user: { id: string; displayName?: string } }
+  try {
+    signedIn = await signInAccount({ email, password })
+  } catch {
+    throw rejectAdminAttempt('Rejected administrator sign-in attempt.')
+  }
 
-  if (!matches) {
-    const failures = (readState<ThrottleRecord>(THROTTLE_KEY)?.failures ?? 0) + 1
-    const locked = failures >= MAX_ATTEMPTS
-    writeState(THROTTLE_KEY, {
-      failures,
-      lockedUntil: locked ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null
-    } satisfies ThrottleRecord)
-    audit('sign_in_failed', 'Rejected administrator sign-in attempt.', row.id)
-    if (locked) {
-      throw errors.throttled(
-        `Too many attempts. Administrator sign-in is locked for ${LOCK_MINUTES} minutes.`
-      )
-    }
-    throw errors.adminInvalidCredentials()
+  const role = await adminCloudRole(signedIn.user.id).catch(() => null)
+  if (role?.isAdmin !== true) {
+    throw rejectAdminAttempt('Refused administrator sign-in: the account is not an administrator.')
   }
 
   clearState(THROTTLE_KEY)
-  const now = new Date().toISOString()
-  getDatabase().prepare('UPDATE admin_users SET last_sign_in_at = ? WHERE id = ?').run(now, row.id)
+  const row = adoptAdminRow(email, signedIn.user.displayName || 'Administrator')
   writeSession(row.id)
-  audit('sign_in', 'Administrator signed in.', row.id)
+  audit('sign_in', 'Administrator signed in with a server account.', row.id)
+  return toAccount(row)
+}
 
-  return toAccount({ ...row, last_sign_in_at: now })
+/** One place for the throttle, the audit line and the sentence the person sees. */
+function rejectAdminAttempt(reason: string): Error {
+  const failures = (readState<ThrottleRecord>(THROTTLE_KEY)?.failures ?? 0) + 1
+  const locked = failures >= MAX_ATTEMPTS
+  writeState(THROTTLE_KEY, {
+    failures,
+    lockedUntil: locked ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null
+  } satisfies ThrottleRecord)
+  audit('sign_in_failed', reason, adminRow()?.id ?? 'server')
+  if (locked) {
+    return errors.throttled(
+      `Too many attempts. Administrator sign-in is locked for ${LOCK_MINUTES} minutes.`
+    )
+  }
+  return errors.adminInvalidCredentials()
+}
+
+/**
+ * The local row the panel's session hangs from.
+ *
+ * It holds no usable password: sign-in has already happened on the server by the
+ * time this runs, and the random hash below is there to satisfy a column that
+ * predates server accounts. Nothing can be signed in with it.
+ */
+function adoptAdminRow(email: string, displayName: string) {
+  const existing = adminRow()
+  const now = new Date().toISOString()
+  const name = displayName.trim().slice(0, 48) || 'Administrator'
+
+  if (existing) {
+    getDatabase()
+      .prepare('UPDATE admin_users SET email = ?, display_name = ?, last_sign_in_at = ? WHERE id = ?')
+      .run(email, name, now, existing.id)
+    return { ...existing, email, display_name: name, last_sign_in_at: now }
+  }
+
+  const { hash, salt } = hashPassword(randomBytes(32).toString('base64url'))
+  const id = randomUUID()
+  getDatabase()
+    .prepare(
+      `INSERT INTO admin_users
+         (id, email, display_name, password_hash, password_salt, created_at, last_sign_in_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(id, email, name, hash, salt, now, now)
+  return {
+    id,
+    email,
+    display_name: name,
+    password_hash: hash,
+    password_salt: salt,
+    created_at: now,
+    last_sign_in_at: now
+  }
 }
 
 /**
@@ -320,14 +398,30 @@ export function adminSignIn(input: AdminLoginInput): AdminAccount {
  * user mistyping their own password can never lock the administrator out. An
  * attempt on the administrator's own address is throttled exactly like the gate.
  */
-export function signInAdminFromLogin(input: { identifier?: string; password?: string } | null): AdminAccount | null {
-  const row = adminRow()
-  if (!row) return null
-
+export async function signInAdminFromLogin(input: {
+  identifier?: string
+  password?: string
+} | null): Promise<AdminAccount | null> {
   const identifier = normalizeEmail(input?.identifier ?? '')
-  if (!identifier || identifier !== row.email) return null
+  if (!identifier) return null
 
-  return adminSignIn({ email: row.email, password: input?.password ?? '' })
+  /*
+   * Only a plausible administrator address is even tried, so an ordinary person
+   * typing their own wrong password can never be throttled by this path, and
+   * nothing about which addresses exist is revealed by it.
+   */
+  let reserved = reservedAdminEmail()
+  if (!reserved) {
+    await refreshReservedAdmin()
+    reserved = reservedAdminEmail()
+  }
+  if (!reserved || identifier !== reserved) return null
+
+  try {
+    return await adminSignIn({ email: identifier, password: input?.password ?? '' })
+  } catch {
+    return null
+  }
 }
 
 export function adminSignOut(): void {
