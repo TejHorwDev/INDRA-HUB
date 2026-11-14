@@ -1,5 +1,5 @@
 import { app, BrowserWindow, net } from 'electron'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { open, rename, rm } from 'node:fs/promises'
 import { basename } from 'node:path'
@@ -87,6 +87,38 @@ let restarted = false
 let restartBlocked = false
 
 const guardFile = (): string => join(app.getPath('userData'), 'update-auto-restart.json')
+
+/**
+ * What the updater did, in a file.
+ *
+ * Every answer to "it does not update" so far has needed somebody to guess on the
+ * user's behalf. This is the end of guessing: each attempt appends one line — which
+ * source answered, what version, where it stopped — and Settings shows the last few.
+ * Nothing here is sensitive; it is a version number and a sentence.
+ */
+const logFile = (): string => join(app.getPath('userData'), 'update-log.txt')
+const LOG_LIMIT = 40
+
+export function logLine(text: string): void {
+  const line = `${new Date().toISOString()} ${text}`
+  console.log('[updates]', text)
+  try {
+    const existing = existsSync(logFile()) ? readFileSync(logFile(), 'utf8').split('\n').filter(Boolean) : []
+    existing.push(line)
+    writeFileSync(logFile(), `${existing.slice(-LOG_LIMIT).join('\n')}\n`)
+  } catch {
+    /* a log that cannot be written is not a reason to stop updating */
+  }
+}
+
+/** The tail of that log, newest last. */
+export function updateLog(): string[] {
+  try {
+    return readFileSync(logFile(), 'utf8').split('\n').filter(Boolean).slice(-8)
+  } catch {
+    return []
+  }
+}
 
 function readGuard(): { target: string; at: number } | null {
   try {
@@ -578,6 +610,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
     }
     const { release, manifest } = resolved
     const current = runningVersion()
+    logLine(`found ${release.tag} (running ${current})`)
 
     if (compareVersions(manifest.version, current) <= 0) {
       setState({
@@ -618,6 +651,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
 
     const file = await downloadPayload(manifest, release)
     writePending({ version: manifest.version, file, sha256: manifest.sha256, size: manifest.size })
+    logLine(`downloaded ${manifest.version} (${manifest.size} bytes) as ${file}`)
 
     setState({
       phase: 'ready',
@@ -632,6 +666,7 @@ export async function checkForUpdates(manual = false): Promise<UpdateState> {
     return updateState()
   } catch (error) {
     console.error('[updates] check failed', error)
+    logLine(`check failed: ${technical(error)}`)
 
     // Ask where it broke before apologising, so the panel can say something
     // specific. Never let the diagnosis become the failure.
@@ -710,6 +745,7 @@ function maybeAutoRestart(): void {
       /* without the guard we still know ourselves: `restarted` is already true */
     }
 
+    logLine(`restarting into ${pending.version}`)
     app.relaunch()
     app.exit(0)
   }, AUTO_RESTART_DELAY_MS)

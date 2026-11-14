@@ -12,6 +12,7 @@ import {
   diagnoseConnection,
   installUpdate,
   noteScreen,
+  updateLog,
   updateState
 } from '../services/updates'
 
@@ -40,6 +41,7 @@ export function registerIpc(handlers: Handlers): void {
   ipcMain.handle('update:check', () => checkForUpdates(true))
   ipcMain.handle('update:install', () => installUpdate())
   ipcMain.handle('update:diagnose', () => diagnoseConnection())
+  ipcMain.handle('update:log', () => updateLog())
   ipcMain.on('update:screen', (_event, screen: unknown) => {
     if (typeof screen === 'string') noteScreen(screen)
   })

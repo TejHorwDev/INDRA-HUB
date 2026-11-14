@@ -79,7 +79,7 @@ const note = (line: string): void => {
 }
 let cache: { at: number; value: LatestRelease | null } | null = null
 
-async function json<T>(url: string, timeoutMs = 12_000): Promise<T> {
+async function json<T>(url: string, timeoutMs = 8_000): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -125,7 +125,7 @@ async function newest(): Promise<Release | null> {
  */
 async function newestFromFeed(): Promise<string | null> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 12_000)
+  const timer = setTimeout(() => controller.abort(), 8_000)
   try {
     const response = await fetch(`https://github.com/${REPO}/releases.atom`, {
       signal: controller.signal,
@@ -170,7 +170,7 @@ async function newestFromFeed(): Promise<string | null> {
  */
 async function newestFromSearch(): Promise<string | null> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 15_000)
+  const timer = setTimeout(() => controller.abort(), 10_000)
   try {
     const response = await fetch(`https://github.com/${REPO}/releases?q=INDRA+LOADER&expanded=true`, {
       signal: controller.signal,
@@ -267,10 +267,49 @@ async function remembered(): Promise<LatestRelease | null> {
   }
 }
 
+/**
+ * How long a request may wait for GitHub before it is answered from memory.
+ *
+ * The app asks this endpoint at launch, in front of the window, with a card showing
+ * "Checking for updates". A cold Render instance plus a rate-limited API plus a page
+ * fetch is longer than anybody should be made to watch a spinner, and longer than the
+ * app's own patience. So the slow path is a background job: the caller is answered in
+ * a couple of seconds from the last good answer, and the fresh one is waiting for the
+ * next call.
+ */
+const WAIT_BUDGET_MS = 2_500
+
+/** One lookup at a time, however many callers ask. */
+let inFlight: Promise<LatestRelease | null> | null = null
+
+function lookup(): Promise<LatestRelease | null> {
+  if (inFlight) return inFlight
+
+  inFlight = runLookup().finally(() => {
+    inFlight = null
+  })
+  return inFlight
+}
+
 /** What the newest published loader is. `null` when nothing has been published. */
 export async function latestLoaderRelease(): Promise<LatestRelease | null> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.value
 
+  const rememberedNow = await remembered()
+  if (rememberedNow) {
+    const fresh = lookup().catch(() => null)
+    const raced = await Promise.race([
+      fresh,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), WAIT_BUDGET_MS))
+    ])
+    /* The lookup may still be running; it updates the cache and the stored release. */
+    return raced ?? rememberedNow
+  }
+
+  return lookup()
+}
+
+async function runLookup(): Promise<LatestRelease | null> {
   try {
     let tag: string | null = null
     let publishedAt = ''

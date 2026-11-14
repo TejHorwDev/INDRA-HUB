@@ -15,8 +15,16 @@
  * decision, not a side effect.
  */
 
-/** How long after launch a silent restart is still considered welcome. */
-export const AUTO_RESTART_WINDOW_MS = 60_000
+/**
+ * How long after launch a silent restart is still considered welcome.
+ *
+ * A minute was too short to be reachable: the check alone can take a cold panel half
+ * of one, and the download the other half, so the update landed a second after the
+ * window had closed. Ten minutes still means "before you have started anything",
+ * because the other half of the rule — the splash or the landing screen, never a form
+ * and never the library — is what actually protects the person using it.
+ */
+export const AUTO_RESTART_WINDOW_MS = 10 * 60_000
 
 export interface AutoRestartInput {
   /** Off in development: a reload loop there is worse than being out of date. */
