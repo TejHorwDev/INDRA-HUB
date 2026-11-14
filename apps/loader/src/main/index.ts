@@ -1,15 +1,9 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import { APP_NAME, applyIdentity } from './lib/identity'
-import { markHealthy, runningVersion } from './lib/payload'
-import {
-  checkForUpdates,
-  checkForUpdatesOnFocus,
-  diagnoseConnection,
-  initUpdates,
-  installUpdate,
-  updateState
-} from './services/updates'
+import { markHealthy } from './lib/payload'
+import { registerIpc } from './ipc'
+import { checkForUpdatesOnFocus, initUpdates } from './services/updates'
 
 /*
  * INDRA LOADER.
@@ -45,6 +39,43 @@ app.on('second-instance', () => {
 })
 
 let mainWindow: BrowserWindow | null = null
+
+/*
+ * The renderer may load its own bundled files and nothing else.
+ *
+ * `connect-src 'none'` is the important line: this app makes no network requests
+ * from the renderer at all. Every request — auth, catalogue, downloads, updates —
+ * happens in the main process, so a compromised renderer has no network to
+ * reach and no token to steal.
+ *
+ * Sent as a header rather than a <meta> tag, so it cannot be sidestepped by
+ * markup injected later. Skipped against the dev server, which needs a websocket
+ * and an inline preamble to hot-reload — and which is never what ships.
+ */
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'"
+].join('; ')
+
+function applyContentSecurityPolicy(): void {
+  if (process.env['ELECTRON_RENDERER_URL']) return
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [CONTENT_SECURITY_POLICY]
+      }
+    })
+  })
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -117,24 +148,12 @@ function createWindow(): void {
   })
 }
 
-function registerIpc(): void {
-  ipcMain.handle('app:version', () => ({
-    running: runningVersion(),
-    installed: app.getVersion(),
-    packaged: app.isPackaged
-  }))
-
-  ipcMain.handle('update:state', () => updateState())
-  ipcMain.handle('update:check', () => checkForUpdates(true))
-  ipcMain.handle('update:install', () => installUpdate())
-  ipcMain.handle('update:diagnose', () => diagnoseConnection())
-
-  ipcMain.on('window:close', () => mainWindow?.close())
-  ipcMain.on('window:minimize', () => mainWindow?.minimize())
-}
-
 app.whenReady().then(() => {
-  registerIpc()
+  applyContentSecurityPolicy()
+  registerIpc({
+    closeWindow: () => mainWindow?.close(),
+    minimizeWindow: () => mainWindow?.minimize()
+  })
   createWindow()
 
   /*

@@ -173,3 +173,29 @@ body {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * Browser preview.
+ *
+ * The window is transparent in Electron so the 18px corner arcs are real. In a
+ * browser there is nothing behind it, so it is centred on a near-black page with
+ * a shadow — same components, same 900x550 frame, judged as the app.
+ */
+html[data-mode='web'] body {
+  background: #07070a;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+html[data-mode='web'] .shell {
+  box-shadow:
+    0 40px 120px -30px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
