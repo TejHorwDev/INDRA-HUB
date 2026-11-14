@@ -14,6 +14,9 @@ export default function Nav(): React.JSX.Element {
       <Link href="/admin/apps" data-active={path === '/admin/apps'}>
         Products
       </Link>
+      <Link href="/admin/storage" data-active={path === '/admin/storage'}>
+        Storage
+      </Link>
       <Link href="/admin/settings" data-active={path === '/admin/settings'}>
         Settings
       </Link>

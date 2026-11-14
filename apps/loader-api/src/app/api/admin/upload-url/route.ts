@@ -1,6 +1,6 @@
 import { currentSession } from '@/lib/auth'
 import { body, fail, ok, serverError, text } from '@/lib/http'
-import { createUploadTarget, type Kind } from '@/lib/storage'
+import { capFor, createUploadTarget, formatBytes, refusalFor, type Kind } from '@/lib/storage'
 
 /*
  * POST /api/admin/upload-url
@@ -25,11 +25,26 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!filename) return fail('A file needs a name.')
 
+  /*
+   * The size, checked before the browser is handed a URL.
+   *
+   * Without this, a 120 MB installer on a 48 MB bucket uploads for ten minutes and
+   * then fails at the bucket's edge with a message about a payload being too large.
+   * The browser sends the size it read from the file, so this costs nothing and
+   * refuses in the first second.
+   */
+  const size = Number(payload?.['size'] ?? 0)
+  if (Number.isFinite(size) && size > 0) {
+    const refusal = refusalFor(kind, size)
+    if (refusal) return fail(refusal, 413)
+  }
+
   // The loader will only download an https URL. A local driver exists for
   // development on this same machine, and is refused in production.
   try {
     const target = await createUploadTarget(kind, filename, contentType)
-    return ok(target)
+    // So the panel can show the ceiling next to the button rather than after it fails.
+    return ok({ ...target, maxBytes: capFor(kind), maxLabel: formatBytes(capFor(kind)) })
   } catch (error) {
     return serverError('admin/upload-url', error)
   }

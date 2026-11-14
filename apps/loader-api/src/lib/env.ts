@@ -48,3 +48,12 @@ export function databaseReady(): boolean {
 export function adminReady(): boolean {
   return Boolean(env.adminUsername && env.adminPassword && env.sessionSecret.length >= 32)
 }
+
+/** Is there a bucket in front of us at all? Local disk does not count. */
+export function storageDriverConfigured(): boolean {
+  if (env.storageDriver) return env.storageDriver !== 'local'
+  const r2 = Boolean(env.r2.accountId && env.r2.accessKeyId && env.r2.secretAccessKey && env.r2.bucket)
+  const b2 = Boolean(env.b2.keyId && env.b2.applicationKey && env.b2.bucket && env.b2.endpoint)
+  const supabase = Boolean(env.supabaseUrl && env.supabaseServiceKey)
+  return r2 || b2 || supabase
+}

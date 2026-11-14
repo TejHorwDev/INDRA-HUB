@@ -173,7 +173,18 @@ export default function Products(): React.JSX.Element {
       const targetResponse = await fetch('/api/admin/upload-url', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind, filename: file.name, contentType: file.type || 'application/octet-stream' })
+        body: JSON.stringify({
+          kind,
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+          /*
+           * The size goes with the request so the server can refuse before any bytes
+           * move. A 120 MB installer on a 48 MB bucket used to spend ten minutes
+           * uploading and then fail at the far end, which is the worst possible way
+           * to learn a file is too big.
+           */
+          size: file.size
+        })
       })
       const target = (await targetResponse.json()) as {
         uploadUrl: string
