@@ -375,6 +375,20 @@ async function main() {
   check('the keyboard opens the jump box', /CommandPalette/.test(layout) && /metaKey/.test(readFileSync(join(root, 'src/components/CommandPalette.tsx'), 'utf8')))
   check('and Escape closes it', /key === 'Escape'/.test(readFileSync(join(root, 'src/components/CommandPalette.tsx'), 'utf8')))
 
+  /*
+   * The film's two numbers. The panel owns them, the app applies them straight to a
+   * video element, so the only place they can be made safe is here — on the way out.
+   */
+  console.log('\nThe film is published with its frame')
+  const configRoute = readFileSync(join(root, 'src/app/api/loader/config/route.ts'), 'utf8')
+  check('blur and dim travel with the film', /filmBlur: limit\(config\.film_blur/.test(configRoute) && /filmDim: limit\(config\.film_dim/.test(configRoute))
+  check('and are clamped, not trusted', /Math\.min\(max,/.test(configRoute))
+  const adminConfig = readFileSync(join(root, 'src/app/api/admin/config/route.ts'), 'utf8')
+  check('the panel can write them', /film_blur/.test(adminConfig) && /film_dim/.test(adminConfig))
+  const appearance = readFileSync(join(root, 'src/components/Appearance.tsx'), 'utf8')
+  check('the preview shows the real film at the real setting', /filter: `blur\(\$\{blur\}px\)`/.test(appearance))
+  check('and saves without a release', /fetch\('\/api\/admin\/config'/.test(appearance))
+
   console.log('\nThe public surface is read-only')
   const publicRoutes = walk(join(root, 'src/app/api/loader')).filter((file) => file.endsWith('route.ts'))
   const writable = publicRoutes.filter((file) => /export async function (POST|PUT|PATCH|DELETE)/.test(readFileSync(file, 'utf8')))

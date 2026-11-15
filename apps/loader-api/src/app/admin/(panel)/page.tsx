@@ -74,6 +74,8 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
   const website = config['website'] ?? ''
   const maintenance = config['maintenance'] === '1' || config['maintenance'] === 'true'
   const notice = config['notice'] ?? ''
+  const filmBlur = Number(config['film_blur'] ?? 0) || 0
+  const filmDim = Number(config['film_dim'] ?? 0) || 0
 
   const tone = failure ? 'warn' : maintenance ? 'warn' : 'live'
   const state = failure
@@ -159,6 +161,17 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
                   </>
                 ) : (
                   <span className="pill off">not set — animated wash</span>
+                )}
+              </dd>
+
+              <dt>Film frame</dt>
+              <dd>
+                {filmBlur || filmDim ? (
+                  <span className="mono">
+                    {filmBlur}px blur · {filmDim}% dark
+                  </span>
+                ) : (
+                  <span className="mono">sharp and undimmed</span>
                 )}
               </dd>
 

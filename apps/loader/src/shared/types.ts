@@ -110,6 +110,16 @@ export interface LoaderConfig {
    * you are migrating a bucket, not for a weekend.
    */
   maintenance: boolean
+
+  /**
+   * How the film is drawn, in pixels of blur and percent of dark.
+   *
+   * A 1080p clip behind a 900px window at full sharpness fights every label on the
+   * screen, and only the person who owns the film can say how far to soften it — so
+   * the panel publishes both numbers alongside the file. 0 is the sharp film.
+   */
+  filmBlur: number
+  filmDim: number
 }
 
 /** What the diagnostics button reports about the entitlement lookup. */

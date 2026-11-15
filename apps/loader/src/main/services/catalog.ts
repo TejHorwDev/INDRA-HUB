@@ -28,7 +28,14 @@ export function apiBase(): string {
   return API_BASE
 }
 
-const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
+const EMPTY_CONFIG: LoaderConfig = {
+  website: '',
+  video: '',
+  notice: '',
+  maintenance: false,
+  filmBlur: 0,
+  filmDim: 0
+}
 
 /** The text-valued settings. `maintenance` is parsed separately — it is a flag. */
 const FIELDS: Array<'website' | 'video' | 'notice'> = ['website', 'video', 'notice']
@@ -112,6 +119,16 @@ export function toConfig(body: unknown): LoaderConfig {
    */
   const flag = record['maintenance']
   config.maintenance = flag === true || flag === '1' || flag === 'true'
+
+  /*
+   * The two frame numbers. They arrive as numbers from the API, which has already
+   * clamped them — this clamps again because the app applies them straight to a video
+   * element, and a stored 900 would blur the window into one grey rectangle.
+   */
+  const blur = Number(record['filmBlur'])
+  const dim = Number(record['filmDim'])
+  config.filmBlur = Number.isFinite(blur) ? Math.min(40, Math.max(0, blur)) : 0
+  config.filmDim = Number.isFinite(dim) ? Math.min(100, Math.max(0, dim)) : 0
 
   return config
 }

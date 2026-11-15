@@ -83,7 +83,14 @@ const staged: Catalogue = {
       status: 'locked'
     }
   ],
-  config: { website: 'https://indra-cheats.com', video: '', notice: '', maintenance: false }
+  config: {
+    website: 'https://indra-cheats.com',
+    video: '',
+    notice: '',
+    maintenance: false,
+    filmBlur: 0,
+    filmDim: 0
+  }
 }
 
 /*

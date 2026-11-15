@@ -337,6 +337,29 @@ body {
   opacity: 0;
   transition: opacity 420ms linear;
   will-change: opacity;
+  /*
+   * How soft the film sits, and how dark. Both come from the panel — `--film-blur` in
+   * pixels, `--film-dim` as a fraction — so the person who owns the film can dial it
+   * until product names read, without waiting for a release.
+   */
+  filter: blur(var(--film-blur, 0px));
+  transform: scale(var(--film-scale, 1));
+  transform-origin: center;
+}
+
+/*
+ * The darkening. It sits above the film and below the vignette, and it is a plain
+ * rectangle — the `.backdrop span` rule above is for the washes, so this one has to
+ * undo the circle and the blur it would otherwise inherit.
+ */
+.backdrop .film-dim {
+  inset: 0;
+  border-radius: 0;
+  filter: none;
+  background: #070708;
+  opacity: var(--film-dim, 0);
+  will-change: opacity;
+  z-index: 1;
 }
 
 .backdrop-video[data-front='true'] {

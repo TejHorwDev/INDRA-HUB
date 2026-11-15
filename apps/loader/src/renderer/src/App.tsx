@@ -47,7 +47,14 @@ function withCap<T>(work: Promise<T>, fallback: T): Promise<T> {
   ])
 }
 
-const EMPTY_CONFIG: LoaderConfig = { website: '', video: '', notice: '', maintenance: false }
+const EMPTY_CONFIG: LoaderConfig = {
+  website: '',
+  video: '',
+  notice: '',
+  maintenance: false,
+  filmBlur: 0,
+  filmDim: 0
+}
 
 /*
  * Every card's artwork, fetched once and kept in the browser's cache.
@@ -353,7 +360,11 @@ export default function App(): React.JSX.Element {
         * that has never had one. Reading `config.video` alone meant the backdrop waited
         * for the catalogue, and then for a bucket, before a single frame appeared.
         */}
-      <Backdrop video={film || config.video || undefined} />
+      <Backdrop
+        video={film || config.video || undefined}
+        blur={config.filmBlur}
+        dim={config.filmDim}
+      />
 
       {screen === 'splash' ? <Splash /> : null}
 

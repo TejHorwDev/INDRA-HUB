@@ -27,6 +27,10 @@ interface Props {
   /** A bundled or absolute URL. Omit for the animated wash. */
   video?: string
   poster?: string
+  /** Pixels of blur over the film, 0–40. Published by the panel. */
+  blur?: number
+  /** Percent of dark laid over the film, 0–100. Published by the panel. */
+  dim?: number
 }
 
 /** How long before the end the standby layer takes over. Short: two decoders, briefly. */
@@ -40,7 +44,7 @@ const HANDOVER_SECONDS = 0.45
  * should be. The fallback is already behind it, so the worst case is the screen we had
  * before the film existed.
  */
-function Backdrop({ video, poster }: Props): React.JSX.Element {
+function Backdrop({ video, poster, blur = 0, dim = 0 }: Props): React.JSX.Element {
   const [failed, setFailed] = useState(false)
   const [front, setFront] = useState(0)
   const first = useRef<HTMLVideoElement>(null)
@@ -83,8 +87,27 @@ function Backdrop({ video, poster }: Props): React.JSX.Element {
     [front]
   )
 
+  /*
+   * Blur eats the edges of the frame, so the picture is scaled by as much as it is
+   * softened — the alternative is a soft picture inside a hard border, which reads as a
+   * bug rather than a choice. The curve is deliberately gentle at the low end, where
+   * most people will sit.
+   */
+  const scale = 1 + Math.min(0.16, blur / 170)
+
   return (
-    <div className="backdrop" data-video={showVideo ? 'true' : 'false'} aria-hidden>
+    <div
+      className="backdrop"
+      data-video={showVideo ? 'true' : 'false'}
+      style={
+        {
+          '--film-blur': `${blur}px`,
+          '--film-scale': scale,
+          '--film-dim': dim / 100
+        } as React.CSSProperties
+      }
+      aria-hidden
+    >
       <span className="wash-a" />
       <span className="wash-b" />
       <span className="wash-c" />
@@ -128,6 +151,9 @@ function Backdrop({ video, poster }: Props): React.JSX.Element {
           />
         </>
       ) : null}
+
+      {/* The darkening, above the film and below the light falloff in `::after`. */}
+      {showVideo && dim > 0 ? <span className="film-dim" /> : null}
     </div>
   )
 }

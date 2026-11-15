@@ -3,31 +3,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /*
- * The sign-in film.
+ * The sign-in film — and how it is drawn.
  *
- * One video, on the screen everyone sees before they have signed in. Uploaded
- * here, stored in the bucket, and set as a row — so changing it is a panel action
- * rather than a release.
+ * One video, behind every screen of the app, uploaded here and stored in the bucket, so
+ * changing it is a panel action rather than a release.
  *
- * The preview is the same file the app will play. If it does not play here, it
- * will not play there, and both of them say so.
+ * The preview is the same file the app plays, at the same scale, with the same blur and
+ * the same darkening — and with sample content on top of it, because the question these
+ * two sliders answer is not "is this pretty" but "can I still read a product name over
+ * it". Both of them ship to the app as numbers, and the app applies them to the video
+ * element directly.
  */
 
 type Notice = { tone: 'ok' | 'error'; text: string } | null
 
+const BLUR_MAX = 40
+const DIM_MAX = 100
+
 export default function Appearance(): React.JSX.Element {
   const [video, setVideo] = useState('')
+  const [blur, setBlur] = useState(0)
+  const [dim, setDim] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [percent, setPercent] = useState<number | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
+  const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
   const input = useRef<HTMLInputElement>(null)
+  const timer = useRef<number | null>(null)
 
   const load = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/config', { cache: 'no-store' })
-      const payload = (await response.json()) as { config?: { video?: string } }
+      const payload = (await response.json()) as {
+        config?: { video?: string; film_blur?: string; film_dim?: string }
+      }
       setVideo(payload.config?.video ?? '')
+      setBlur(Number(payload.config?.film_blur ?? 0) || 0)
+      setDim(Number(payload.config?.film_dim ?? 0) || 0)
     } finally {
       setLoaded(true)
     }
@@ -36,6 +49,41 @@ export default function Appearance(): React.JSX.Element {
   useEffect(() => {
     void load()
   }, [load])
+
+  /*
+   * Saving is debounced, because a slider drag is sixty of these a second and the
+   * database does not need to hear about fifty-nine of them. The number on screen is
+   * always the number that will be saved — the debounce is on the request, not on the
+   * state.
+   */
+  const save = useCallback((nextBlur: number, nextDim: number) => {
+    setSaved('saving')
+    if (timer.current) window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(async () => {
+      try {
+        const response = await fetch('/api/admin/config', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            film_blur: String(Math.round(nextBlur * 10) / 10),
+            film_dim: String(Math.round(nextDim))
+          })
+        })
+        if (!response.ok) throw new Error('save failed')
+        setSaved('saved')
+      } catch {
+        setSaved('idle')
+        setNotice({ tone: 'error', text: 'Could not save the frame. Check the connection and drag again.' })
+      }
+    }, 350)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (timer.current) window.clearTimeout(timer.current)
+    },
+    []
+  )
 
   async function send(url: string, method: string, headers: Record<string, string>, file: File): Promise<void> {
     await new Promise<void>((resolve, reject) => {
@@ -75,16 +123,16 @@ export default function Appearance(): React.JSX.Element {
       await send(target.uploadUrl, target.method, target.headers, file)
 
       setPercent(100)
-      const saved = await fetch('/api/admin/appearance', {
+      const result = await fetch('/api/admin/appearance', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ key: target.key })
       })
-      const payload = (await saved.json()) as { video?: string; error?: string }
-      if (!saved.ok) throw new Error(payload.error ?? 'Could not save the video.')
+      const payload = (await result.json()) as { video?: string; error?: string }
+      if (!result.ok) throw new Error(payload.error ?? 'Could not save the video.')
 
       setVideo(payload.video ?? '')
-      setNotice({ tone: 'ok', text: 'Saved. The next sign-in shows it.' })
+      setNotice({ tone: 'ok', text: 'Saved. The next launch shows it.' })
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Upload failed.' })
     } finally {
@@ -99,7 +147,7 @@ export default function Appearance(): React.JSX.Element {
     try {
       await fetch('/api/admin/appearance', { method: 'DELETE' })
       setVideo('')
-      setNotice({ tone: 'ok', text: 'Removed. The sign-in goes back to the animated wash.' })
+      setNotice({ tone: 'ok', text: 'Removed. The app goes back to the animated wash.' })
     } finally {
       setBusy(false)
     }
@@ -111,49 +159,121 @@ export default function Appearance(): React.JSX.Element {
     <>
       {notice ? <div className={`notice ${notice.tone}`}>{notice.text}</div> : null}
 
-      {video ? (
-        <div style={{ marginBottom: 14 }}>
-          {/* The actual file, at card width. What you see is what ships. */}
-          <video
-            src={video}
-            muted
-            loop
-            autoPlay
-            playsInline
-            style={{
-              width: '100%',
-              maxWidth: 420,
-              borderRadius: 12,
-              border: '1px solid var(--hairline)',
-              display: 'block',
-              background: '#000'
-            }}
-          />
-          <div className="row" style={{ marginTop: 10 }}>
-            <button className="btn small" onClick={() => input.current?.click()} disabled={busy}>
-              Replace
+      {/* The film, at window shape, with the real numbers applied and real type on top. */}
+      <div className="frame">
+        <div className="frame-preview">
+          {video ? (
+            <video
+              className="frame-film"
+              src={video}
+              muted
+              loop
+              autoPlay
+              playsInline
+              style={{
+                filter: `blur(${blur}px)`,
+                transform: `scale(${1 + Math.min(0.16, blur / 170)})`
+              }}
+            />
+          ) : (
+            <span className="frame-wash" />
+          )}
+
+          <span className="frame-dim" style={{ opacity: dim / 100 }} />
+
+          <div className="frame-ui">
+            <strong>Browse library</strong>
+            <span>3 apps available</span>
+            <div className="frame-cards">
+              <i />
+              <i />
+              <i />
+            </div>
+          </div>
+        </div>
+
+        <div className="frame-controls">
+          <div className="slider-row">
+            <span className="label">Blur</span>
+            <input
+              type="range"
+              min={0}
+              max={BLUR_MAX}
+              step={1}
+              value={blur}
+              aria-label="Film blur"
+              style={{ '--fill': `${(blur / BLUR_MAX) * 100}%` } as React.CSSProperties}
+              onChange={(event) => {
+                const next = Number(event.target.value)
+                setBlur(next)
+                save(next, dim)
+              }}
+            />
+            <span className="slider-value">{blur}px</span>
+          </div>
+
+          <div className="slider-row">
+            <span className="label">Dim</span>
+            <input
+              type="range"
+              min={0}
+              max={DIM_MAX}
+              step={1}
+              value={dim}
+              aria-label="Film darkening"
+              style={{ '--fill': `${dim}%` } as React.CSSProperties}
+              onChange={(event) => {
+                const next = Number(event.target.value)
+                setDim(next)
+                save(blur, next)
+              }}
+            />
+            <span className="slider-value">{dim}%</span>
+          </div>
+
+          <div className="row" style={{ marginTop: 4 }}>
+            <span className="hint">
+              {saved === 'saving' ? 'Saving…' : saved === 'saved' ? 'Saved — applies on the next launch.' : 'Drag to set how the film sits behind the app.'}
+            </span>
+            <button
+              className="row-action"
+              style={{ marginLeft: 'auto' }}
+              disabled={blur === 0 && dim === 0}
+              onClick={() => {
+                setBlur(0)
+                setDim(0)
+                save(0, 0)
+              }}
+            >
+              Reset
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="row" style={{ marginTop: 14 }}>
+        <button className="btn small" onClick={() => input.current?.click()} disabled={busy}>
+          {video ? 'Replace film' : 'Upload film'}
+        </button>
+        {video ? (
+          <>
             <button className="btn small danger" onClick={() => void clear()} disabled={busy}>
               Remove
             </button>
             <span className="mono" style={{ wordBreak: 'break-all' }}>
-              {video}
+              {video.split('/').pop()}
             </span>
-          </div>
+          </>
+        ) : (
+          <span className="hint">MP4 (H.264) or WebM, a few MB, silent and looping.</span>
+        )}
+      </div>
+
+      {percent !== null ? (
+        <div className="progress">
+          <span style={{ width: `${percent}%` }} />
         </div>
-      ) : (
-        <div className="dropzone" onClick={() => input.current?.click()}>
-          <strong>Upload the sign-in video</strong>
-          <div className="hint" style={{ marginTop: 6 }}>
-            MP4 (H.264) or WebM, a few MB, looping and silent. It plays behind the sign-in form.
-          </div>
-          {percent !== null ? (
-            <div className="progress">
-              <span style={{ width: `${percent}%` }} />
-            </div>
-          ) : null}
-        </div>
-      )}
+      ) : null}
 
       <input
         ref={input}
@@ -165,12 +285,6 @@ export default function Appearance(): React.JSX.Element {
           if (file) void upload(file)
         }}
       />
-
-      {busy && percent !== null && video ? (
-        <div className="progress">
-          <span style={{ width: `${percent}%` }} />
-        </div>
-      ) : null}
     </>
   )
 }
