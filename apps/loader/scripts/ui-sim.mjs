@@ -337,6 +337,23 @@ check('a very long list is capped', /prose\.features\.slice\(0, 6\)/.test(detail
  */
 const monogram = code(readFileSync(join(renderer, 'components/Monogram.tsx'), 'utf8'))
 check('artwork is warmed when the catalogue arrives', /warmImages\(catalogue\.apps\)/.test(appShell))
+
+/*
+ * The four seconds after a sign-in.
+ *
+ * The library used to open on a grid that was still assembling itself. Now it is mounted
+ * under a curtain, at zero opacity, and given four and a half seconds: images decode,
+ * clips land in the cache and start looping, and the curtain lifts onto a finished
+ * screen. Opacity rather than `display: none` is the whole mechanism — a hidden element
+ * still paints.
+ */
+check('the reveal is held, not instant', /PREPARE_MS = 4_500/.test(appShell))
+check('the grid is mounted under the curtain', /className="library-stage"/.test(appShell))
+check('and hidden by opacity, so it still paints', /data-lifted=/.test(appShell))
+check('a clip is fetched into the cache, not just started', /fetch\(app\.image, \{ cache: 'force-cache' \}\)/.test(appShell))
+check('one warm per address, ever', /const warmed = new Set/.test(appShell))
+check('the curtain fades rather than cutting', /\.curtain\[data-out='true'\]/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+check('waiting for artwork has a ceiling', /ARTWORK_CEILING_MS/.test(appShell))
 check('every card is asked for, not just the visible ones', /new Image\(\)/.test(appShell))
 check('a big picture never blocks the paint', /decoding="async"/.test(monogram))
 check('and a GIF is left to animate', !/imageRendering|freeze|poster/.test(monogram))

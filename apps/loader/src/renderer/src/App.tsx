@@ -11,6 +11,7 @@ import Dashboard from './screens/Dashboard'
 import AppDetail from './screens/AppDetail'
 import Settings from './screens/Settings'
 import Backdrop from './components/Backdrop'
+import Preparing from './screens/Preparing'
 import Dialog from './components/Dialog'
 import Toasts, { type Toast } from './components/Toasts'
 import UpdatePill from './components/UpdatePill'
@@ -26,6 +27,19 @@ import UpdatePill from './components/UpdatePill'
  */
 
 type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings'
+
+/*
+ * How long the library is held behind the curtain after a sign-in.
+ *
+ * Long enough that a card's video is already mid-loop when it appears — not long enough
+ * to be a wait. Four and a half seconds is the number this was tuned to; the clock only
+ * starts once the spinner is on screen, and the curtain never lifts before the catalogue
+ * and the artwork have both landed.
+ */
+const PREPARE_MS = 4_500
+
+/** The ceiling on waiting for artwork. A slow bucket delays the reveal; it cannot block it. */
+const ARTWORK_CEILING_MS = 4_000
 
 const SPLASH_MS = 2_000
 const MIN_VERIFY_MS = 1_300
@@ -68,15 +82,48 @@ const EMPTY_CONFIG: LoaderConfig = {
  * A GIF is included: it animates in an `<img>` like any other picture, and warming it is
  * what stops the card flickering from a still frame into motion.
  */
-function warmImages(apps: LoaderApp[]): void {
+const MOVING_ARTWORK = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
+
+/* One warm per address, ever. The catalogue can be reloaded; the bytes cannot. */
+const warmed = new Set<string>()
+
+function warmImages(apps: LoaderApp[]): Promise<void> {
+  const jobs: Array<Promise<unknown>> = []
+
   for (const app of apps) {
-    if (!app.image) continue
-    // A video card warms itself by starting; asking again here would fetch it twice.
-    if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(app.image)) continue
-    const image = new Image()
-    image.decoding = 'async'
-    image.src = app.image
+    if (!app.image || warmed.has(app.image)) continue
+    warmed.add(app.image)
+
+    if (MOVING_ARTWORK.test(app.image)) {
+      /*
+       * A video card, pulled into the HTTP cache before its card is ever drawn.
+       *
+       * Skipping videos was right when a card warmed itself by starting — but "starting"
+       * means the first second of a clip is spent buffering, and on a grid that is a
+       * visible moment of black where the artwork should be. Fetching the bytes first
+       * costs nothing extra (the address is immutable, so this is the same request the
+       * element would have made) and turns "play" into "already playing".
+       */
+      jobs.push(
+        fetch(app.image, { cache: 'force-cache' })
+          .then((response) => response.blob())
+          .catch(() => undefined)
+      )
+      continue
+    }
+
+    jobs.push(
+      new Promise<void>((resolve) => {
+        const image = new Image()
+        image.decoding = 'async'
+        image.onload = () => resolve()
+        image.onerror = () => resolve()
+        image.src = app.image
+      })
+    )
   }
+
+  return Promise.all(jobs).then(() => undefined)
 }
 
 interface Confirmation {
@@ -110,6 +157,14 @@ export default function App(): React.JSX.Element {
    */
   const [film, setFilm] = useState('')
   const [loading, setLoading] = useState(true)
+  /*
+   * The curtain over the library.
+   *
+   * `preparing` holds it, `lifting` fades it — the grid is mounted underneath the whole
+   * time, so the cards are painted and every video is already playing by the moment it is
+   * uncovered. Nothing pops in behind the reveal, because nothing is still arriving.
+   */
+  const [curtain, setCurtain] = useState<'idle' | 'preparing' | 'lifting'>('idle')
 
   const [selected, setSelected] = useState<LoaderApp | null>(null)
   const [installs, setInstalls] = useState<Record<string, InstallView>>({})
@@ -239,7 +294,7 @@ export default function App(): React.JSX.Element {
       .then((catalogue) => {
         setApps(catalogue.apps)
         setConfig(catalogue.config)
-        warmImages(catalogue.apps)
+        void warmImages(catalogue.apps)
       })
       // The film and the links are the two things this feeds, and both have sane
       // defaults. A failed read must not become an unhandled rejection.
@@ -257,6 +312,8 @@ export default function App(): React.JSX.Element {
       setApps(catalogue.apps)
       setConfig(catalogue.config)
       setOwned(ownedIds)
+      // Returned so the caller can wait for the artwork before lifting the curtain.
+      return catalogue
     } finally {
       setLoading(false)
     }
@@ -287,9 +344,32 @@ export default function App(): React.JSX.Element {
         }
 
         setScreen('home')
+        setCurtain('preparing')
+        const opened = Date.now()
+
         // A library that fails to load must not take the app down with it; the
         // screen is already open and the host is already reachable or not.
-        await loadLibrary().catch(() => undefined)
+        const catalogue = await loadLibrary().catch(() => null)
+
+        /*
+         * Then the artwork, under the spinner.
+         *
+         * This is the whole point of the curtain: an image that decodes while nobody is
+         * looking costs nothing, and a clip that has been playing for four seconds is
+         * already at speed when the card carrying it appears.
+         */
+        if (catalogue) {
+          await Promise.race([
+            warmImages(catalogue.apps),
+            new Promise((resolve) => setTimeout(resolve, ARTWORK_CEILING_MS))
+          ])
+        }
+
+        const hold = PREPARE_MS - (Date.now() - opened)
+        if (hold > 0) await new Promise((resolve) => setTimeout(resolve, hold))
+
+        setCurtain('lifting')
+        window.setTimeout(() => setCurtain('idle'), 760)
       })().catch((error: unknown) => {
         setError(error instanceof Error ? error.message : 'Connection failed')
         setScreen('signin')
@@ -424,18 +504,31 @@ export default function App(): React.JSX.Element {
         * window to itself, and the film runs behind it like everywhere else.
         */}
       {screen === 'home' && !config.maintenance && !selected ? (
-        <Dashboard
-          apps={apps}
-          owned={owned}
-          installs={installs}
-          config={config}
-          loading={loading}
-          onSettings={() => setScreen('settings')}
-          onOpen={open}
-          onLocked={open}
-          onWebsite={() => (config.website ? confirmExternal(config.website) : undefined)}
-        />
+        /*
+         * The grid is mounted even while the curtain is down, at zero opacity.
+         *
+         * Opacity, not `display: none`: a hidden element still paints, so images are
+         * decoded and every card's video is already looping by the time the curtain
+         * lifts. That is the whole trick — the reveal does not start the work, it
+         * uncovers it.
+         */
+        <div className="library-stage" data-lifted={curtain === 'preparing' ? 'false' : 'true'}>
+          <Dashboard
+            apps={apps}
+            owned={owned}
+            installs={installs}
+            config={config}
+            loading={loading}
+            onSettings={() => setScreen('settings')}
+            onOpen={open}
+            onLocked={open}
+            onWebsite={() => (config.website ? confirmExternal(config.website) : undefined)}
+          />
+        </div>
       ) : null}
+
+      {/* The curtain sits above the grid it is covering, and above nothing else. */}
+      {curtain === 'idle' ? null : <Preparing out={curtain === 'lifting'} />}
 
       {screen === 'settings' && update ? (
         <Settings

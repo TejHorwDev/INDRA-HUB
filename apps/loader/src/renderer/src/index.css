@@ -124,6 +124,57 @@ body {
  * Completely static — no animation, no canvas, no per-frame cost — and it reads
  * as fabric rather than as a gradient someone liked.
  */
+/* ---------------------------------------------------------------- curtain ---- */
+
+/*
+ * The four seconds after a sign-in.
+ *
+ * The library is mounted underneath this, at zero opacity, doing all of its work where
+ * nobody can see it assembling: catalogue, then every image decoded, then every clip
+ * fetched and looping. The curtain is what makes that time invisible instead of a grid
+ * popping in one card at a time.
+ *
+ * Opacity, never `display: none` — a hidden element still paints, and a video that is
+ * painting is a video that is already at speed when it is uncovered.
+ */
+.curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 7, 8, 0.9);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 1;
+  transition: opacity 700ms var(--ease-silk);
+}
+
+.curtain[data-out='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.curtain-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--color-accent);
+  animation: spin 900ms linear infinite;
+}
+
+.library-stage {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 700ms var(--ease-silk);
+}
+
+.library-stage[data-lifted='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Static silk: the base layer under everything, and the whole backdrop on
    screens that are not sign-in. */
 .silk::before {
