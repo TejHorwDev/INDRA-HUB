@@ -528,7 +528,7 @@ export default function App(): React.JSX.Element {
       ) : null}
 
       {/* The curtain sits above the grid it is covering, and above nothing else. */}
-      {curtain === 'idle' ? null : <Preparing out={curtain === 'lifting'} />}
+      {curtain === 'idle' ? null : <Preparing out={curtain === 'lifting'} holdMs={PREPARE_MS} />}
 
       {screen === 'settings' && update ? (
         <Settings
