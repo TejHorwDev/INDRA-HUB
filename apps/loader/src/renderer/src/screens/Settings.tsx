@@ -101,8 +101,17 @@ export default function Settings({
     compositing: string
   } | null>(null)
   const [fps, setFps] = useState(0)
+  /*
+   * Whether the operating system has asked for stillness.
+   *
+   * If it has, every animation in the app is held still on purpose — which is correct,
+   * and looks exactly like an interface that has frozen. The spinner is the one exception;
+   * this row is how you find out which of the two you are looking at.
+   */
+  const [reduced, setReduced] = useState(false)
 
   useEffect(() => {
+    setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
     void bridge.video.status().then(setVideo).catch(() => undefined)
 
     // A two-second measurement of what the window can actually paint.
@@ -346,6 +355,12 @@ export default function Settings({
                 : '—'}
             </Setting>
             <Setting label="Frame rate">{fps ? `${fps} fps` : '—'}</Setting>
+            {/*
+              * If Windows has asked for stillness, every animation in the app is held
+              * still deliberately — correct behaviour that looks exactly like a frozen
+              * interface. This row says which of the two you are looking at.
+              */}
+            <Setting label="Motion">{reduced ? 'Reduced — the system asked for stillness' : 'Full'}</Setting>
           </Page>
         ) : null}
 

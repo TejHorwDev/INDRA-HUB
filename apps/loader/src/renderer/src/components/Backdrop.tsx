@@ -134,9 +134,22 @@ function Backdrop({ video, poster, blur = 0, dim = 0, paused = false }: Props): 
       }
       aria-hidden
     >
-      <span className="wash-a" />
-      <span className="wash-b" />
-      <span className="wash-c" />
+      {/*
+        * The washes are only mounted when there is no film.
+        *
+        * They used to sit behind it permanently as a fallback — three elements, each
+        * carrying a 46px blur and its own endless drift animation. A blurred layer that
+        * is covered by an opaque video is a layer the compositor still has to keep and
+        * re-composite, and on a machine that is already decoding a film and three card
+        * clips that is real frames. A film that fails sets `failed`, which mounts them.
+        */}
+      {showVideo ? null : (
+        <>
+          <span className="wash-a" />
+          <span className="wash-b" />
+          <span className="wash-c" />
+        </>
+      )}
 
       {showVideo ? (
         <>
