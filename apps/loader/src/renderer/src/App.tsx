@@ -116,7 +116,14 @@ function warmImages(apps: LoaderApp[]): Promise<void> {
       new Promise<void>((resolve) => {
         const image = new Image()
         image.decoding = 'async'
-        image.onload = () => resolve()
+        image.onload = () => {
+          /*
+           * `decode()` is the difference between "the file is here" and "the picture is
+           * ready to paint". Without it the card still spends a frame decoding when it
+           * mounts, which is exactly the moment the curtain lifts.
+           */
+          void image.decode().then(() => resolve(), () => resolve())
+        }
         image.onerror = () => resolve()
         image.src = app.image
       })
@@ -444,6 +451,7 @@ export default function App(): React.JSX.Element {
         video={film || config.video || undefined}
         blur={config.filmBlur}
         dim={config.filmDim}
+        paused={curtain === 'preparing'}
       />
 
       {screen === 'splash' ? <Splash /> : null}
@@ -503,16 +511,17 @@ export default function App(): React.JSX.Element {
         * of each other, so the one underneath is simply not rendered: the detail has the
         * window to itself, and the film runs behind it like everywhere else.
         */}
-      {screen === 'home' && !config.maintenance && !selected ? (
+      {screen === 'home' && !config.maintenance && !selected && curtain !== 'preparing' ? (
         /*
-         * The grid is mounted even while the curtain is down, at zero opacity.
+         * The grid is mounted as the curtain lifts, not before it.
          *
-         * Opacity, not `display: none`: a hidden element still paints, so images are
-         * decoded and every card's video is already looping by the time the curtain
-         * lifts. That is the whole trick — the reveal does not start the work, it
-         * uncovers it.
+         * It used to be mounted underneath at zero opacity, on the theory that a hidden
+         * element still paints. It does — and that is the problem: three card videos plus
+         * the film decode at once, the machine has nothing left for the spinner, and the
+         * circle visibly steps. The bytes are already in the cache by now, so mounting
+         * here costs a frame, not a download.
          */
-        <div className="library-stage" data-lifted={curtain === 'preparing' ? 'false' : 'true'}>
+        <div className="library-stage">
           <Dashboard
             apps={apps}
             owned={owned}
@@ -528,7 +537,7 @@ export default function App(): React.JSX.Element {
       ) : null}
 
       {/* The curtain sits above the grid it is covering, and above nothing else. */}
-      {curtain === 'idle' ? null : <Preparing out={curtain === 'lifting'} holdMs={PREPARE_MS} />}
+      {curtain === 'idle' ? null : <Preparing out={curtain === 'lifting'} />}
 
       {screen === 'settings' && update ? (
         <Settings

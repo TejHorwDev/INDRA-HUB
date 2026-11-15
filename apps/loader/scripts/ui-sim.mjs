@@ -348,8 +348,8 @@ check('artwork is warmed when the catalogue arrives', /warmImages\(catalogue\.ap
  * still paints.
  */
 check('the reveal is held, not instant', /PREPARE_MS = 4_500/.test(appShell))
-check('the grid is mounted under the curtain', /className="library-stage"/.test(appShell))
-check('and hidden by opacity, so it still paints', /data-lifted=/.test(appShell))
+check('the grid is not mounted under the curtain', /curtain !== 'preparing'/.test(appShell))
+check('the grid fades in as the curtain lifts', /\.library-stage \{/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
 check('a clip is fetched into the cache, not just started', /fetch\(app\.image, \{ cache: 'force-cache' \}\)/.test(appShell))
 check('one warm per address, ever', /const warmed = new Set/.test(appShell))
 check('the curtain fades rather than cutting', /\.curtain\[data-out='true'\]/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
@@ -369,11 +369,14 @@ check('and it turns on the compositor', /\.spinner \{[^}]*animation: spin 1s lin
 const curtainCss = readFileSync(join(renderer, 'index.css'), 'utf8')
 check('the curtain has nothing to re-blur', !/backdrop-filter\s*:/.test(curtainCss.split('.curtain {')[1].split('}')[0]))
 check('the film still plays behind the curtain', /radial-gradient\(62% 58% at 50% 46%/.test(curtainCss))
-check('and the mark moves twice, so a stutter cannot look stopped', /\.curtain-halo/.test(curtainCss) && /@keyframes halo/.test(curtainCss))
-check('progress is drawn, so it cannot look stuck', /curtain-fill/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
-check('and the hairline keeps the curtain\'s own clock', /holdMs/.test(readFileSync(join(renderer, 'screens/Preparing.tsx'), 'utf8')))
+check('the mark is only a circle', !/curtain-rule|curtain-halo/.test(curtainCss))
+
+
 check('the verifying screen uses the same circle', /<Spinner/.test(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'utf8')))
 check('waiting for artwork has a ceiling', /ARTWORK_CEILING_MS/.test(appShell))
+check('images are decoded, not merely downloaded', /\.decode\(\)/.test(appShell))
+check('the film is held still while the curtain is up', /paused=\{curtain === 'preparing'\}/.test(appShell))
+check('and only the front layer is resumed', /layers\[front\]/.test(backdrop))
 check('every card is asked for, not just the visible ones', /new Image\(\)/.test(appShell))
 check('a big picture never blocks the paint', /decoding="async"/.test(monogram))
 check('and a GIF is left to animate', !/imageRendering|freeze|poster/.test(monogram))

@@ -21,7 +21,7 @@ export default function Spinner({ label = 'Loading' }: { label?: string }): Reac
       role="status"
       aria-label={label}
     >
-      <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="1.9" />
+      <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="2" />
       <circle
         cx="20"
         cy="20"
@@ -30,7 +30,7 @@ export default function Spinner({ label = 'Loading' }: { label?: string }): Reac
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
-        strokeDasharray="27 80"
+        strokeDasharray="34 73"
         transform="rotate(-90 20 20)"
       />
     </svg>
