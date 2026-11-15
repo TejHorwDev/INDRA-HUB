@@ -1,46 +1,29 @@
 /*
  * The curtain.
  *
- * After a sign-in the library used to open on nothing: the grid painted with the catalogue
- * it had, then artwork arrived behind the names, then each video card spent its first
- * second buffering. Two seconds of watching a screen assemble itself, every time.
+ * After a sign-in the library used to open on nothing: the grid painted with whatever the
+ * catalogue had, artwork arrived behind the names one card at a time, and each video card
+ * spent its first second buffering. Two seconds of watching a screen assemble itself, every
+ * launch.
  *
- * So the library is mounted *under this*, in full, and given four and a half seconds: the
- * catalogue lands, every image decodes, every clip is fetched into the cache and starts
- * playing. Then this fades and the grid is simply already there — cards painted, videos at
- * speed, nothing popping in.
+ * So the app takes four and a half seconds under here to do all of that where nobody can
+ * see it: the catalogue, the entitlement, every image decoded, every clip pulled into the
+ * cache. Then this fades and the grid is simply there.
  *
- * A spinner and nothing else, same as the verifying screen. Text here would be an apology
- * for a wait; there is nothing to apologise for, because nothing on this screen is doing
- * anything you have to think about.
+ * The library is deliberately *not* mounted underneath while this is up. A grid of cards
+ * means a film plus one decoder per video card, and a machine busy decoding is a machine
+ * that renders this circle in steps. Warming bytes costs no decoder, so the circle gets
+ * the whole machine and turns at exactly one second a revolution.
+ *
+ * A circle, and nothing else. No bar, no caption, no wordmark.
  */
 
 import Spinner from '../components/Spinner'
 
-export default function Preparing({
-  out,
-  holdMs = 4_500
-}: {
-  out: boolean
-  /** How long the curtain will be up. The hairline is drawn to the same clock. */
-  holdMs?: number
-}): React.JSX.Element {
+export default function Preparing({ out }: { out: boolean }): React.JSX.Element {
   return (
     <div className="curtain" data-out={out}>
-      <div className="curtain-body">
-        <div className="curtain-mark">
-          <span className="curtain-halo" aria-hidden />
-          <Spinner label="Loading your library" />
-        </div>
-        {/*
-          * A hairline that fills over the same four and a half seconds the curtain is
-          * held for. A circle alone cannot tell you whether it is working or stuck; a
-          * line that is visibly longer than it was a second ago can.
-          */}
-        <span className="curtain-rule" aria-hidden>
-          <i style={{ animationDuration: `${holdMs}ms` }} />
-        </span>
-      </div>
+      <Spinner label="Loading your library" />
     </div>
   )
 }

@@ -163,93 +163,30 @@ body {
   pointer-events: none;
 }
 
-.curtain-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-
-/*
- * The mark: a turning arc inside a light that breathes.
- *
- * Two motions instead of one, because a machine that is decoding three card videos can
- * drop the smooth turn to a stutter — and a stutter with nothing else moving reads as
- * stopped. The halo is a static radial gradient scaling on the compositor; it never drops
- * a frame, so the screen is visibly alive even at 12fps.
- */
-.curtain-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 78px;
-  height: 78px;
-}
-
-.curtain-halo {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.02) 55%, transparent 72%);
-  animation: halo 2400ms var(--ease-silk) infinite;
-  will-change: transform, opacity;
-}
-
-@keyframes halo {
-  0%,
-  100% {
-    transform: scale(0.82);
-    opacity: 0.35;
-  }
-  50% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-}
-
 /* One path, one transform — the arc sweeps without touching the main thread. */
 .spinner {
-  position: relative;
   color: #ffffff;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.25));
+  /*
+   * No filter here, on purpose. A `drop-shadow` on an element that is rotated every
+   * frame has to be re-rasterised every frame — on a busy machine that is the difference
+   * between a smooth turn and a stutter. The arc is bright enough to carry itself.
+   */
   animation: spin 1s linear infinite;
   will-change: transform;
   transform-origin: 50% 50%;
+  transform: rotate(0deg);
 }
 
-.curtain-rule {
-  position: relative;
-  display: block;
-  width: 112px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.curtain-rule > i {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.25), #ffffff);
-  transform-origin: 0 50%;
-  transform: scaleX(0);
-  animation: curtain-fill 4500ms linear both;
-}
-
-@keyframes curtain-fill {
-  to {
-    transform: scaleX(1);
-  }
-}
-
+/* The grid arrives on the tail of the curtain rather than behind it. */
 .library-stage {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 700ms var(--ease-silk);
+  animation: stage-in 520ms var(--ease-silk) both;
 }
 
-.library-stage[data-lifted='true'] {
-  opacity: 1;
-  pointer-events: auto;
+@keyframes stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
 
 /* Static silk: the base layer under everything, and the whole backdrop on

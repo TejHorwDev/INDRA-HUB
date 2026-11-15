@@ -31,6 +31,14 @@ interface Props {
   blur?: number
   /** Percent of dark laid over the film, 0–100. Published by the panel. */
   dim?: number
+  /**
+   * Hold the film on its current frame.
+   *
+   * Used while the curtain is up after a sign-in: the picture is still there — you are
+   * looking at it — but nothing is decoding, so the circle above it gets the whole
+   * machine. A video that nobody can see moving is a video worth pausing.
+   */
+  paused?: boolean
 }
 
 /** How long before the end the standby layer takes over. Short: two decoders, briefly. */
@@ -44,7 +52,7 @@ const HANDOVER_SECONDS = 0.45
  * should be. The fallback is already behind it, so the worst case is the screen we had
  * before the film existed.
  */
-function Backdrop({ video, poster, blur = 0, dim = 0 }: Props): React.JSX.Element {
+function Backdrop({ video, poster, blur = 0, dim = 0, paused = false }: Props): React.JSX.Element {
   const [failed, setFailed] = useState(false)
   const [front, setFront] = useState(0)
   const first = useRef<HTMLVideoElement>(null)
@@ -52,6 +60,24 @@ function Backdrop({ video, poster, blur = 0, dim = 0 }: Props): React.JSX.Elemen
   const switching = useRef(false)
 
   const showVideo = Boolean(video) && !failed
+
+  /*
+   * Hold and release.
+   *
+   * Only the front layer is ever resumed — the standby is deliberately parked on its
+   * first frame, and playing it would put two decoders on screen.
+   */
+  useEffect(() => {
+    if (!showVideo) return
+    const layers = [first.current, second.current]
+
+    if (paused) {
+      for (const layer of layers) layer?.pause()
+      return
+    }
+
+    void layers[front]?.play().catch(() => undefined)
+  }, [paused, showVideo, front])
 
   // A new film starts on the first layer, from the beginning.
   useEffect(() => {
