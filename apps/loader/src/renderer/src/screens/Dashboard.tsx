@@ -123,6 +123,17 @@ export default function Dashboard({
   /** Set at release, read by the click that may follow: a drag is not a click. */
   const dragged = useRef(false)
 
+  /*
+   * A press is only noted here — nothing about the track changes yet.
+   *
+   * This used to capture the pointer and enter the dragging state on contact. Both of
+   * those take the press away from the card underneath: capture retargets everything to
+   * the strip, and the dragging styles turn card hit-testing off, so the card that was
+   * pressed never receives the click that ends the press. Cards stopped opening.
+   *
+   * So contact does nothing at all. The strip commits to being a drag on the first move
+   * that passes CLICK_SLOP, and a press that never moves is just a click on a card.
+   */
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return
     if (maxIndex === 0) return
@@ -134,17 +145,7 @@ export default function Dashboard({
       velocity: 0,
       from: index
     }
-    /*
-     * Capture the pointer: a drag that leaves the strip still belongs to the strip, and
-     * it must get its own release event even if that release happens over the film.
-     */
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId)
-    } catch {
-      /* a synthetic event has no capture to give */
-    }
     dragged.current = false
-    setDragging(true)
   }
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -157,7 +158,21 @@ export default function Dashboard({
     live.lastX = event.clientX
     live.lastAt = event.timeStamp
 
-    if (Math.abs(dx) > CLICK_SLOP) dragged.current = true
+    if (!dragged.current) {
+      // Still a press on a card until it is not.
+      if (Math.abs(dx) <= CLICK_SLOP) return
+      dragged.current = true
+      setDragging(true)
+      /*
+       * Taken only now: a drag that leaves the strip still belongs to the strip, and it
+       * must get its own release even if that release lands outside the window.
+       */
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      } catch {
+        /* a synthetic event has no capture to give */
+      }
+    }
 
     /*
      * Resistance at the ends.
@@ -175,8 +190,18 @@ export default function Dashboard({
     if (!live || live.id !== event.pointerId) return
     gesture.current = null
 
+    /*
+     * A press that never moved is a click, and the click has already gone to the card.
+     * There is nothing to settle and nothing to swallow.
+     */
+    if (!dragged.current) {
+      setDragging(false)
+      setDrag(0)
+      return
+    }
+
     const dx = event.clientX - live.startX
-    const throwPx = dragged.current ? live.velocity * THROW_MS : 0
+    const throwPx = live.velocity * THROW_MS
     // Content moved right means a lower index; the throw adds to the distance travelled.
     const travelled = dx + throwPx
     const target = live.from - Math.round(travelled / STEP)
