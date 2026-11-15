@@ -144,15 +144,16 @@ body {
   display: grid;
   place-items: center;
   /*
-   * Opaque, not translucent — and no backdrop blur.
+   * The film stays visible. It is the room; covering it with a flat colour made the app
+   * look switched off for four seconds, which is worse than any spinner.
    *
-   * It was 90% black with a 6px blur, which meant the compositor re-blurred a playing
-   * video every single frame for four and a half seconds, and the spinner on top of it
-   * paid for that in dropped frames. A flat colour lets the compositor skip everything
-   * behind the curtain entirely: the circle turns at exactly one second a turn while the
-   * cards underneath are free to decode.
+   * So: a scrim, not a lid. Dark enough that the circle and its hairline sit on calm
+   * ground, open enough that the film keeps moving behind them. There is deliberately no
+   * `backdrop-filter` — a full-screen blur recomputed over a playing video every frame is
+   * what starved the spinner in the first place, and a gradient is free.
    */
-  background: #070708;
+  background:
+    radial-gradient(62% 58% at 50% 46%, rgba(7, 7, 8, 0.42), rgba(7, 7, 8, 0.72) 58%, rgba(7, 7, 8, 0.86) 100%);
   opacity: 1;
   transition: opacity 700ms var(--ease-silk);
 }
@@ -166,12 +167,51 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
+}
+
+/*
+ * The mark: a turning arc inside a light that breathes.
+ *
+ * Two motions instead of one, because a machine that is decoding three card videos can
+ * drop the smooth turn to a stutter — and a stutter with nothing else moving reads as
+ * stopped. The halo is a static radial gradient scaling on the compositor; it never drops
+ * a frame, so the screen is visibly alive even at 12fps.
+ */
+.curtain-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+}
+
+.curtain-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.02) 55%, transparent 72%);
+  animation: halo 2400ms var(--ease-silk) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes halo {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
 }
 
 /* One path, one transform — the arc sweeps without touching the main thread. */
 .spinner {
-  color: var(--color-accent);
+  position: relative;
+  color: #ffffff;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.25));
   animation: spin 1s linear infinite;
   will-change: transform;
   transform-origin: 50% 50%;

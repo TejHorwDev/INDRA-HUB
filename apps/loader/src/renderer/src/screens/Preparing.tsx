@@ -28,7 +28,10 @@ export default function Preparing({
   return (
     <div className="curtain" data-out={out}>
       <div className="curtain-body">
-        <Spinner label="Loading your library" />
+        <div className="curtain-mark">
+          <span className="curtain-halo" aria-hidden />
+          <Spinner label="Loading your library" />
+        </div>
         {/*
           * A hairline that fills over the same four and a half seconds the curtain is
           * held for. A circle alone cannot tell you whether it is working or stuck; a
