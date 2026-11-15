@@ -40,6 +40,11 @@ const EMPTY_CONFIG: LoaderConfig = {
 /** The text-valued settings. `maintenance` is parsed separately — it is a flag. */
 const FIELDS: Array<'website' | 'video' | 'notice'> = ['website', 'video', 'notice']
 
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(max, Math.max(min, value))
+}
+
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
@@ -57,6 +62,12 @@ function toApp(raw: unknown): LoaderApp | null {
     description: text(record['description']),
     version: text(record['version']) || '1.0.0',
     image: text(record['image']),
+    /*
+     * Clamped, like the film's frame numbers, because they land on a CSS filter. A
+     * stored 900 would turn every card into a grey square.
+     */
+    artworkBlur: clamp(Number(record['artworkBlur']), 0, 40),
+    artworkDim: clamp(Number(record['artworkDim']), 0, 100),
     fileUrl: text(record['fileUrl']),
     keyauthAppId: text(record['keyauthAppId']),
     sha256: text(record['sha256']).toLowerCase(),

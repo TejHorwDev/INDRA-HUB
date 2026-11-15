@@ -37,6 +37,11 @@ create table if not exists public.loader_apps (
   exe_sha256 text not null default '',
   exe_bytes bigint not null default 0,
 
+  -- How the loader draws the card artwork: pixels of blur, percent of dark. Both 0 is
+  -- sharp and untouched. Added by `loader-card-frame.sql`.
+  image_blur integer not null default 0,
+  image_dim integer not null default 0,
+
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

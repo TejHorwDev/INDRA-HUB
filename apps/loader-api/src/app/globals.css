@@ -1917,6 +1917,65 @@ pre {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
 }
 
+/*
+ * One card's frame: the artwork at card size with the real numbers on it, and the two
+ * dials beside it. Same sliders as the film, same reason — the only question is whether
+ * the product name still reads.
+ */
+.card-frame {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+@media (min-width: 620px) {
+  .card-frame {
+    grid-template-columns: 148px minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+
+.card-shot {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  background: #060607;
+  isolation: isolate;
+}
+
+.card-shot-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+  transition: filter 120ms linear, transform 160ms var(--ease);
+}
+
+.card-shot-dim {
+  position: absolute;
+  inset: 0;
+  background: #060608;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+}
+
+.card-shot-name {
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
 /* --------------------------------------------------------------- sliders ---- */
 
 .frame-controls {

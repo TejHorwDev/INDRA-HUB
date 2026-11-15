@@ -240,6 +240,21 @@ check('and grows by as much as it softens', /transform: scale\(var\(--film-scale
 check('the darkening is its own layer, above the film', /\.backdrop \.film-dim/.test(backdropCss))
 check('the scrim survives the wash rules', /border-radius: 0;/.test(backdropCss) && /filter: none;/.test(backdropCss))
 const backdropStage = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+/*
+ * The same two dials, per card.
+ *
+ * One loud poster should not force the rest of the shelf to change, so blur and dim ride
+ * on the product row rather than the config. The name over the artwork is deliberately
+ * *not* filtered: a `brightness()` would take the name down with the picture, and the name
+ * is the one thing on a card that has to stay white.
+ */
+const cardComponent = code(readFileSync(join(renderer, 'components/Card.tsx'), 'utf8'))
+check('a card takes its frame from its own row', /blur=\{app\.artworkBlur\}/.test(cardComponent) && /dim=\{app\.artworkDim\}/.test(cardComponent))
+const monogramFrame = code(readFileSync(join(renderer, 'components/Monogram.tsx'), 'utf8'))
+check('the softening grows the picture, so no edge shows', /const scale = 1 \+ Math\.min\(0\.16, blur \/ 100\)/.test(monogramFrame))
+check('the darkening is a layer, not a filter on the name', /background: '#060608', opacity: dim \/ 100/.test(monogramFrame))
+check('a card without a frame renders exactly as before', /const frame = blur/.test(monogramFrame))
+
 check(
   'the renderer passes both numbers to the backdrop',
   /blur=\{config\.filmBlur\}/.test(backdropStage) && /dim=\{config\.filmDim\}/.test(backdropStage)

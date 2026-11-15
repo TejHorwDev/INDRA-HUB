@@ -41,6 +41,10 @@ export interface AppRow {
   status: 'active' | 'locked'
   exe_sha256: string
   exe_bytes: number
+  /** Pixels of blur the loader draws over the card artwork. */
+  image_blur: number
+  /** Percent of dark over the card artwork. */
+  image_dim: number
   created_at: string
   updated_at: string
 }
@@ -61,6 +65,9 @@ export interface PublicApp {
   description: string
   version: string
   image: string
+  /** How the card draws that artwork: pixels of blur, percent of dark. */
+  artworkBlur: number
+  artworkDim: number
   fileUrl: string
   keyauthAppId: string
   sha256: string
@@ -74,6 +81,8 @@ export function toPublic(row: AppRow): PublicApp {
     description: row.description ?? '',
     version: row.version ?? '1.0.0',
     image: row.image_url ?? '',
+    artworkBlur: row.image_blur ?? 0,
+    artworkDim: row.image_dim ?? 0,
     fileUrl: row.exe_url ?? '',
     keyauthAppId: row.keyauth_app_id ?? '',
     sha256: (row.exe_sha256 ?? '').toLowerCase(),
@@ -82,7 +91,7 @@ export function toPublic(row: AppRow): PublicApp {
 }
 
 export const APP_COLUMNS =
-  'id,name,description,version,image_url,exe_url,keyauth_app_id,status,exe_sha256,exe_bytes,created_at,updated_at'
+  'id,name,description,version,image_url,exe_url,keyauth_app_id,status,exe_sha256,exe_bytes,image_blur,image_dim,created_at,updated_at'
 
 export async function listApps(): Promise<AppRow[]> {
   const { data, error } = await db().from('loader_apps').select(APP_COLUMNS).order('created_at', { ascending: true })

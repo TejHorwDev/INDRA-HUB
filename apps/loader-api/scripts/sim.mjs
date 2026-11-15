@@ -389,6 +389,20 @@ async function main() {
   check('the preview shows the real film at the real setting', /filter: `blur\(\$\{blur\}px\)`/.test(appearance))
   check('and saves without a release', /fetch\('\/api\/admin\/config'/.test(appearance))
 
+  /*
+   * One card's frame. Different table, different clamp, same idea: the panel writes two
+   * integers onto the product row and the loader paints them.
+   */
+  console.log('\nA card carries its own frame')
+  const db = readFileSync(join(root, 'src/lib/db.ts'), 'utf8')
+  check('the row publishes its blur and dim', /artworkBlur: row\.image_blur/.test(db) && /artworkDim: row\.image_dim/.test(db))
+  check('and the columns are actually selected', /image_blur,image_dim/.test(db))
+  const patchRoute = readFileSync(join(root, 'src/app/api/admin/apps/[id]/route.ts'), 'utf8')
+  check('the panel can set them, clamped', /Math\.min\(40, Math\.max\(0/.test(patchRoute) && /Math\.min\(100, Math\.max\(0/.test(patchRoute))
+  const products = readFileSync(join(root, 'src/components/Products.tsx'), 'utf8')
+  check('the editor previews the real card with the real numbers', /card-shot-art/.test(products) && /filter: `blur\(\$\{localBlur\}px\)`/.test(products))
+  check('and saves without a release', /artworkBlur: nextBlur/.test(products))
+
   console.log('\nThe public surface is read-only')
   const publicRoutes = walk(join(root, 'src/app/api/loader')).filter((file) => file.endsWith('route.ts'))
   const writable = publicRoutes.filter((file) => /export async function (POST|PUT|PATCH|DELETE)/.test(readFileSync(file, 'utf8')))

@@ -32,6 +32,138 @@ function size(bytes: number): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`
 }
 
+/*
+ * How the card's artwork is drawn.
+ *
+ * A card is 232 pixels square and the picture behind the name is usually a poster with
+ * its own type on it — which fights the product name printed on top. The film behind the
+ * window already had these two dials; this is the same pair, for one card at a time.
+ *
+ * The preview is the real artwork at card size with the real numbers applied and the
+ * real name on it, because the only question a blur answers is whether the name still
+ * reads.
+ */
+function CardFrame({
+  image,
+  name,
+  blur,
+  dim,
+  onSave
+}: {
+  image: string
+  name: string
+  blur: number
+  dim: number
+  onSave: (values: { artworkBlur: number; artworkDim: number }) => void
+}): React.JSX.Element {
+  const [localBlur, setLocalBlur] = useState(blur)
+  const [localDim, setLocalDim] = useState(dim)
+  const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    setLocalBlur(blur)
+    setLocalDim(dim)
+  }, [blur, dim])
+
+  useEffect(
+    () => () => {
+      if (timer.current) window.clearTimeout(timer.current)
+    },
+    []
+  )
+
+  function commit(nextBlur: number, nextDim: number): void {
+    if (timer.current) window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => onSave({ artworkBlur: nextBlur, artworkDim: nextDim }), 380)
+  }
+
+  const scale = 1 + Math.min(0.16, localBlur / 100)
+
+  return (
+    <div className="card-frame">
+      <div className="card-shot">
+        {MOVING.test(image) ? (
+          <video
+            src={image}
+            muted
+            loop
+            autoPlay
+            playsInline
+            className="card-shot-art"
+            style={{ filter: `blur(${localBlur}px)`, transform: `scale(${scale})` }}
+          />
+        ) : (
+          <img
+            src={image}
+            alt=""
+            className="card-shot-art"
+            style={{ filter: `blur(${localBlur}px)`, transform: `scale(${scale})` }}
+          />
+        )}
+        <span className="card-shot-dim" style={{ opacity: localDim / 100 }} />
+        <span className="card-shot-name">{name || 'Product'}</span>
+      </div>
+
+      <div className="frame-controls">
+        <div className="slider-row">
+          <span className="label">Blur</span>
+          <input
+            type="range"
+            min={0}
+            max={40}
+            step={1}
+            value={localBlur}
+            aria-label="Card artwork blur"
+            style={{ '--fill': `${(localBlur / 40) * 100}%` } as React.CSSProperties}
+            onChange={(event) => {
+              const next = Number(event.target.value)
+              setLocalBlur(next)
+              commit(next, localDim)
+            }}
+          />
+          <span className="slider-value">{localBlur}px</span>
+        </div>
+
+        <div className="slider-row">
+          <span className="label">Dim</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={localDim}
+            aria-label="Card artwork dimming"
+            style={{ '--fill': `${localDim}%` } as React.CSSProperties}
+            onChange={(event) => {
+              const next = Number(event.target.value)
+              setLocalDim(next)
+              commit(localBlur, next)
+            }}
+          />
+          <span className="slider-value">{localDim}%</span>
+        </div>
+
+        <div className="row">
+          <span className="hint">Applies to this card only, on the next launch.</span>
+          <button
+            type="button"
+            className="row-action"
+            style={{ marginLeft: 'auto' }}
+            disabled={localBlur === 0 && localDim === 0}
+            onClick={() => {
+              setLocalBlur(0)
+              setLocalDim(0)
+              commit(0, 0)
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Products(): React.JSX.Element {
   const [apps, setApps] = useState<AdminAppRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -543,38 +675,15 @@ export default function Products(): React.JSX.Element {
                   : 'Upload artwork — PNG, JPG, GIF, WebP, or a short MP4/WebM'}
             </div>
             {current.image_url ? (
-              /*
-               * The artwork itself, at the size the card draws it. A GIF that only showed
-               * its first frame here would be a GIF nobody could check before publishing,
-               * and a video card would not be checkable at all.
-               */
-              <div
-                style={{
-                  marginTop: 10,
-                  width: 96,
-                  height: 96,
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  border: '1px solid var(--hairline)'
-                }}
-              >
-                {MOVING.test(current.image_url) ? (
-                  <video
-                    src={current.image_url}
-                    muted
-                    loop
-                    autoPlay
-                    playsInline
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <img
-                    src={current.image_url}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                )}
-              </div>
+              /* The artwork itself, at card size, with the frame you are setting on it. */
+              <CardFrame
+                key={current.id}
+                image={current.image_url}
+                name={current.name}
+                blur={current.image_blur ?? 0}
+                dim={current.image_dim ?? 0}
+                onSave={(values) => void patch(current.id, values)}
+              />
             ) : null}
             <div className="hint" style={{ marginTop: 6 }}>
               PNG, JPG, GIF, WebP — or a short MP4/WebM that loops like a GIF and weighs a
