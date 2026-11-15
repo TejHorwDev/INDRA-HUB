@@ -279,7 +279,14 @@ body {
   animation: fade-up 320ms var(--ease-silk) both;
 }
 
-/* Nothing in the app moves for a user who asked it not to. */
+/*
+ * Nothing in the app moves for a user who asked it not to — except the one thing whose
+ * motion is information rather than decoration.
+ *
+ * A spinner is the only way to tell "working" from "frozen", so the blanket rule below
+ * takes it down to a single 1ms iteration and holds it there, which is exactly what a
+ * hung app looks like. It keeps turning. Everything else stays still.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -287,6 +294,12 @@ body {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
+  }
+
+  .spinner {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+    animation-timing-function: linear !important;
   }
 }
 

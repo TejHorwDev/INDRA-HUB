@@ -377,6 +377,20 @@ check('waiting for artwork has a ceiling', /ARTWORK_CEILING_MS/.test(appShell))
 check('images are decoded, not merely downloaded', /\.decode\(\)/.test(appShell))
 check('the film is held still while the curtain is up', /paused=\{curtain === 'preparing'\}/.test(appShell))
 check('and only the front layer is resumed', /layers\[front\]/.test(backdrop))
+
+/*
+ * The spinner that never turned.
+ *
+ * The app has a blanket reduced-motion rule — correct, and it takes every animation down
+ * to one 1ms iteration. Which is a frozen interface for anyone whose Windows has
+ * "animation effects" switched off, and indistinguishable from a hung app. A spinner is
+ * information, not decoration, so it is the one thing exempted.
+ */
+const appCss = readFileSync(join(renderer, 'index.css'), 'utf8')
+const reduceBlock = appCss.slice(appCss.indexOf('@media (prefers-reduced-motion: reduce)'))
+check('a still machine still gets a turning circle', /\.spinner \{\s*animation-duration: 1s !important/.test(reduceBlock))
+check('the washes are not left mounted behind a film', /showVideo \? null :/.test(backdrop))
+check('and Settings names the reason when motion is held still', /Reduced — the system asked/.test(readFileSync(join(renderer, 'screens/Settings.tsx'), 'utf8')))
 check('every card is asked for, not just the visible ones', /new Image\(\)/.test(appShell))
 check('a big picture never blocks the paint', /decoding="async"/.test(monogram))
 check('and a GIF is left to animate', !/imageRendering|freeze|poster/.test(monogram))
