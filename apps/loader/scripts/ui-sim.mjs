@@ -372,10 +372,27 @@ check('the film still plays behind the curtain', /radial-gradient\(62% 58% at 50
 check('the mark is only a circle', !/curtain-rule|curtain-halo/.test(curtainCss))
 
 
-check('the verifying screen uses the same circle', /<Spinner/.test(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'utf8')))
+/*
+ * One loading, not two.
+ *
+ * The app used to show a verifying spinner for the login and then the curtain for the
+ * library: the same circle twice with a change of scenery in between, which anybody
+ * watching reads as one long stall. There is one screen now, it goes up on the press of
+ * Sign in, and it comes down once.
+ */
+check('signing in raises the curtain, not a second screen', /setScreen\('home'\)\n\s*setCurtain\('preparing'\)/.test(appShell))
+check('there is no second loading screen left in the app', !/verifying/.test(appShell.replace(/\/\*[\s\S]*?\*\//g, '')))
+check('and the login happens under it', /await withCap\(bridge\.auth\.login[\s\S]{0,400}?loadLibrary\(\)/.test(appShell))
+check(
+  'the clock starts at the press, not at the login',
+  appShell.indexOf('const opened = Date.now()') > 0 &&
+    appShell.indexOf('const opened = Date.now()') < appShell.indexOf('withCap(bridge.auth.login')
+)
+check('a stale attempt cannot open the library', /attempt\.current === run/.test(appShell))
+check('a broken wait says so, once', /STALL_AFTER_MS = 12_000/.test(appShell) && /Still connecting/.test(readFileSync(join(renderer, 'screens/Preparing.tsx'), 'utf8')))
 check('waiting for artwork has a ceiling', /ARTWORK_CEILING_MS/.test(appShell))
 check('images are decoded, not merely downloaded', /\.decode\(\)/.test(appShell))
-check('the film is held still while the curtain is up', /paused=\{curtain === 'preparing'\}/.test(appShell))
+check('the film keeps playing under the curtain', !/paused=/.test(appShell) && !/paused\?:/.test(backdrop))
 check('and only the front layer is resumed', /layers\[front\]/.test(backdrop))
 
 /*
@@ -440,15 +457,15 @@ console.log('\nThe connecting screen')
  * itself, so the window looked like somebody else's half-drawn screen.
  */
 const shell = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
-const verifying = code(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'utf8'))
+const curtainScreen = code(readFileSync(join(renderer, 'screens/Preparing.tsx'), 'utf8'))
 
 check('the restore sequence cannot cancel itself', !/let cancelled/.test(shell))
 check('the sign-in form is the first screen after the splash', /screen === 'signin'/.test(shell))
 check('a hung sign-in is capped', /withCap\(bridge\.auth\.login/.test(shell))
 check('a hung sign-in cannot hang twice over', (shell.match(/withCap\(/g) ?? []).length >= 1)
 check('a failed sign-in returns to the form', /\.catch\(\(error: unknown\)/.test(shell))
-check('the spinner covers what is behind it', /bg-\[var\(--color-bg\)\]/.test(verifying))
-check('and after a while it offers a way back', /Back to sign in/.test(verifying))
+check('the curtain covers what is behind it', /\.curtain \{/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+check('and after a while it offers a way back', /Back to sign in/.test(curtainScreen))
 
 /*
  * The sign-in screen is not the updater's to remove.

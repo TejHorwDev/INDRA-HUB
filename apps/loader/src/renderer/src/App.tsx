@@ -6,7 +6,6 @@ import { bridge } from './lib/bridge'
 import Splash from './screens/Splash'
 import Landing from './screens/Landing'
 import SignIn from './screens/SignIn'
-import Verifying from './screens/Verifying'
 import Dashboard from './screens/Dashboard'
 import AppDetail from './screens/AppDetail'
 import Settings from './screens/Settings'
@@ -19,22 +18,27 @@ import UpdatePill from './components/UpdatePill'
 /*
  * The whole flow, in one place.
  *
- *   splash (2s) → landing → sign in → verifying → library ⇄ settings
+ *   splash (2s) → landing → sign in → one loading → library ⇄ settings
  *
  * The auth call, the catalogue load and the entitlement lookup are owned here
  * and nowhere else, so there is exactly one place that knows what "signed in"
  * means and exactly one place that decides what a card may do.
  */
 
-type Screen = 'splash' | 'landing' | 'signin' | 'verifying' | 'home' | 'settings'
+type Screen = 'splash' | 'landing' | 'signin' | 'home' | 'settings'
 
 /*
  * How long the library is held behind the curtain after a sign-in.
  *
+ * This is the *whole* of the wait, from the moment Sign in is pressed — the login is
+ * inside it, not in front of it. There used to be two loadings back to back: a verifying
+ * spinner for the login and then the curtain for the library, the same circle twice with
+ * a change of scenery in between. Watching it, that is one long stall. It is one screen
+ * now, and it comes down once.
+ *
  * Long enough that a card's video is already mid-loop when it appears — not long enough
- * to be a wait. Four and a half seconds is the number this was tuned to; the clock only
- * starts once the spinner is on screen, and the curtain never lifts before the catalogue
- * and the artwork have both landed.
+ * to be a wait. The curtain never lifts before the catalogue, the entitlement and the
+ * artwork have all landed; four and a half seconds is the number this was tuned to.
  */
 const PREPARE_MS = 4_500
 
@@ -42,7 +46,15 @@ const PREPARE_MS = 4_500
 const ARTWORK_CEILING_MS = 4_000
 
 const SPLASH_MS = 2_000
-const MIN_VERIFY_MS = 1_300
+
+/**
+ * When the single loading admits it is taking too long.
+ *
+ * The auth service is a Render instance that sleeps, and a first request after sleep can
+ * take half a minute. A loading state that never says anything is indistinguishable from
+ * a hung app, so after this long it says so — and offers the only useful thing left.
+ */
+const STALL_AFTER_MS = 12_000
 
 /**
  * The longest anything may wait behind a spinner.
@@ -165,13 +177,21 @@ export default function App(): React.JSX.Element {
   const [film, setFilm] = useState('')
   const [loading, setLoading] = useState(true)
   /*
-   * The curtain over the library.
+   * The one loading state in the app.
    *
-   * `preparing` holds it, `lifting` fades it — the grid is mounted underneath the whole
-   * time, so the cards are painted and every video is already playing by the moment it is
-   * uncovered. Nothing pops in behind the reveal, because nothing is still arriving.
+   * `preparing` holds it from the moment Sign in is pressed — login, catalogue,
+   * entitlement and artwork all happen underneath it — and `lifting` fades it. The grid
+   * mounts as it lifts: the cards arrive with their artwork already decoded and their
+   * clips already cached, so there is nothing left to assemble in front of you, and
+   * nothing spending a decoder while the circle above needs the machine.
    */
   const [curtain, setCurtain] = useState<'idle' | 'preparing' | 'lifting'>('idle')
+
+  /** The one loading has been up long enough to say so. See STALL_AFTER_MS. */
+  const [stalled, setStalled] = useState(false)
+
+  /** Which sign-in attempt is current. Anything older is not allowed to finish. */
+  const attempt = useRef(0)
 
   const [selected, setSelected] = useState<LoaderApp | null>(null)
   const [installs, setInstalls] = useState<Record<string, InstallView>>({})
@@ -329,41 +349,60 @@ export default function App(): React.JSX.Element {
   const submit = useCallback(
     (user: string, pass: string) => {
       setError(null)
-      setScreen('verifying')
 
-      const started = Date.now()
+      /*
+       * One loading, starting now.
+       *
+       * The curtain goes up the instant Sign in is pressed and does not come down until
+       * both the login and the library behind it are done. It used to be two screens —
+       * verifying, then the curtain — and two of the same circle with a change of scenery
+       * between them is read as one stall, which is exactly what it was.
+       */
+      setScreen('home')
+      setCurtain('preparing')
+      setStalled(false)
+
+      const run = attempt.current + 1
+      attempt.current = run
+      const opened = Date.now()
+      const stall = window.setTimeout(() => setStalled(true), STALL_AFTER_MS)
+
+      /** Only the newest attempt may finish. A second sign-in abandons the first. */
+      const live = (): boolean => attempt.current === run
+
+      const fail = (message: string): void => {
+        if (!live()) return
+        window.clearTimeout(stall)
+        setStalled(false)
+        setCurtain('idle')
+        setError(message)
+        setScreen('signin')
+      }
+
       void (async () => {
-        // Capped, and caught. A rejected IPC call used to leave this screen up
-        // forever with no way back, because nothing in the chain had a `catch`.
+        // Capped, and caught. A rejected IPC call used to leave the screen up forever
+        // with no way back, because nothing in the chain had a `catch`.
         const result = await withCap(bridge.auth.login(user, pass), {
           ok: false,
           error: 'Connection failed'
         })
 
-        // Never a flash: the spinner is on screen long enough to be read.
-        const remaining = MIN_VERIFY_MS - (Date.now() - started)
-        if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining))
+        if (!live()) return
+        if (!result.ok) return fail(result.error)
 
-        if (!result.ok) {
-          setError(result.error)
-          setScreen('signin')
-          return
-        }
-
-        setScreen('home')
-        setCurtain('preparing')
-        const opened = Date.now()
-
-        // A library that fails to load must not take the app down with it; the
-        // screen is already open and the host is already reachable or not.
+        // A library that fails to load must not take the app down with it; the film is
+        // already on screen and the host is already reachable or not.
         const catalogue = await loadLibrary().catch(() => null)
+        if (!live()) return
 
         /*
-         * Then the artwork, under the spinner.
+         * Then the artwork, under the circle.
          *
-         * This is the whole point of the curtain: an image that decodes while nobody is
-         * looking costs nothing, and a clip that has been playing for four seconds is
-         * already at speed when the card carrying it appears.
+         * This is the whole point of the loading state, and the reason it exists at all:
+         * an image that decodes while nobody is looking costs nothing, and a card that
+         * arrives with its picture already finished does not assemble itself in front of
+         * you. Bytes and decodes only — no element is mounted, because a decoder is a
+         * decoder and the circle above has to have the machine.
          */
         if (catalogue) {
           await Promise.race([
@@ -371,15 +410,22 @@ export default function App(): React.JSX.Element {
             new Promise((resolve) => setTimeout(resolve, ARTWORK_CEILING_MS))
           ])
         }
+        if (!live()) return
 
+        // The floor on the whole thing, counted from the press rather than from the
+        // login, so there is one wait and it is four and a half seconds long.
         const hold = PREPARE_MS - (Date.now() - opened)
         if (hold > 0) await new Promise((resolve) => setTimeout(resolve, hold))
+        if (!live()) return
 
+        window.clearTimeout(stall)
+        setStalled(false)
         setCurtain('lifting')
-        window.setTimeout(() => setCurtain('idle'), 760)
+        window.setTimeout(() => {
+          if (live()) setCurtain('idle')
+        }, 760)
       })().catch((error: unknown) => {
-        setError(error instanceof Error ? error.message : 'Connection failed')
-        setScreen('signin')
+        fail(error instanceof Error ? error.message : 'Connection failed')
       })
     },
     [loadLibrary]
@@ -447,12 +493,7 @@ export default function App(): React.JSX.Element {
         * that has never had one. Reading `config.video` alone meant the backdrop waited
         * for the catalogue, and then for a bucket, before a single frame appeared.
         */}
-      <Backdrop
-        video={film || config.video || undefined}
-        blur={config.filmBlur}
-        dim={config.filmDim}
-        paused={curtain === 'preparing'}
-      />
+      <Backdrop video={film || config.video || undefined} blur={config.filmBlur} dim={config.filmDim} />
 
       {screen === 'splash' ? <Splash /> : null}
 
@@ -475,22 +516,13 @@ export default function App(): React.JSX.Element {
         />
       ) : null}
 
-      {screen === 'verifying' ? (
-        <Verifying
-          onBack={() => {
-            setError(null)
-            setScreen('signin')
-          }}
-        />
-      ) : null}
-
       {/*
         * Maintenance closes the door without taking the app away: the header stays,
         * so the window is still the loader and still has window controls, and the
         * sentence says whose decision this was. Nobody should have to guess whether
         * an empty library means they own nothing or that we are working on it.
         */}
-      {screen === 'home' && config.maintenance ? (
+      {screen === 'home' && config.maintenance && curtain === 'idle' ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
           <div className="text-[9.5px] font-semibold uppercase tracking-[0.28em] text-[var(--color-ink-3)]">
             Indra Loader
@@ -537,7 +569,19 @@ export default function App(): React.JSX.Element {
       ) : null}
 
       {/* The curtain sits above the grid it is covering, and above nothing else. */}
-      {curtain === 'idle' ? null : <Preparing out={curtain === 'lifting'} />}
+      {curtain === 'idle' ? null : (
+        <Preparing
+          out={curtain === 'lifting'}
+          stalled={stalled}
+          onBack={() => {
+            attempt.current += 1
+            setStalled(false)
+            setCurtain('idle')
+            setError(null)
+            setScreen('signin')
+          }}
+        />
+      )}
 
       {screen === 'settings' && update ? (
         <Settings
