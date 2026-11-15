@@ -169,6 +169,23 @@ check('a drag is followed under the pointer, not chased', /transition: none/.tes
 check('a throw carries its speed', /THROW_MS/.test(dash) && /velocity \* THROW_MS/.test(dash))
 check('the ends resist instead of opening onto nothing', /dx \* 0\.32/.test(dash))
 check('a drag is not a click', /CLICK_SLOP/.test(dash) && /stopPropagation\(\)/.test(dash))
+/*
+ * A press must not become a drag on contact.
+ *
+ * 1.0.46 captured the pointer and entered the dragging state the moment a card was
+ * pressed. Both of those take the press away from the card: capture retargets the events
+ * to the strip, and the dragging styles turn card hit-testing off — so the card never
+ * received the click that ended the press, and no card could be opened. Contact now does
+ * nothing; the strip commits on the first move past the slop.
+ */
+const pressHandler = dash.slice(dash.indexOf('const onPointerDown'), dash.indexOf('const onPointerMove'))
+check('a press does not capture the pointer', !/setPointerCapture/.test(pressHandler))
+check('a press does not enter the dragging state', !/setDragging\(true\)/.test(pressHandler))
+check(
+  'the strip commits only once it has moved',
+  /if \(!dragged\.current\) \{[\s\S]{0,120}?Math\.abs\(dx\) <= CLICK_SLOP\) return[\s\S]{0,400}?setPointerCapture/.test(dash)
+)
+check('and a press that never moved settles nothing', /if \(!dragged\.current\) \{\s*setDragging\(false\)/.test(dash))
 check('the wheel moves it', /onWheel/.test(dash) && /WHEEL_STEP/.test(dash))
 check('the keyboard moves it', /event\.key === 'ArrowRight'/.test(dash) && /event\.key === 'End'/.test(dash))
 check('and typing is never stolen from a field', /INPUT\|TEXTAREA\|SELECT/.test(dash))
