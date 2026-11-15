@@ -35,6 +35,19 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   if ('fileUrl' in payload) patch.exe_url = text(payload['fileUrl'], 2000)
   if ('sha256' in payload) patch.exe_sha256 = text(payload['sha256'], 64).toLowerCase()
   if ('bytes' in payload) patch.exe_bytes = Number(payload['bytes']) || 0
+  /*
+   * How the card draws its artwork. Clamped here as well as in the database, because a
+   * slider is a user interface and a user interface can be wrong: the app applies these
+   * straight to an <img> and a video element, and 900 pixels of blur is a grey card.
+   */
+  if ('artworkBlur' in payload) {
+    const blur = Number(payload['artworkBlur'])
+    patch.image_blur = Number.isFinite(blur) ? Math.min(40, Math.max(0, Math.round(blur))) : 0
+  }
+  if ('artworkDim' in payload) {
+    const dim = Number(payload['artworkDim'])
+    patch.image_dim = Number.isFinite(dim) ? Math.min(100, Math.max(0, Math.round(dim))) : 0
+  }
 
   if (Object.keys(patch).length === 0) return fail('Nothing to change.')
 

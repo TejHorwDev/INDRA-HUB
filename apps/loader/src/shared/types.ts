@@ -50,6 +50,15 @@ export interface LoaderApp {
   version: string
   /** Absolute URL of the card image. Empty is valid: the card draws a monogram. */
   image: string
+  /**
+   * How the card draws that artwork: pixels of blur, percent of dark.
+   *
+   * A poster with its own type on it fights the product name printed over it, and only
+   * the person who chose the poster can say how far to soften it. 0 and 0 are sharp and
+   * untouched — exactly what every card drew before these existed.
+   */
+  artworkBlur: number
+  artworkDim: number
   fileUrl: string
   /** The product's id in INDRA Auth. Empty means the app is not gated. */
   keyauthAppId: string

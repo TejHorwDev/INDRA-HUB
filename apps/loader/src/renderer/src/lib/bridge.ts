@@ -58,7 +58,9 @@ const staged: Catalogue = {
       fileUrl: 'https://example.invalid/aurora.exe',
       keyauthAppId: '',
       sha256: '',
-      status: 'active'
+      status: 'active',
+      artworkBlur: 0,
+      artworkDim: 0
     },
     {
       id: 'mock-nova',
@@ -69,7 +71,9 @@ const staged: Catalogue = {
       fileUrl: 'https://example.invalid/nova.exe',
       keyauthAppId: 'mock-nova',
       sha256: '',
-      status: 'active'
+      status: 'active',
+      artworkBlur: 0,
+      artworkDim: 0
     },
     {
       id: 'mock-vantage',
@@ -80,7 +84,9 @@ const staged: Catalogue = {
       fileUrl: 'https://example.invalid/vantage.exe',
       keyauthAppId: '',
       sha256: '',
-      status: 'locked'
+      status: 'locked',
+      artworkBlur: 0,
+      artworkDim: 0
     }
   ],
   config: {

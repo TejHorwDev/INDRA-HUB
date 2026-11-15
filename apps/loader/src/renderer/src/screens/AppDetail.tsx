@@ -130,7 +130,13 @@ export default function AppDetail({
             boxShadow: '0 40px 90px -40px rgba(0,0,0,0.95)'
           }}
         >
-          <Monogram name={app.name} image={app.image} initialClassName="text-[96px]" />
+          <Monogram
+            name={app.name}
+            image={app.image}
+            initialClassName="text-[96px]"
+            blur={app.artworkBlur}
+            dim={app.artworkDim}
+          />
         </div>
 
         {/* The column is the artwork's height at least: name at the top, actions at

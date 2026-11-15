@@ -48,13 +48,19 @@ interface Props {
   className?: string
   /** Type scale for the initial, so one component serves a card and a preview. */
   initialClassName?: string
+  /** Pixels of blur over the artwork, 0–40. Published per product by the panel. */
+  blur?: number
+  /** Percent of dark over the artwork, 0–100. */
+  dim?: number
 }
 
 export default function Monogram({
   name,
   image,
   className = '',
-  initialClassName = 'text-[38px]'
+  initialClassName = 'text-[38px]',
+  blur = 0,
+  dim = 0
 }: Props): React.JSX.Element {
   /*
    * Artwork that cannot be drawn is worse than no artwork.
@@ -68,40 +74,65 @@ export default function Monogram({
   const usable = image && !failed
 
   if (usable) {
+    /*
+     * The frame the panel sets for this card.
+     *
+     * The artwork is softened and scaled by as much as it is softened — a blurred picture
+     * inside a sharp edge reads as a bug — and the darkening is its own layer above it,
+     * because a `filter: brightness()` would drag the name down with the picture, and the
+     * name is the one thing on a card that has to stay white.
+     */
+    const scale = 1 + Math.min(0.16, blur / 100)
+    const frame = blur
+      ? { filter: `blur(${blur}px)`, transform: `scale(${scale})` }
+      : undefined
+
     return (
-      /*
-       * A video card: muted, inline, looping — a moving picture where a still one would be,
-       * with no controls and nothing to click. It is scenery, exactly like the film behind
-       * the window, and the same rules apply: it must never ask for a gesture to start.
-       */
-      isMovingArtwork(image) ? (
-        <video
-          src={image}
-          muted
-          loop
-          autoPlay
-          playsInline
-          preload="auto"
-          tabIndex={-1}
-          disablePictureInPicture
-          onError={() => setFailed(true)}
-          className={`h-full w-full object-cover ${className}`}
-        />
-      ) : (
-        /*
-         * A plain `<img>`, which is also what animates a GIF or an animated WebP: the
-         * format decides, not the component. `decoding="async"` keeps a large card from
-         * blocking the paint of the grid around it.
-         */
-        <img
-          src={image}
-          alt=""
-          draggable={false}
-          decoding="async"
-          onError={() => setFailed(true)}
-          className={`h-full w-full object-cover ${className}`}
-        />
-      )
+      <div className={`relative h-full w-full overflow-hidden ${className}`}>
+        {/*
+         * A video card: muted, inline, looping — a moving picture where a still one would
+         * be, with no controls and nothing to click. It is scenery, exactly like the film
+         * behind the window, and the same rules apply: it must never ask for a gesture.
+         */}
+        {isMovingArtwork(image) ? (
+          <video
+            src={image}
+            muted
+            loop
+            autoPlay
+            playsInline
+            preload="auto"
+            tabIndex={-1}
+            disablePictureInPicture
+            onError={() => setFailed(true)}
+            style={frame}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          /*
+           * A plain `<img>`, which is also what animates a GIF or an animated WebP: the
+           * format decides, not the component. `decoding="async"` keeps a large card from
+           * blocking the paint of the grid around it.
+           */
+          <img
+            src={image}
+            alt=""
+            draggable={false}
+            decoding="async"
+            onError={() => setFailed(true)}
+            style={frame}
+            className="h-full w-full object-cover"
+          />
+        )}
+
+        {dim > 0 ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{ background: '#060608', opacity: dim / 100 }}
+          />
+        ) : null}
+      </div>
     )
   }
 

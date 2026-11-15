@@ -36,7 +36,13 @@ export default function Card({ app, available, install, onOpen }: Props): React.
     >
       {/* The artwork fills the whole card, and moves a little on hover. */}
       <div className="absolute inset-0 transition-transform duration-500 ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.035]">
-        <Monogram name={app.name} image={app.image} initialClassName="text-[54px]" />
+        <Monogram
+          name={app.name}
+          image={app.image}
+          initialClassName="text-[54px]"
+          blur={app.artworkBlur}
+          dim={app.artworkDim}
+        />
       </div>
 
       {/*
