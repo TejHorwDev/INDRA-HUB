@@ -11,6 +11,21 @@ import { serverError } from '@/lib/http'
  */
 export const dynamic = 'force-dynamic'
 
+/*
+ * The film is not just a file, it is a file at a size. A 1080p clip behind a 900px
+ * window at full sharpness fights every label on the screen, and the person who owns
+ * the film is the only one who can say how far to soften it.
+ *
+ * So the panel publishes two numbers with it: how much blur, and how much dark. Both
+ * are clamped here rather than trusted — the app applies them directly to a video
+ * element, and a stored 900 would blur the window into a single grey rectangle.
+ */
+const limit = (value: string | undefined, max: number): number => {
+  const number = Number(value ?? 0)
+  if (!Number.isFinite(number) || number <= 0) return 0
+  return Math.min(max, Math.round(number * 10) / 10)
+}
+
 export async function GET(): Promise<Response> {
   if (!databaseReady()) {
     return Response.json({ website: '', video: '' }, { headers: { 'cache-control': 'no-store' } })
@@ -23,7 +38,9 @@ export async function GET(): Promise<Response> {
         website: config.website ?? '',
         video: config.video ?? '',
         notice: config.notice ?? '',
-        maintenance: config.maintenance === '1' || config.maintenance === 'true' ? '1' : '0'
+        maintenance: config.maintenance === '1' || config.maintenance === 'true' ? '1' : '0',
+        filmBlur: limit(config.film_blur, 40),
+        filmDim: limit(config.film_dim, 100)
       },
       { headers: { 'cache-control': 'public, max-age=60, stale-while-revalidate=300' } }
     )

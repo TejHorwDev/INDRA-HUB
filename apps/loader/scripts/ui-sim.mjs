@@ -225,6 +225,26 @@ check('the film loops by handover, not by seeking', !/\bloop\b/.test(backdrop.re
 check('two layers, so the join is a fade', (backdrop.match(/<video/g) ?? []).length === 2)
 check('and it is memoised, so a download cannot re-render it', /export default memo\(Backdrop\)/.test(backdrop))
 
+/*
+ * Blur and dim are published by the panel, not baked into a build.
+ *
+ * The film is assigned to a person who can see it and we cannot, so the app takes two
+ * numbers from the catalogue and applies them directly: pixels of blur on the video,
+ * a plain dark rectangle over it. The scale is the part that is easy to forget — a
+ * blurred rectangle inside a sharp border reads as a bug, so the picture grows by as
+ * much as it softens.
+ */
+const backdropCss = code(readFileSync(join(renderer, 'index.css'), 'utf8'))
+check('the film takes its blur from the panel', /filter: blur\(var\(--film-blur/.test(backdropCss))
+check('and grows by as much as it softens', /transform: scale\(var\(--film-scale/.test(backdropCss))
+check('the darkening is its own layer, above the film', /\.backdrop \.film-dim/.test(backdropCss))
+check('the scrim survives the wash rules', /border-radius: 0;/.test(backdropCss) && /filter: none;/.test(backdropCss))
+const backdropStage = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+check(
+  'the renderer passes both numbers to the backdrop',
+  /blur=\{config\.filmBlur\}/.test(backdropStage) && /dim=\{config\.filmDim\}/.test(backdropStage)
+)
+
 check('no length means bytes on screen, not a frozen 0%', /metered \? `\$\{percent\}%` : `\$\{megabytes\} MB`/.test(detail))
 check('the stripe moves when the length is unknown', /download-stripe/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
 check('a stall is detected rather than waited on', /STALL_MS/.test(service))
