@@ -353,6 +353,23 @@ check('and hidden by opacity, so it still paints', /data-lifted=/.test(appShell)
 check('a clip is fetched into the cache, not just started', /fetch\(app\.image, \{ cache: 'force-cache' \}\)/.test(appShell))
 check('one warm per address, ever', /const warmed = new Set/.test(appShell))
 check('the curtain fades rather than cutting', /\.curtain\[data-out='true'\]/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+
+/*
+ * A spinner that visibly turns.
+ *
+ * The first one was a border with one edge tinted: a quarter of a hairline, repainted on
+ * the main thread every frame, on top of a backdrop-blurred playing video. On a machine
+ * decoding three card videos that is a still picture — which is exactly what it looked
+ * like. It is an SVG arc now, composited, and the curtain behind it is flat black so
+ * there is nothing to re-blur.
+ */
+const spinner = code(readFileSync(join(renderer, 'components/Spinner.tsx'), 'utf8'))
+check('the circle is an arc, not a border', /<svg/.test(spinner) && /strokeDasharray/.test(spinner))
+check('and it turns on the compositor', /\.spinner \{[^}]*animation: spin 1s linear infinite/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+check('the curtain has nothing to re-blur', !/backdrop-filter/.test(readFileSync(join(renderer, 'index.css'), 'utf8').split('.curtain {')[1].split('}')[0]))
+check('progress is drawn, so it cannot look stuck', /curtain-fill/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+check('and the hairline keeps the curtain\'s own clock', /holdMs/.test(readFileSync(join(renderer, 'screens/Preparing.tsx'), 'utf8')))
+check('the verifying screen uses the same circle', /<Spinner/.test(readFileSync(join(renderer, 'screens/Verifying.tsx'), 'utf8')))
 check('waiting for artwork has a ceiling', /ARTWORK_CEILING_MS/.test(appShell))
 check('every card is asked for, not just the visible ones', /new Image\(\)/.test(appShell))
 check('a big picture never blocks the paint', /decoding="async"/.test(monogram))

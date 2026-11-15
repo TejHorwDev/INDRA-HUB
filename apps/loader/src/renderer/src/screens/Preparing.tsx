@@ -14,10 +14,30 @@
  * for a wait; there is nothing to apologise for, because nothing on this screen is doing
  * anything you have to think about.
  */
-export default function Preparing({ out }: { out: boolean }): React.JSX.Element {
+
+import Spinner from '../components/Spinner'
+
+export default function Preparing({
+  out,
+  holdMs = 4_500
+}: {
+  out: boolean
+  /** How long the curtain will be up. The hairline is drawn to the same clock. */
+  holdMs?: number
+}): React.JSX.Element {
   return (
     <div className="curtain" data-out={out}>
-      <span className="curtain-spinner" role="status" aria-label="Loading your library" />
+      <div className="curtain-body">
+        <Spinner label="Loading your library" />
+        {/*
+          * A hairline that fills over the same four and a half seconds the curtain is
+          * held for. A circle alone cannot tell you whether it is working or stuck; a
+          * line that is visibly longer than it was a second ago can.
+          */}
+        <span className="curtain-rule" aria-hidden>
+          <i style={{ animationDuration: `${holdMs}ms` }} />
+        </span>
+      </div>
     </div>
   )
 }

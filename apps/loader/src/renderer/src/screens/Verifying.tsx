@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import Spinner from '../components/Spinner'
 
 /*
  * Verifying.
@@ -37,12 +38,7 @@ export default function Verifying({ onBack }: { onBack?: () => void }): React.JS
   return (
     <div className="absolute inset-0 z-40 grid place-items-center bg-[var(--color-bg)]/70">
       <div className="flex flex-col items-center gap-4">
-        <span
-          className="block h-[34px] w-[34px] rounded-full border-[1.5px] border-white/10 border-t-[var(--color-accent)]"
-          style={{ animation: 'spin 900ms linear infinite' }}
-          aria-label="Verifying"
-          role="status"
-        />
+        <Spinner label="Verifying" />
 
         <span
           className="text-[10.5px] uppercase tracking-[0.18em] text-[var(--color-ink-3)] transition-opacity duration-300"
