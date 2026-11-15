@@ -380,7 +380,14 @@ check('the mark is only a circle', !/curtain-rule|curtain-halo/.test(curtainCss)
  * watching reads as one long stall. There is one screen now, it goes up on the press of
  * Sign in, and it comes down once.
  */
-check('signing in raises the curtain, not a second screen', /setScreen\('home'\)\n\s*setCurtain\('preparing'\)/.test(appShell))
+/*
+ * Windows checks out these files with CRLF, so anything anchored on a line break has to
+ * say `\r?` or it passes here and fails on the only machine that ships the app.
+ */
+check(
+  'signing in raises the curtain, not a second screen',
+  /setScreen\('home'\)\r?\n\s*setCurtain\('preparing'\)/.test(appShell)
+)
 check('there is no second loading screen left in the app', !/verifying/.test(appShell.replace(/\/\*[\s\S]*?\*\//g, '')))
 check('and the login happens under it', /await withCap\(bridge\.auth\.login[\s\S]{0,400}?loadLibrary\(\)/.test(appShell))
 check(
