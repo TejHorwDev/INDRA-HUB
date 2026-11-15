@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { InstallView, LoaderApp, LoaderConfig } from '@shared/types'
 import { isAvailable } from '@shared/access'
 import Card from '../components/Card'
@@ -7,34 +7,52 @@ import WindowControls from '../components/WindowControls'
 /*
  * The library.
  *
- * Three cards at a time in a 724-wide strip at x88, arrows either side at the
- * vertical centre of the strip, dots underneath. Paging is state, not scroll: a
- * horizontal scrollbar inside a fixed window is a place a user can get lost.
+ * Three cards in a 732-wide window with every product on one track, arrows either
+ * side, dots underneath.
  *
- * The empty state is a real state, not a placeholder card — "no apps" has to
- * look finished, because it is what a new account actually sees.
+ * It used to page: three cards were mounted, and pressing an arrow unmounted them and
+ * mounted the next three with a 300ms slide. That is a redirect with a wipe on it, not
+ * movement — the old cards vanish at the moment the new ones start arriving, so your eye
+ * reads a cut. Worse, it was keyed on the page number, so nothing on screen survived the
+ * change to be followed.
+ *
+ * Now every card is mounted once, on one track, and changing page is a translation of
+ * that track. The cards you were looking at slide out and the next ones slide in, and
+ * they are the same DOM nodes the whole way, so the movement is continuous — which is
+ * the difference between a carousel and a slideshow.
+ *
+ * It moves the ways people actually try to move it:
+ *
+ *   arrows · the dots · ← → Home End · the wheel or a trackpad two-finger swipe ·
+ *   or the cards themselves, dragged, with the release carrying the distance it was
+ *   thrown. A drag and a throw land on a card boundary, never between two, and a drag
+ *   is never mistaken for a click.
+ *
+ * One card per move rather than three: with a full window a three-card jump hides the
+ * cards it passes, and the point of the motion is to see them go.
  */
 
-/*
- * Three squares, and nothing else.
- *
- * The strip is a fixed grid rather than a flexible row: three cards of one size,
- * two gaps, inside a 732px viewport. Flexible widths were the reason two apps looked
- * like a mistake — the row stretched to fill and the cards ended up wider than the
- * artwork inside them.
- *
- * More than three means another page, not a smaller card. The catalogue grows; the
- * card does not.
- */
-const PAGE_SIZE = 3
+/** How many cards are in view. The window does not grow; the catalogue does. */
+const VISIBLE = 3
 const CARD = 232
 const GAP = 18
-const RAIL_WIDTH = PAGE_SIZE * CARD + (PAGE_SIZE - 1) * GAP
+/** One card and one gap — the distance one move travels. */
+const STEP = CARD + GAP
+const RAIL_WIDTH = VISIBLE * CARD + (VISIBLE - 1) * GAP
 
 /** The window, from `src/main/index.ts`. The rail is centred in it. */
 const WINDOW_WIDTH = 900
 /** Where the title and the rail both start, so the page has one left edge. */
 const GUTTER = (WINDOW_WIDTH - RAIL_WIDTH) / 2
+
+/** Pixels of movement below which a pointer press is still a click. */
+const CLICK_SLOP = 6
+/** A throw carries this many milliseconds of the pointer's speed into the distance. */
+const THROW_MS = 130
+/** Wheel travel that counts as one move. Notched mice and trackpads both land here. */
+const WHEEL_STEP = 42
+/** How long a wheel gesture stays open for more deltas. */
+const WHEEL_IDLE_MS = 180
 
 interface Props {
   apps: LoaderApp[]
@@ -59,20 +77,159 @@ export default function Dashboard({
   onLocked,
   onWebsite
 }: Props): React.JSX.Element {
-  const [page, setPage] = useState(0)
-  /* Which way the next page slides in from, so the movement matches the arrow. */
-  const [direction, setDirection] = useState<'next' | 'prev'>('next')
-  const pages = Math.max(1, Math.ceil(apps.length / PAGE_SIZE))
+  const [index, setIndex] = useState(0)
+  /** Pixels of pointer travel on top of the resting position, while a drag is live. */
+  const [drag, setDrag] = useState(0)
+  const [dragging, setDragging] = useState(false)
 
-  // A catalogue that shrinks must never leave the view on a page that is gone.
+  const maxIndex = Math.max(0, apps.length - VISIBLE)
+
+  // A catalogue that shrinks must never leave the view past the end of the track.
   useEffect(() => {
-    setPage((current) => Math.min(current, pages - 1))
-  }, [pages])
+    setIndex((current) => Math.min(current, maxIndex))
+  }, [maxIndex])
 
-  const visible = useMemo(
-    () => apps.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
-    [apps, page]
+  /** Where the track rests for a given card, in pixels to move it left. */
+  const offsetFor = useCallback((value: number) => -value * STEP, [])
+
+  const move = useCallback(
+    (next: number) => {
+      setIndex((current) => {
+        const target = Math.max(0, Math.min(maxIndex, next))
+        // A no-op still has to put the track back where it belongs after a shrug of a drag.
+        if (target === current) setDrag(0)
+        return target
+      })
+    },
+    [maxIndex]
   )
+
+  /*
+   * The pointer.
+   *
+   * Kept in a ref rather than in state: this updates on every move event, and the track
+   * is translated by the `drag` state alone. Only the last event before release matters
+   * for the throw, and reading it out of a ref cannot be a tick behind.
+   */
+  const gesture = useRef<{
+    id: number
+    startX: number
+    lastX: number
+    lastAt: number
+    velocity: number
+    /** The index the drag started from, so a drag cannot compound on itself. */
+    from: number
+  } | null>(null)
+  /** Set at release, read by the click that may follow: a drag is not a click. */
+  const dragged = useRef(false)
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
+    if (maxIndex === 0) return
+    gesture.current = {
+      id: event.pointerId,
+      startX: event.clientX,
+      lastX: event.clientX,
+      lastAt: event.timeStamp,
+      velocity: 0,
+      from: index
+    }
+    /*
+     * Capture the pointer: a drag that leaves the strip still belongs to the strip, and
+     * it must get its own release event even if that release happens over the film.
+     */
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      /* a synthetic event has no capture to give */
+    }
+    dragged.current = false
+    setDragging(true)
+  }
+
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const live = gesture.current
+    if (!live || live.id !== event.pointerId) return
+
+    const dx = event.clientX - live.startX
+    const elapsed = Math.max(1, event.timeStamp - live.lastAt)
+    live.velocity = (event.clientX - live.lastX) / elapsed
+    live.lastX = event.clientX
+    live.lastAt = event.timeStamp
+
+    if (Math.abs(dx) > CLICK_SLOP) dragged.current = true
+
+    /*
+     * Resistance at the ends.
+     *
+     * Pulling past the first or last card gives a little, then fights back. A track that
+     * moves freely into empty space is a broken track; one that refuses to move at all
+     * feels broken in the other direction.
+     */
+    const past = (live.from === 0 && dx > 0) || (live.from === maxIndex && dx < 0)
+    setDrag(past ? dx * 0.32 : dx)
+  }
+
+  const release = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const live = gesture.current
+    if (!live || live.id !== event.pointerId) return
+    gesture.current = null
+
+    const dx = event.clientX - live.startX
+    const throwPx = dragged.current ? live.velocity * THROW_MS : 0
+    // Content moved right means a lower index; the throw adds to the distance travelled.
+    const travelled = dx + throwPx
+    const target = live.from - Math.round(travelled / STEP)
+
+    setDragging(false)
+    setDrag(0)
+    move(target)
+  }
+
+  /*
+   * The wheel, and a trackpad's two fingers.
+   *
+   * One move per gesture, not one per event: a trackpad reports dozens of deltas for a
+   * flick, and stepping on each of them would skip half the library. The accumulator
+   * closes on its own when the fingers stop.
+   */
+  const wheel = useRef({ total: 0, until: 0 })
+  const onWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
+    if (maxIndex === 0) return
+    const now = event.timeStamp
+    if (now > wheel.current.until) wheel.current.total = 0
+    wheel.current.until = now + WHEEL_IDLE_MS
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    wheel.current.total += delta
+    if (Math.abs(wheel.current.total) < WHEEL_STEP) return
+
+    const direction = wheel.current.total > 0 ? 1 : -1
+    wheel.current.total = 0
+    move(index + direction)
+  }
+
+  // The keyboard, because a window with arrows in it is expected to answer them.
+  useEffect(() => {
+    if (maxIndex === 0) return
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null
+      // Never take a key from something the user is typing into.
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      if (target?.isContentEditable) return
+      if (event.key === 'ArrowLeft') move(index - 1)
+      else if (event.key === 'ArrowRight') move(index + 1)
+      else if (event.key === 'Home') move(0)
+      else if (event.key === 'End') move(maxIndex)
+      else return
+      event.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [index, maxIndex, move])
+
+  const dots = useMemo(() => Array.from({ length: maxIndex + 1 }), [maxIndex])
+  const resting = offsetFor(index)
 
   return (
     <div className="absolute inset-0">
@@ -90,15 +247,6 @@ export default function Dashboard({
           {config.notice}
         </div>
       ) : null}
-
-      {/*
-        * No corner label.
-        *
-        * "INDRA LOADER" over the account name sat in the top-left of every visit — the
-        * name of the app you are already looking at, and the name of the person who
-        * just signed in. Neither is information; both are furniture. The window's own
-        * title bar and the Settings screen already answer who is signed in.
-        */}
 
       <button
         type="button"
@@ -134,36 +282,47 @@ export default function Dashboard({
       </p>
 
       <div
-        className="absolute overflow-hidden"
-        style={{
-          left: GUTTER,
-          top: 184,
-          width: RAIL_WIDTH,
-          height: CARD
+        className="carousel absolute"
+        style={{ left: GUTTER, top: 184, width: RAIL_WIDTH, height: CARD }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onWheel={onWheel}
+        onClickCapture={(event) => {
+          /*
+           * The tail of a drag is not a press on the card it ended over.
+           *
+           * `detail === 0` is a click with no pointer behind it — Enter or Space on a
+           * focused card — and that is never the end of a drag, so it is never eaten.
+           */
+          if (event.detail === 0) return
+          if (!dragged.current) return
+          dragged.current = false
+          event.preventDefault()
+          event.stopPropagation()
         }}
+        data-dragging={dragging ? 'true' : 'false'}
       >
         {loading ? (
-          <div className="rail flex h-full" style={{ gap: GAP }}>
+          <div className="card-track" style={{ gap: GAP }} data-moving="false">
             <Skeleton />
           </div>
         ) : apps.length === 0 ? (
           <EmptyState hasWebsite={Boolean(config.website)} onWebsite={onWebsite} />
         ) : (
-          /*
-           * The page is keyed, so React remounts the row and the entry animation
-           * plays every time — a translate of the whole track would need its width
-           * to stay constant, and the last page is often short.
-           */
           <div
-            key={page}
-            data-direction={direction}
-            className="rail flex h-full items-stretch justify-center"
-            style={{ gap: GAP }}
+            className="card-track"
+            data-moving={dragging ? 'false' : 'true'}
+            style={{
+              gap: GAP,
+              transform: `translate3d(${resting + drag}px, 0, 0)`
+            }}
           >
-            {visible.map((app) => {
+            {apps.map((app) => {
               const available = isAvailable(app, owned)
               return (
-                <div key={app.id} className="h-full shrink-0" style={{ width: CARD }}>
+                <div key={app.id} className="slot" style={{ width: CARD }}>
                   <Card
                     app={app}
                     available={available}
@@ -182,33 +341,30 @@ export default function Dashboard({
 
       <Arrow
         side="left"
-        disabled={page === 0 || apps.length <= PAGE_SIZE}
-        onClick={() => {
-          setDirection('prev')
-          setPage((current) => Math.max(0, current - 1))
-        }}
+        disabled={index === 0 || maxIndex === 0}
+        onClick={() => move(index - 1)}
       />
       <Arrow
         side="right"
-        disabled={page >= pages - 1 || apps.length <= PAGE_SIZE}
-        onClick={() => {
-          setDirection('next')
-          setPage((current) => Math.min(pages - 1, current + 1))
-        }}
+        disabled={index >= maxIndex || maxIndex === 0}
+        onClick={() => move(index + 1)}
       />
 
-      {apps.length > PAGE_SIZE ? (
-        <div className="absolute left-0 right-0 flex items-center justify-center gap-1.5" style={{ top: 436 }}>
-          {Array.from({ length: pages }).map((_, index) => (
+      {maxIndex > 0 ? (
+        <div
+          className="absolute left-0 right-0 flex items-center justify-center gap-1.5"
+          style={{ top: 436 }}
+        >
+          {dots.map((_, position) => (
             <button
-              key={index}
+              key={position}
               type="button"
-              aria-label={`Page ${index + 1}`}
-              aria-current={index === page}
-              onClick={() => setPage(index)}
+              aria-label={`Show apps ${position + 1} to ${Math.min(apps.length, position + VISIBLE)}`}
+              aria-current={position === index}
+              onClick={() => move(position)}
               className={
                 'h-1.5 rounded-full transition-[width,background-color] duration-200 ' +
-                (index === page
+                (position === index
                   ? 'w-5 bg-[var(--color-accent)]'
                   : 'w-1.5 bg-white/15 hover:bg-white/25')
               }
@@ -235,8 +391,8 @@ function Arrow({
       aria-label={side === 'left' ? 'Previous apps' : 'Next apps'}
       disabled={disabled}
       onClick={onClick}
-      className="absolute grid h-[38px] w-[38px] place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-surface)] text-[var(--color-ink-2)] transition-[color,border-color] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-25"
-      style={{ [side]: 30, top: 184 + (CARD - 38) / 2 }}
+      className="absolute z-10 grid h-[38px] w-[38px] place-items-center rounded-full border border-[var(--hairline)] bg-[var(--color-surface)] transition-[color,border-color,opacity] duration-150 hover:border-[var(--hairline-strong)] hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-25"
+      style={{ [side]: 30, top: 184 + (CARD - 38) / 2, color: 'var(--color-ink-2)' }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
         <path

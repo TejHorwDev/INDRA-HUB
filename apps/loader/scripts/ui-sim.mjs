@@ -132,19 +132,48 @@ console.log('\nThe library grid')
 const dash = code(readFileSync(join(renderer, 'screens/Dashboard.tsx'), 'utf8'))
 const num = (name) => Number((dash.match(new RegExp(`const ${name} = ([\\d.]+)`)) ?? [])[1])
 
-const pageSize = num('PAGE_SIZE')
+const visible = num('VISIBLE')
 const card = num('CARD')
 const gap = num('GAP')
-/* The rail is the expression, not a number — so the expression is what is read. */
-const railFits = /const RAIL_WIDTH = PAGE_SIZE \* CARD \+ \(PAGE_SIZE - 1\) \* GAP/.test(dash)
-const span = pageSize * card + (pageSize - 1) * gap
+/** The rail is the expression, not a number — so the expression is what is read. */
+const railFits = /const RAIL_WIDTH = VISIBLE \* CARD \+ \(VISIBLE - 1\) \* GAP/.test(dash)
+const span = visible * card + (visible - 1) * gap
 
-check('three to a page', pageSize === 3, String(pageSize))
-check('the cards are square and the same size', card > 0 && /style=\{\{ width: CARD \}\}/.test(dash), String(card))
-check('the rail is exactly three cards and two gaps', railFits, 'the width is not derived from both')
-check('the rail fits inside the window with room for the arrows', span <= 900 - 96, `${span}px of 804`)
+check('three in view', visible === 3, String(visible))
+check('the cards are one fixed size', card > 0 && /style=\{\{ width: CARD \}\}/.test(dash), String(card))
+check('the window is exactly three cards and two gaps', railFits, 'the width is not derived from both')
+check('it fits inside the window with room for the arrows', span <= 900 - 96, `${span}px of 804`)
 check('nothing stretches a card to fill the row', !/min-w-0 flex-1/.test(dash))
-check('more than three becomes a page, not a smaller card', /Math\.ceil\(apps\.length \/ PAGE_SIZE\)/.test(dash))
+
+/*
+ * The carousel.
+ *
+ * It used to page: three cards mounted, the next three mounted in their place with a
+ * 300ms slide over the top. The old cards were gone at the instant the new ones started
+ * arriving, so what you saw was a cut with a wipe on it — "it just redirects".
+ *
+ * Now every card is on one track and a move is a translation of that track. These
+ * checks are about that difference, because it is the whole feature: the cards you were
+ * looking at are the cards sliding away.
+ */
+check('every card is mounted on one track', /apps\.map\(\(app\) =>/.test(dash))
+check('and a move never slices the catalogue', !/apps\.slice\(/.test(dash))
+check('one move is one card and one gap', /const STEP = CARD \+ GAP/.test(dash))
+check('the track rests at a card boundary', /-value \* STEP/.test(dash))
+check(
+  'and it travels rather than jumps',
+  /translate3d\(\$\{resting \+ drag\}px, 0, 0\)/.test(dash) &&
+    /transition: transform 620ms cubic-bezier\(0\.22, 0\.61, 0\.36, 1\)/.test(readFileSync(join(renderer, 'index.css'), 'utf8'))
+)
+check('a drag is followed under the pointer, not chased', /transition: none/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
+check('a throw carries its speed', /THROW_MS/.test(dash) && /velocity \* THROW_MS/.test(dash))
+check('the ends resist instead of opening onto nothing', /dx \* 0\.32/.test(dash))
+check('a drag is not a click', /CLICK_SLOP/.test(dash) && /stopPropagation\(\)/.test(dash))
+check('the wheel moves it', /onWheel/.test(dash) && /WHEEL_STEP/.test(dash))
+check('the keyboard moves it', /event\.key === 'ArrowRight'/.test(dash) && /event\.key === 'End'/.test(dash))
+check('and typing is never stolen from a field', /INPUT\|TEXTAREA\|SELECT/.test(dash))
+check('the dots go to a position, not a page number', /onClick=\{\(\) => move\(position\)\}/.test(dash))
+check('reduced motion keeps it still but working', /prefers-reduced-motion: reduce\) \{\s*\.card-track \{\s*transition: none/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
 
 /*
  * The shelf shows artwork and names.
