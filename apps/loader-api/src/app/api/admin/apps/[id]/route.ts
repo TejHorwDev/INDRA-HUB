@@ -1,6 +1,7 @@
 import { currentSession } from '@/lib/auth'
 import { db, getApp } from '@/lib/db'
 import { body, fail, ok, serverError, text } from '@/lib/http'
+import { safeLink } from '@/lib/url'
 
 /*
  * PATCH  /api/admin/apps/:id — change what is published.
@@ -31,7 +32,24 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   if ('version' in payload) patch.version = text(payload['version'], 40) || '1.0.0'
   if ('keyauthAppId' in payload) patch.keyauth_app_id = text(payload['keyauthAppId'], 120)
   if ('status' in payload) patch.status = payload['status'] === 'locked' ? 'locked' : 'active'
-  if ('image' in payload) patch.image_url = text(payload['image'], 2000)
+  /*
+   * Artwork can be uploaded here or pasted from anywhere else — a CDN, an image host, a
+   * folder of his own. Both end up in the same column and the site cannot tell the
+   * difference, which is the point: the preview clips do not have to live in a bucket that
+   * charges for looking at them.
+   *
+   * What it will not be is a `javascript:` URL. An emptied field clears the artwork.
+   */
+  if ('image' in payload) {
+    const raw = text(payload['image'], 2000)
+    if (!raw) {
+      patch.image_url = ''
+    } else {
+      const href = safeLink(raw)
+      if (!href) return fail('That is not an http(s) link. Paste a direct link to the clip or picture.')
+      patch.image_url = href
+    }
+  }
   if ('fileUrl' in payload) patch.exe_url = text(payload['fileUrl'], 2000)
   if ('sha256' in payload) patch.exe_sha256 = text(payload['sha256'], 64).toLowerCase()
   if ('bytes' in payload) patch.exe_bytes = Number(payload['bytes']) || 0
