@@ -30,7 +30,9 @@ on:
         default: false
 
 permissions:
-  contents: read
+  # Read for the checkout; write only so a failed run can leave its log on the branch,
+  # because the log API is not always reachable and "it stopped" is not a diagnosis.
+  contents: write
 
 concurrency:
   group: storage
@@ -82,6 +84,16 @@ jobs:
               echo ""
               echo "Add each one under Settings → Secrets and variables → Actions → New repository secret."
             } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: leave the log behind
+        if: failure()
+        run: |
+          if [ ! -f storage-report.txt ]; then echo "nothing to hand over"; exit 0; fi
+          git config user.name "arena-agent"
+          git config user.email "agent@arena.ai"
+          git add -f storage-report.txt
+          git commit -m "ci: storage failure report" || true
+          git push origin "HEAD:${{ github.ref_name }}" || echo "could not push the report"
             exit 1
           fi
           echo "all six secrets are present"
@@ -106,6 +118,7 @@ jobs:
         if: failure()
         working-directory: apps/loader-api
         run: |
+          cp migrate.log ../../storage-report.txt 2>/dev/null || true
           reason=$(grep -m1 -E "Not set|not set|Error|error|FAILED|Cannot" migrate.log 2>/dev/null | head -c 400 || true)
           echo "::error::storage migration failed: ${reason:-see the log}"
           {
@@ -115,3 +128,13 @@ jobs:
             tail -30 migrate.log 2>/dev/null || echo "no log was written"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: leave the log behind
+        if: failure()
+        run: |
+          if [ ! -f storage-report.txt ]; then echo "nothing to hand over"; exit 0; fi
+          git config user.name "arena-agent"
+          git config user.email "agent@arena.ai"
+          git add -f storage-report.txt
+          git commit -m "ci: storage failure report" || true
+          git push origin "HEAD:${{ github.ref_name }}" || echo "could not push the report"
