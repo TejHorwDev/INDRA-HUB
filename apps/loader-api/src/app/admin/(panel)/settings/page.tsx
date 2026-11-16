@@ -19,10 +19,16 @@ export default function SettingsPage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <h1>Settings</h1>
-        <p className="lede">What the loader reads, and what this deployment is connected to.</p>
-      </div>
+      <section className="hero">
+        <div>
+          <p className="eyebrow">
+            <span className="dot" data-tone="off" />
+            Configuration
+          </p>
+          <h1>Settings</h1>
+          <p className="lede">What the loader reads, and what this deployment is connected to.</p>
+        </div>
+      </section>
 
       <div className="card">
         <h2>Sign-in video</h2>
