@@ -1,0 +1,53 @@
+name: probe
+
+# Temporary: measures what the live storage and API actually answer for artwork, with
+# timings — the numbers that decide whether a card pops or crawls. The report is committed
+# back to the branch because run logs are not reachable from here.
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/probe.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Measure
+        run: |
+          set +e
+          SUP="https://cztyznuoferktewdhyji.supabase.co/storage/v1/object/public/loader-files"
+          : > probe-report.txt
+          {
+            echo "## catalogue"
+            curl -sS --max-time 60 https://indra-loader-api.onrender.com/api/loader/apps | head -c 1200
+            echo
+            echo
+            for url in \
+              "$SUP/images/mwhh0otf-b59wjd-marimosc00k_pindown.io_1794725025.webm" \
+              "$SUP/images/mwgllwbw-jgcxaw-na-images-hd-4k-Krishna-images-hd-wallpapers-Krishna-art.mp4" \
+              "$SUP/videos/mwgj8whb-m2bnh1-topographic-textures.1920x1080.mp4" \
+              "https://indra-loader-api.onrender.com/api/files/images/mwhh0otf-b59wjd-marimosc00k_pindown.io_1794725025.webm" ; do
+              echo "## $url"
+              curl -sS -o /dev/null --max-time 120 \
+                -w "status=%{http_code} bytes=%{size_download} dns=%{time_namelookup} connect=%{time_connect} ttfb=%{time_starttransfer} total=%{time_total} redirects=%{num_redirects} url=%{url_effective}\n" \
+                "$url"
+              echo
+            done
+            echo "## api 302 headers"
+            curl -sS -o /dev/null -D - --max-time 60 \
+              "https://indra-loader-api.onrender.com/api/files/images/mwhh0otf-b59wjd-marimosc00k_pindown.io_1794725025.webm" \
+              | tr -d '\r' | grep -iE '^(HTTP/|location|cache-control)'
+          } >> probe-report.txt
+
+      - name: Commit the report
+        run: |
+          git config user.name "probe"
+          git config user.email "probe@users.noreply.github.com"
+          git add -f probe-report.txt
+          git commit -m "probe: media timings" || true
+          git push
