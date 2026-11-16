@@ -51,7 +51,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not 20: the Supabase client wants a native WebSocket, and Node 20 does not
+          # have one — it fails with "Node.js detected but native WebSocket not found"
+          # before it has read a single row.
+          node-version: 22
           cache: npm
           cache-dependency-path: apps/loader-api/package-lock.json
 
