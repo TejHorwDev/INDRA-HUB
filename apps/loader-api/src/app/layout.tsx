@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
-import Ambience from '@/components/Ambience'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -22,16 +21,15 @@ export const viewport: Viewport = {
  * without a network request, which matters when the whole point of this page is to tell
  * you something is wrong.
  *
- * The ambience is mounted once, above every route, so the light does not restart when
- * you change page.
+ * There is no ambience layer. The panel used to carry a pool of light that followed the
+ * pointer, a ring that chased it, and cards that tilted toward it. All of it was motion
+ * for its own sake on a page whose job is to be read — and on a matte surface it read as
+ * glare rather than as depth. The page is a page now.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body>
-        <Ambience />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
