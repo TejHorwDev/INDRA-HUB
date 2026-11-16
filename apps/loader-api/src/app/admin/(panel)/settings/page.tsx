@@ -1,4 +1,5 @@
 import Appearance from '@/components/Appearance'
+import Brand from '@/components/Brand'
 import Broadcast from '@/components/Broadcast'
 import LinkConfig from '@/components/LinkConfig'
 import { adminReady, databaseReady } from '@/lib/env'
@@ -37,6 +38,15 @@ export default function SettingsPage(): React.JSX.Element {
           launch.
         </p>
         <Appearance />
+      </div>
+
+      <div className="card">
+        <h2>Brand</h2>
+        <p className="hint" style={{ marginBottom: 14, lineHeight: 1.7 }}>
+          The name on the window — site, panel and loader. A deployment sold to somebody else
+          should not say INDRA on it, and this is where that is changed.
+        </p>
+        <Brand />
       </div>
 
       <div className="card">

@@ -34,6 +34,14 @@ payload and the custom install window, then publishes all of them to the
 release named after `package.json`'s version. It reads `apps/desktop`, so the
 paths in that workflow are the ones to change if the app ever moves again.
 
+## Selling a copy
+
+A deployment is standalone: its own database, its own panel, its own site, its own admin
+password. Handing one to somebody else is a checklist, not a fork — and the brand, the
+download link and the whole catalogue are set from their panel afterwards, without a deploy.
+
+[`docs/RESELL.md`](docs/RESELL.md) is that checklist.
+
 ## What lives on the server
 
 Accounts, projects, documents, presentations, the shared workspace row, the

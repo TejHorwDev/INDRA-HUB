@@ -19,7 +19,17 @@ const KNOWN = [
   'film_blur',
   'film_dim',
   /* Where the Download button points. Empty streams the newest GitHub release. */
-  'download'
+  'download',
+  /*
+   * Whose name is on the window.
+   *
+   * A deployment is sold, not always kept: the person running it wants their own name on
+   * the loader, the site and this panel, and wants to change it without a rebuild. Three
+   * rows and one form do that. Empty means the defaults, so nothing has to be filled in.
+   */
+  'brand_name',
+  'brand_mark',
+  'brand_tagline'
 ] as const
 
 export async function GET(): Promise<Response> {

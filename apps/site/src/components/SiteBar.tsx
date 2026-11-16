@@ -16,9 +16,9 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
   return (
     <header className="bar">
       <div className="bar-inner">
-        <Link className="brand" href="/" aria-label="INDRA — home">
+        <Link className="brand" href="/" aria-label={`${config.brandName} — home`}>
           <i aria-hidden />
-          <span className="wordmark">INDRA</span>
+          <span className="wordmark">{config.brandMark}</span>
         </Link>
 
         <nav className="nav" aria-label="Sections">
