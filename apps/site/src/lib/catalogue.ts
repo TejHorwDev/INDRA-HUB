@@ -141,6 +141,21 @@ async function once<T>(path: string, fallback: T, timeoutMs = 25_000): Promise<T
       signal: AbortSignal.timeout(timeoutMs)
     })
     if (!response.ok) return fallback
+
+    /*
+     * Only ever parse JSON.
+     *
+     * `?probe=1` is the one read that must not be trusted blindly: an older panel that does
+     * not know the parameter answers with the installer itself, and a build that swallowed a
+     * 116 MB executable into memory before failing would be the most expensive way to learn
+     * that. The body is dropped instead, and the page prints no size — which is the honest
+     * answer when the panel cannot measure the file.
+     */
+    if (!(response.headers.get('content-type') ?? '').includes('json')) {
+      await response.body?.cancel()
+      return fallback
+    }
+
     return (await response.json()) as T
   } catch {
     return fallback
