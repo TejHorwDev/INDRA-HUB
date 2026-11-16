@@ -400,9 +400,24 @@ export function mediaUrlFor(key: string): string | null {
 }
 
 function publicUrlFor(key: string): string {
-  if (env.publicBaseUrl) return `${env.publicBaseUrl}/${key}`
+  /*
+   * Media first, and this order is the fix for a bug that produced slow videos in silence.
+   *
+   * `PUBLIC_BASE_URL` used to win outright, and on a deployment where it points at this
+   * service — which is the natural way to set it — every upload was stored as
+   * `https://<api>/api/files/videos/…`. That is a URL that works, which is exactly why nobody
+   * noticed: it works by waking a free instance and relaying the file through it, one hop
+   * more and one cold start slower than the bucket's own address.
+   *
+   * So an image or a video gets the storage host's public address whenever the driver has
+   * one. `PUBLIC_BASE_URL` still means what it says for everything else — installers, which
+   * stay behind this service on purpose.
+   */
   const media = mediaUrlFor(key)
   if (media) return media
+
+  if (env.publicBaseUrl) return `${env.publicBaseUrl}/${key}`
+
   // No public base and not media: the bucket is private and the API streams the object.
   // Slower, correct, and it means an installer never has to be world-readable to work.
   return `/api/files/${key}`
