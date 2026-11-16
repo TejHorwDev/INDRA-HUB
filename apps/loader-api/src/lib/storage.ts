@@ -326,10 +326,34 @@ export interface UploadTarget {
   publicUrl: string
 }
 
+/**
+ * Artwork goes straight to the bucket, not through this server.
+ *
+ * A card is a few hundred kilobytes of WebM and a film is a few megabytes of MP4, and every
+ * one of them used to be fetched by this process and handed on — two hops, a free-tier
+ * instance that sleeps, and a bandwidth budget spent on pictures. On a phone in the wrong
+ * part of the world that reads as a card that sits blank for ten seconds.
+ *
+ * The bucket's `images/` and `videos/` prefixes are public because the artwork is public:
+ * it is the picture on a shop window. The public URL is stable, so a browser keeps the file
+ * for a year, and the object is served by the storage provider's own edge instead of by us.
+ *
+ * Installers are not media and are not public: an `exes/` key still comes through this
+ * server, where it can be gated, hashed and counted.
+ */
+export function mediaUrlFor(key: string): string | null {
+  if (!key.startsWith('images/') && !key.startsWith('videos/')) return null
+  if (driver() !== 'supabase' || !env.supabaseUrl) return null
+  const base = env.supabaseUrl.replace(/\/+$/, '')
+  return `${base}/storage/v1/object/public/${env.supabaseBucket}/${key}`
+}
+
 function publicUrlFor(key: string): string {
   if (env.publicBaseUrl) return `${env.publicBaseUrl}/${key}`
-  // No public base: the bucket is private and the API streams the object. Slower,
-  // correct, and it means a bucket never has to be made world-readable to work.
+  const media = mediaUrlFor(key)
+  if (media) return media
+  // No public base and not media: the bucket is private and the API streams the object.
+  // Slower, correct, and it means an installer never has to be world-readable to work.
   return `/api/files/${key}`
 }
 

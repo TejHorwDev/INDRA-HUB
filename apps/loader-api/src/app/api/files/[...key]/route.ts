@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream'
 import { parseRange } from '@/lib/http-range'
-import { directUrl, isObjectKey, readObject } from '@/lib/storage'
+import { directUrl, isObjectKey, mediaUrlFor, readObject } from '@/lib/storage'
 import { ensureStorageConfig } from '@/lib/storage-config'
 
 /*
@@ -87,6 +87,25 @@ async function serve(request: Request, { key }: { key: string[] }): Promise<Resp
    * immutable cache entry. The film is different: the loader keeps its own copy on disk,
    * so the redirect costs nothing after the first play.
    */
+  /*
+   * Artwork is a redirect, not a stream.
+   *
+   * A card is read constantly and never changes — its key is new for every upload — so the
+   * storage provider's own edge should be answering it, with the browser's cache doing the
+   * rest. Pointing at a signed address was the old compromise, and it was the wrong one:
+   * the address changes every time it is issued, so nothing was ever reused and every visit
+   * fetched the same picture again. A public URL is stable, and a stable URL is a cached URL.
+   *
+   * Installers still stream through here, because they are the one thing that has to stay
+   * behind this server.
+   */
+  const media = mediaUrlFor(path)
+  if (media) {
+    return new Response(null, {
+      status: 302,
+      headers: { location: media, 'cache-control': 'public, max-age=3600' }
+    })
+  }
   if (path.startsWith('videos/')) {
     const direct = await directUrl(path)
     if (direct) {

@@ -82,7 +82,16 @@ export default function Media({
           sync()
         }
       },
-      { threshold: 0.05, rootMargin: '200px 0px' }
+      /*
+       * A quarter of the card, not a sliver of it.
+       *
+       * Threshold 0.05 with a 200px margin started four decoders the instant the shelf
+       * touched the bottom of the window, while the person was still scrolling past them —
+       * which is exactly the moment a decoder costs the most and shows the least. A quarter
+       * of the card on screen is the honest definition of "this is being looked at", and the
+       * margin only has to cover the moment between the frame arriving and the clip starting.
+       */
+      { threshold: 0.25, rootMargin: '120px 0px' }
     )
 
     observer.observe(element)
