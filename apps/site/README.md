@@ -43,34 +43,33 @@ catalogue, which is only reachable when this variable is set:
 INDRA_SITE_DEMO=1 npm run dev
 ```
 
-## Deploying it (Render)
+## Where it is deployed
 
-`render.yaml` at the repository root already defines the service:
+**Vercel**, project `indra-site`, live at <https://indra-site-indra-df9b.vercel.app>.
 
-```yaml
-- type: web
-  name: indra-site
-  rootDir: apps/site
-  buildCommand: npm install && npm run build
-  startCommand: npm start
-  healthCheckPath: /
-```
+The panel's `website` setting points at it, so the loader and the site agree about where
+"the website" is.
 
-Three ways, in order of how much they depend on your accounts:
+### How it is deployed, and why it is odd
 
-1. **Public Git repository — no account connection needed.** If Render's GitHub connection
-   is refusing to link, this is the way in: the repository is public, so Render can clone it
-   with no login at all. New **Web Service** → *Public Git repository* →
-   `https://github.com/TejHorwDev/INDRA-HUB` → branch `main` → **Root Directory** `apps/site`
-   → runtime Node → build `npm install && npm run build` → start `npm start` → env
-   `INDRA_API=https://indra-loader-api.onrender.com`, `SITE_URL=<the service's own URL>`.
-   The one cost: without a linked Git account Render cannot auto-deploy, so a push is
-   followed by **Manual Deploy → Deploy latest commit**.
-2. **Blueprint** — point Render at the repository, apply `render.yaml`, and you get both
-   services (`indra-loader-api` and `indra-site`) with auto-deploy.
-3. **New Web Service, Git-connected** — same fields as (1), plus automatic deploys on push.
+Vercel refuses to be handed a Git repository until a Git login connection exists on the
+account, and this account has none — so the project is a **file upload** whose only file
+is `bootstrap.mjs`. At build time that script writes the project's config, then reads the
+site out of this repository (`apps/site`, branch `main`) and builds it.
 
-No secrets. Nothing to copy between services. The site is public read-only.
+The practical consequences:
+
+| | |
+| --- | --- |
+| a deploy always builds the latest `main` | the upload is only a launcher |
+| there is no push webhook | after a push, redeploy — from the Vercel dashboard, or ask me |
+| nothing to keep in sync | the repository stays the single source of truth |
+
+The day the repository is connected to Vercel properly: delete the project, import the
+repository, set **root directory `apps/site`**, and drop `bootstrap.mjs`. Nothing in this
+folder changes.
+
+**Render is not needed.** `render.yaml` at the repository root only defines the panel now.
 
 ## Where the design lives
 
@@ -86,5 +85,5 @@ is set the hero is a plain matte field and nothing breaks.
 | name | default | meaning |
 | --- | --- | --- |
 | `INDRA_API` | `https://indra-loader-api.onrender.com` | which panel to read |
-| `SITE_URL` | `https://indra-site.onrender.com` | this site's own address, for canonical links and the sitemap |
+| `SITE_URL` | the Vercel URL | this site's own address, for canonical links and the sitemap |
 | `INDRA_SITE_DEMO` | unset | `1` fills an empty catalogue with stand-in products, for design work only |
