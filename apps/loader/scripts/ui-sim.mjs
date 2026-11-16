@@ -344,7 +344,11 @@ check('the product screen offers Update beside Launch', /behind \? 'Update' : ru
  */
 check('a completed replacement is announced', /files:updated/.test(service))
 check('the preload carries that event', /onUpdated/.test(readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')))
-check('and the window says so once', /bridge\.files\.onUpdated\([\s\S]{0,120}?updated — v/.test(appShell))
+check(
+  'and the window says so once',
+  // Read here rather than from `appShell`, which is declared further down this file.
+  /bridge\.files\.onUpdated\([\s\S]{0,160}?updated — v/.test(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+)
 
 /*
  * A fixed response cannot reach a cache written before the fix.
