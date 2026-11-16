@@ -64,6 +64,15 @@ const bridge: LoaderBridge = {
       const handler = (_event: unknown, states: Record<string, InstallView>): void => listener(states)
       ipcRenderer.on('files:state', handler)
       return () => ipcRenderer.removeListener('files:state', handler)
+    },
+    /** A product on this machine was replaced by a newer build. */
+    onUpdated: (
+      listener: (update: { id: string; name: string; version: string }) => void
+    ): (() => void) => {
+      const handler = (_event: unknown, update: { id: string; name: string; version: string }): void =>
+        listener(update)
+      ipcRenderer.on('files:updated', handler)
+      return () => ipcRenderer.removeListener('files:updated', handler)
     }
   },
 

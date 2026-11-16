@@ -215,6 +215,22 @@ export default function App(): React.JSX.Element {
     setTimeout(() => setToasts((current) => current.filter((entry) => entry.id !== id)), 4_200)
   }, [])
 
+  /*
+   * A product replaced itself.
+   *
+   * The replacement happens in about a second, in the background, on a screen nobody is
+   * looking at — which is exactly right, and made it invisible: the card says DOWNLOADED
+   * before and after, so the only evidence was a file's timestamp. One line, once, when
+   * it lands.
+   */
+  useEffect(
+    () =>
+      bridge.files.onUpdated(({ name, version }) =>
+        toast(`${name} updated — v${version} is now on this machine`)
+      ),
+    [toast]
+  )
+
   useEffect(() => {
     const timer = setTimeout(
       () => setScreen((current) => (current === 'splash' ? 'landing' : current)),

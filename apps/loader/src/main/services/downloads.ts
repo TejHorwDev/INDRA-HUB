@@ -387,6 +387,25 @@ export async function startDownload(id: string): Promise<InstallView> {
     })
 
     set(id, { state: 'installed', updating: false, percent: 100, bytesPerSecond: 0, error: null })
+
+    /*
+     * A replacement that nobody saw is indistinguishable from a replacement that never
+     * happened — and it happens in about a second on a small installer, entirely behind
+     * whatever screen the person is looking at. So the one moment that matters is
+     * announced: the product, and the version it now is.
+     */
+    if (replace) {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) {
+          window.webContents.send('files:updated', {
+            id,
+            name: app.name,
+            version: app.version
+          })
+        }
+      }
+    }
+
     return stateOf(id)
   } catch (error) {
     if (controller.signal.aborted && !stalled) {

@@ -147,6 +147,8 @@ function filesMock(): LoaderBridge['files'] {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    // Nothing in a browser replaces a file on this machine.
+    onUpdated: () => () => undefined,
     download: (id) => {
       stop(id)
       set(id, { state: 'downloading', percent: 0, received: 0, total: 42_000_000, error: null })

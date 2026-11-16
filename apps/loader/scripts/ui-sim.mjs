@@ -336,6 +336,15 @@ check('one pass at a time, and never behind somebody\'s download', /if \(updatin
 check('the card says which of the two it is', /if \(install\?\.state === 'update'\) return 'Update'/.test(shelf))
 check('and a replacement is announced as one', /install\.updating \? `Updating · \$\{amount\}`/.test(shelf))
 check('the product screen offers Update beside Launch', /behind \? 'Update' : running \? 'Running' : 'Launch'/.test(detail))
+/*
+ * A replacement nobody saw is indistinguishable from one that never happened.
+ *
+ * It runs in the background, in about a second, on a screen nobody is looking at — and
+ * the card reads DOWNLOADED before and after. The one moment that matters is announced.
+ */
+check('a completed replacement is announced', /files:updated/.test(service))
+check('the preload carries that event', /onUpdated/.test(readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')))
+check('and the window says so once', /bridge\.files\.onUpdated\([\s\S]{0,120}?updated — v/.test(appShell))
 
 /*
  * A fixed response cannot reach a cache written before the fix.
