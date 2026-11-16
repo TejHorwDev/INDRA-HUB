@@ -6,7 +6,17 @@ import { parseDescription } from '@/lib/prose'
 import { isVideoFile, prepareCardClip } from './card-clip'
 
 /** A card whose artwork is a short loop rather than a still. */
-const MOVING = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
+/*
+ * Is this artwork moving?
+ *
+ * The extension is the honest answer when there is one. But artwork can now be a link from
+ * anywhere, and a link to a clip does not have to end in `.mp4` — so anything that is not
+ * recognisably a still is treated as a clip. This site is video-first; a photograph almost
+ * always arrives as `.jpg` or `.webp`.
+ */
+const STILL = /\.(png|jpe?g|gif|webp|avif|svg)(\?|#|$)/i
+const MOVING = /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i
+const moving = (url: string): boolean => MOVING.test(url) || !STILL.test(url)
 
 /*
  * The catalogue, and the only screen that matters.
@@ -82,7 +92,7 @@ function CardFrame({
   return (
     <div className="card-frame">
       <div className="card-shot">
-        {MOVING.test(image) ? (
+        {moving(image) ? (
           <video
             src={image}
             muted
@@ -207,6 +217,8 @@ export default function Products(): React.JSX.Element {
   }, [apps, query, filter])
   const fileInput = useRef<HTMLInputElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
+  /* Where the artwork comes from, when it is not this bucket. */
+  const [artworkLink, setArtworkLink] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -228,6 +240,11 @@ export default function Products(): React.JSX.Element {
   }, [load])
 
   const current = apps.find((app) => app.id === selected) ?? null
+
+  /* A paste box that keeps one product's link while showing another is a trap. */
+  useEffect(() => {
+    setArtworkLink('')
+  }, [selected])
 
   async function create(event: React.FormEvent): Promise<void> {
     event.preventDefault()
@@ -674,6 +691,38 @@ export default function Products(): React.JSX.Element {
                   ? 'Replace image'
                   : 'Upload artwork — PNG, JPG, GIF, WebP, or a short MP4/WebM'}
             </div>
+            {/*
+             * Or a link.
+             *
+             * The preview clips are the largest thing a visitor's browser asks for after the
+             * film, and they do not have to come out of this bucket: a clip on a CDN, an
+             * image host, a folder of his own — anything with a public https address will
+             * play. Pasting one here points the card at it and stops the upload entirely.
+             */}
+            <div className="row" style={{ marginTop: 8, gap: 8, alignItems: 'center' }}>
+              <input
+                type="url"
+                value={artworkLink}
+                placeholder="…or paste a link to the clip or picture"
+                style={{ flex: 1, minWidth: 220 }}
+                onChange={(event) => setArtworkLink(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && artworkLink.trim()) {
+                    event.preventDefault()
+                    void patch(current.id, { image: artworkLink.trim() })
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn small"
+                disabled={busy || !artworkLink.trim()}
+                onClick={() => void patch(current.id, { image: artworkLink.trim() })}
+              >
+                Use link
+              </button>
+            </div>
+
             {current.image_url ? (
               /* The artwork itself, at card size, with the frame you are setting on it. */
               <CardFrame
@@ -687,7 +736,8 @@ export default function Products(): React.JSX.Element {
             ) : null}
             <div className="hint" style={{ marginTop: 6 }}>
               PNG, JPG, GIF, WebP — or a short MP4/WebM that loops like a GIF and weighs a
-              fraction of one. Up to 25 MB.
+              fraction of one. Up to 25 MB. A pasted link is served by whoever hosts it, so it
+              costs this bucket nothing.
             </div>
             {current.image_url ? (
               <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>

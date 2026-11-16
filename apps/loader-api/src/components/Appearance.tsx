@@ -29,6 +29,8 @@ export default function Appearance(): React.JSX.Element {
   const [percent, setPercent] = useState<number | null>(null)
   const [notice, setNotice] = useState<Notice>(null)
   const [saved, setSaved] = useState<'idle' | 'saving' | 'saved'>('idle')
+  /* A film that lives somewhere else and is only referenced here. */
+  const [link, setLink] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const timer = useRef<number | null>(null)
 
@@ -148,6 +150,42 @@ export default function Appearance(): React.JSX.Element {
       await fetch('/api/admin/appearance', { method: 'DELETE' })
       setVideo('')
       setNotice({ tone: 'ok', text: 'Removed. The app goes back to the animated wash.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * The film can be a link.
+   *
+   * Uploading puts it in this bucket, which is fine and charges the owner's bandwidth every
+   * time somebody loads the site. Pasting a URL — a CDN, a folder, a video host — moves that
+   * cost off the bucket entirely, and the storage setting does not change.
+   */
+  async function useLink(): Promise<void> {
+    const raw = link.trim()
+    if (!/^https?:\/\//i.test(raw)) {
+      setNotice({ tone: 'error', text: 'Paste a link that starts with http:// or https://.' })
+      return
+    }
+    setBusy(true)
+    setNotice(null)
+    try {
+      const response = await fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ video: raw })
+      })
+      const payload = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        setNotice({ tone: 'error', text: payload.error ?? 'Could not save that link.' })
+        return
+      }
+      setVideo(raw)
+      setLink('')
+      setNotice({ tone: 'ok', text: 'The film now comes from that link.' })
+    } catch {
+      setNotice({ tone: 'error', text: 'Could not reach the server.' })
     } finally {
       setBusy(false)
     }
@@ -274,6 +312,25 @@ export default function Appearance(): React.JSX.Element {
           <span style={{ width: `${percent}%` }} />
         </div>
       ) : null}
+
+      <div className="row" style={{ marginTop: 12, gap: 8, alignItems: 'center' }}>
+        <input
+          type="url"
+          value={link}
+          placeholder="…or paste a link to the film (mp4 / webm)"
+          style={{ flex: 1, minWidth: 220 }}
+          onChange={(event) => setLink(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && link.trim()) {
+              event.preventDefault()
+              void useLink()
+            }
+          }}
+        />
+        <button type="button" className="btn small" disabled={busy || !link.trim()} onClick={() => void useLink()}>
+          Use link
+        </button>
+      </div>
 
       <input
         ref={input}

@@ -127,6 +127,20 @@ before and after, and replaces the object under the same key, so nothing needs r
 It needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and nothing else. Run it with
 `apply` off first; a loop behind a dim overlay loses nothing at a tenth of the size.
 
+## Where the artwork comes from
+
+A card's clip can be **uploaded** (it lands in the bucket, `images/…`) or **pasted as a link**
+— in a product's Card image field, next to the dropzone. Both are the same column and the
+site cannot tell them apart, which is the point: the preview clips are the largest thing a
+visitor's browser asks for after the film, and they do not have to cost the bucket anything.
+A CDN, an image host, a folder of your own — anything with a public `https` address plays.
+
+Only `http(s)` is accepted; anything else is refused rather than published.
+
+The film above works the same way: Settings → Sign-in video takes an upload **or** a pasted
+link. A link is the cheapest possible change — a 14 MB backdrop served by somebody else's
+edge is 14 MB the bucket never bills for.
+
 ## Where the download goes
 
 The Download button has two possible homes, and the panel decides which.

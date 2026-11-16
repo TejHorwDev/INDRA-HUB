@@ -28,8 +28,19 @@ import { useEffect, useRef, useState } from 'react'
  * before a single byte of media has arrived, and the picture fades in over it.
  */
 
+/*
+ * Is this artwork moving?
+ *
+ * The extension answers it when there is one. Artwork can also be a link from anywhere now,
+ * and a CDN does not have to end its URLs in `.mp4` — so anything that is not recognisably a
+ * still is treated as a clip. The site is video-first; a photograph almost always arrives as
+ * `.jpg` or `.webp`, and a `<video>` that cannot read its source falls back to the plate
+ * rather than to a broken image.
+ */
+const STILL = /\.(png|jpe?g|gif|webp|avif|svg)(\?|#|$)/i
+
 function isVideo(url: string): boolean {
-  return /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(url)
+  return /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(url) || !STILL.test(url)
 }
 
 export default function Media({
