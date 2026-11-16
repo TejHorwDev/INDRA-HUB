@@ -1,4 +1,4 @@
-import { getConfig } from '@/lib/catalogue'
+import { getConfig, SITE_URL } from '@/lib/catalogue'
 
 /*
  * The foot.
@@ -11,6 +11,14 @@ import { getConfig } from '@/lib/catalogue'
 export default async function SiteFoot(): Promise<React.JSX.Element> {
   const config = await getConfig()
 
+  /*
+   * The panel's website setting now points at this site, so printing it here would be a
+   * link to the page you are already on. Say where the build comes from instead.
+   */
+  const host = SITE_URL.replace(/^https?:\/\//, '').replace(/\/$/, '')
+  const published = config.website.replace(/^https?:\/\//, '').replace(/\/$/, '')
+  const showWebsite = published.length > 0 && published !== host
+
   return (
     <footer className="foot">
       <span>INDRA — {new Date().getFullYear()}</span>
@@ -19,9 +27,9 @@ export default async function SiteFoot(): Promise<React.JSX.Element> {
         {config.maintenance ? 'Panel in maintenance' : 'Panel online'}
       </span>
       <span>
-        {config.website ? (
+        {showWebsite ? (
           <a href={config.website} target="_blank" rel="noreferrer">
-            {config.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            {published}
           </a>
         ) : (
           'Built and published in-house'
