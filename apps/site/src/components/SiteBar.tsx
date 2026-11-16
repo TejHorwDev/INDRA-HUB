@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { INSTALLER_URL, getLoader, size } from '@/lib/catalogue'
 
 /*
@@ -14,10 +15,10 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
   return (
     <header className="bar">
       <div className="bar-inner">
-        <a className="brand" href="/" aria-label="INDRA — home">
+        <Link className="brand" href="/" aria-label="INDRA — home">
           <i aria-hidden />
           <span className="wordmark">INDRA</span>
-        </a>
+        </Link>
 
         <nav className="nav" aria-label="Sections">
           <a href="/#library">Library</a>

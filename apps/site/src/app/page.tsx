@@ -1,20 +1,21 @@
-import Artwork from '@/components/Artwork'
-import Clip from '@/components/Clip'
+import Link from 'next/link'
+import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getConfig, getLoader, getProducts, INSTALLER_URL, size, type Product } from '@/lib/catalogue'
+import { getLoader, getProducts, INSTALLER_URL, size, type Product } from '@/lib/catalogue'
 
 export const revalidate = 60
 
 /*
  * The front page.
  *
- * It is the loader with more air: the same matte black, the same shelf of artwork, the
- * same one line under a name. Four sentences of copy in total, because a shop window does
- * not explain itself.
+ * It is the loader with more air: matte black, a shelf of artwork, one small state line
+ * under each name, four sentences of copy. No background video — a full-bleed film behind
+ * the type was the single most expensive thing on the page and the least of what it said.
  *
- * Everything is read from the panel — the products, their clips, the loader's build — so
- * publishing in the panel publishes here.
+ * The clips are the products' own, published from the panel. They load on hover, one at a
+ * time (see <Media>), so the page is quiet until you touch it and never decodes anything
+ * you are not looking at.
  */
 
 const DOWNLOAD = (
@@ -36,7 +37,7 @@ const LOCK = (
   </svg>
 )
 
-function Card({ product }: { product: Product }): React.JSX.Element {
+function Card({ product, first }: { product: Product; first: boolean }): React.JSX.Element {
   const live = product.status === 'active'
   const initials = product.name
     .split(/\s+/)
@@ -46,16 +47,13 @@ function Card({ product }: { product: Product }): React.JSX.Element {
     .join('')
 
   return (
-    <a className="card" href={`/p/${product.slug}`} aria-label={product.name}>
-      <div className="card-art">
-        {product.image ? (
-          <Artwork src={product.image} video={product.imageIsVideo} blur={product.artworkBlur} dim={product.artworkDim} />
-        ) : (
-          <span className="card-blank">
-            <span>{initials}</span>
-          </span>
-        )}
-      </div>
+    <Link className="card" href={`/p/${product.slug}`} aria-label={product.name}>
+      {/* The plate: what the card is before a clip has been asked for. */}
+      <span className="card-plate" aria-hidden>
+        <span>{initials}</span>
+      </span>
+
+      {product.image && product.imageIsVideo ? <Media src={product.image} dim={product.artworkDim} auto={first} /> : null}
 
       <span className="card-scrim" aria-hidden />
       {live ? null : (
@@ -64,19 +62,19 @@ function Card({ product }: { product: Product }): React.JSX.Element {
         </span>
       )}
 
-      <div className="card-foot">
+      <span className="card-foot">
         <span className="card-name">{product.name}</span>
         <span className={live ? 'card-state live' : 'card-state off'}>
           <i />
           {live ? 'Available' : 'Locked'}
         </span>
-      </div>
-    </a>
+      </span>
+    </Link>
   )
 }
 
 export default async function Home(): Promise<React.JSX.Element> {
-  const [products, loader, config] = await Promise.all([getProducts(), getLoader(), getConfig()])
+  const [products, loader] = await Promise.all([getProducts(), getLoader()])
 
   const live = products.filter((product) => product.status === 'active')
   const version = loader.version ? `v${loader.version}` : 'latest'
@@ -88,8 +86,7 @@ export default async function Home(): Promise<React.JSX.Element> {
 
       <main id="top">
         <section className="hero">
-          {config.video ? <Clip src={config.video} className="hero-film" eager /> : null}
-          <span className="hero-veil" aria-hidden />
+          <span className="hero-light" aria-hidden />
 
           <div className="wrap">
             <div className="hero-inner fade-up">
@@ -115,11 +112,7 @@ export default async function Home(): Promise<React.JSX.Element> {
                 </a>
               </div>
 
-              <span className="hero-meta">
-                {weighted ? `${weighted} · ` : ''}Windows 10 / 11 · 64-bit
-              </span>
-
-              {config.notice ? <p className="notice">{config.notice}</p> : null}
+              <span className="hero-meta">{weighted ? `${weighted} · ` : ''}Windows 10 / 11 · 64-bit</span>
             </div>
           </div>
         </section>
@@ -140,8 +133,8 @@ export default async function Home(): Promise<React.JSX.Element> {
               </p>
             ) : (
               <div className="shelf">
-                {products.map((product) => (
-                  <Card key={product.id} product={product} />
+                {products.map((product, index) => (
+                  <Card key={product.id} product={product} first={index === 0} />
                 ))}
               </div>
             )}
