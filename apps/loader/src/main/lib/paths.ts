@@ -30,9 +30,21 @@ export function safeName(name: string): string {
   return cleaned || 'app'
 }
 
-export function exeName(name: string): string {
-  const base = safeName(name.replace(/\.exe$/i, ''))
-  return `${base}.exe`
+/**
+ * The executable's file name: `<Product> <version>.exe`.
+ *
+ * The version is in the name because a folder of executables with no versions in them is
+ * a folder you cannot look at — and because two builds of one product can then sit side
+ * by side for the second it takes to swap them, without one being written over the other
+ * while it is still running.
+ *
+ * An empty version falls back to the bare product name, which is what every file
+ * downloaded before this was called.
+ */
+export function exeName(name: string, version = ''): string {
+  const base = safeName(name.replace(/\.exe$/i, '')).slice(0, 48)
+  const tag = safeName(version.replace(/\s+/g, '_')).slice(0, 24)
+  return tag ? `${base} ${tag}.exe` : `${base}.exe`
 }
 
 /** The library: `%APPDATA%\INDRA LOADER\downloads`. */
@@ -43,11 +55,11 @@ export function libraryDir(userData: string): string {
 export interface AppPaths {
   /** `…\INDRA LOADER\downloads\<name>` */
   dir: string
-  /** `…\INDRA LOADER\downloads\<name>\<name>.exe` */
+  /** `…\INDRA LOADER\downloads\<name>\<name> <version>.exe` */
   exe: string
 }
 
-export function appPaths(library: string, name: string): AppPaths {
+export function appPaths(library: string, name: string, version = ''): AppPaths {
   const dir = join(library, safeName(name))
-  return { dir, exe: join(dir, exeName(name)) }
+  return { dir, exe: join(dir, exeName(name, version)) }
 }

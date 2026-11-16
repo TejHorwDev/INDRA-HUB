@@ -53,6 +53,16 @@ function code(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 }
 
+/*
+ * The window's own source, read once, up here.
+ *
+ * Checks are written in the order the product grew, and a binding declared halfway down
+ * this file is a trap: touching it from a check above is a temporal-dead-zone error that
+ * kills the whole run — and the run it kills looks exactly like a run with nothing to
+ * report. Reading the shell up front means any check may use it.
+ */
+const appShell = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
+
 function walk(dir) {
   const files = []
   for (const entry of readdirSync(dir)) {
@@ -248,7 +258,7 @@ check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detai
 check('the download button is rendered once, for the not-downloaded case', (detail.match(/onClick=\{onDownload\}/g) ?? []).length === 1)
 check(
   'the installed state offers launch instead',
-  /installed \|\| behind \? \([\s\S]{0,200}?onLaunch/.test(detail)
+  /installed \? \([\s\S]{0,200}?onLaunch/.test(detail)
 )
 check('and says so in the status line', /Downloaded/.test(detail))
 
@@ -331,11 +341,30 @@ check('never written over a working executable', /if \(resumableBytes\(destinati
 check('the old build is deleted after the swap', /rmSync\(target\.exe/.test(service) && /renameSync\(result\.path, target\.exe\)/.test(service))
 check('a failed replacement leaves the old build alone', /if \(replace\) \{\s*discardPartial\(destination\)\s*set\(id, \{ state: 'update'/.test(service))
 check('a running product is not replaced under itself', /if \(replace && isRunning\(id\)\) return stateOf\(id\)/.test(service))
-check('every catalogue read checks for updates', /void updateInstalled\(catalogue\.apps\)/.test(readFileSync(join(process.cwd(), 'src/main/ipc/index.ts'), 'utf8')))
-check('one pass at a time, and never behind somebody\'s download', /if \(updating\) return[\s\S]{0,80}if \(busy\(\)\) return/.test(service))
+/*
+ * The update is his to press.
+ *
+ * 1.0.48 fetched and replaced products by itself, which was right about the work and
+ * wrong about the decision: the person whose machine it is never got to say yes, and on
+ * a small installer they never even saw it happen.
+ */
+const ipc = readFileSync(join(process.cwd(), 'src/main/ipc/index.ts'), 'utf8')
+check('every catalogue read notices a stale product', /noteCatalogue\(catalogue\.apps\)/.test(ipc))
+check('and fetches nothing by itself', !/updateInstalled|startDownload\(app\.id\)/.test(ipc))
+check('nothing in the service updates on its own either', !/export async function updateInstalled/.test(service))
+check(
+  'the file name carries the version it is',
+  /`\$\{base\} \$\{tag\}\.exe`/.test(readFileSync(join(process.cwd(), 'src/main/lib/paths.ts'), 'utf8'))
+)
+check('so a new build lands beside the old one, not over it', /const collide = existsSync\(target\.exe\)/.test(service))
+check('and the build it replaced is deleted', /previous\.exe !== result\.path && existsSync\(previous\.exe\)/.test(service))
 check('the card says which of the two it is', /if \(install\?\.state === 'update'\) return 'Update'/.test(shelf))
 check('and a replacement is announced as one', /install\.updating \? `Updating · \$\{amount\}`/.test(shelf))
-check('the product screen offers Update beside Launch', /behind \? 'Update' : running \? 'Running' : 'Launch'/.test(detail))
+check(
+  'the product screen offers Update instead of Launch',
+  /behind \?[\s\S]{0,700}?onClick=\{onUpdate\}/.test(detail) && !/behind \? 'Update' : running/.test(detail)
+)
+check('and pressing it starts what it just fetched', /onUpdate=\{\(\) => \{[\s\S]{0,900}?await bridge\.files\.launch\(selected\.id\)/.test(appShell))
 /*
  * A replacement nobody saw is indistinguishable from one that never happened.
  *
@@ -344,11 +373,7 @@ check('the product screen offers Update beside Launch', /behind \? 'Update' : ru
  */
 check('a completed replacement is announced', /files:updated/.test(service))
 check('the preload carries that event', /onUpdated/.test(readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')))
-check(
-  'and the window says so once',
-  // Read here rather than from `appShell`, which is declared further down this file.
-  /bridge\.files\.onUpdated\([\s\S]{0,160}?updated — v/.test(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
-)
+check('and the window says so once', /bridge\.files\.onUpdated\([\s\S]{0,160}?updated — v/.test(appShell))
 
 /*
  * A fixed response cannot reach a cache written before the fix.
@@ -369,7 +394,6 @@ check('and it is dropped before anything is fetched', /await clearCacheOnUpdate\
  * backdrop asks the process for a local file at mount, and the published address is only
  * the fallback for the one launch that has never had one.
  */
-const appShell = code(readFileSync(join(renderer, 'App.tsx'), 'utf8'))
 const filmCache = code(readFileSync(join(main, 'lib/film.ts'), 'utf8'))
 check('the backdrop asks for the film before fetching anything', /bridge\.media\s*\.\s*film\(\)/.test(appShell))
 check('the cached source wins over the published address', /video=\{film \|\| config\.video/.test(appShell))
