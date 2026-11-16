@@ -4,7 +4,7 @@ import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
 import { getLoader, getProducts, INSTALLER_URL, size, type Product } from '@/lib/catalogue'
 
-export const revalidate = 60
+export const revalidate = 10
 
 /*
  * The front page.
@@ -13,9 +13,10 @@ export const revalidate = 60
  * under each name, four sentences of copy. No background video — a full-bleed film behind
  * the type was the single most expensive thing on the page and the least of what it said.
  *
- * The clips are the products' own, published from the panel. They load on hover, one at a
- * time (see <Media>), so the page is quiet until you touch it and never decodes anything
- * you are not looking at.
+ * The clips are the products' own, published from the panel and played by <Media>: they
+ * start as they arrive on screen and stop the moment they leave. Nothing on this page is
+ * written down anywhere — the catalogue, the lock states and the loader's build are read
+ * from the panel every ten seconds, so publishing in the panel publishes here.
  */
 
 const DOWNLOAD = (
@@ -53,7 +54,9 @@ function Card({ product, first }: { product: Product; first: boolean }): React.J
         <span>{initials}</span>
       </span>
 
-      {product.image && product.imageIsVideo ? <Media src={product.image} dim={product.artworkDim} auto={first} /> : null}
+      {product.image && product.imageIsVideo ? (
+        <Media src={product.image} dim={product.artworkDim} priority={first} />
+      ) : null}
 
       <span className="card-scrim" aria-hidden />
       {live ? null : (

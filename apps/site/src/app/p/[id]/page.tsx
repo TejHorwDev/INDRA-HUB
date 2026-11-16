@@ -6,7 +6,7 @@ import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
 import { getLoader, getProduct, getProducts, INSTALLER_URL, size } from '@/lib/catalogue'
 
-export const revalidate = 60
+export const revalidate = 10
 
 /*
  * One product — the loader's detail screen, with room to breathe.
@@ -76,7 +76,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
               </span>
 
               {product.image && product.imageIsVideo ? (
-                <Media src={product.image} dim={product.artworkDim} auto />
+                <Media src={product.image} dim={product.artworkDim} priority />
               ) : null}
             </div>
 
