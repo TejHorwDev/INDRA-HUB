@@ -370,9 +370,14 @@ async function main() {
    * type big enough to read without leaning in.
    */
   check('the sections are words with a line under the one you are on', /\.nav a\[data-active='true'\]::after/.test(css))
-  check('cards are flat — nothing tilts or catches the pointer', /\.card::before,[\s\S]{0,120}?display: none/.test(css) && /\.card,\n\.stat,\n\.tile \{[^}]*box-shadow: none/.test(css))
-  check('a number is not wearing a bar', /\.stat-bar \{\s*display: none/.test(css))
-  check('the headline is large enough to be a headline', /h1 \{\s*font-size: clamp\(46px, 6\.4vw, 88px\)/.test(css))
+  check('cards are flat — nothing tilts or catches the pointer', /\.card::before,\n\.card::after,[\s\S]{0,140}?display: none/.test(css) && /\.card \{[\s\S]{0,200}?box-shadow: none/.test(css))
+  check(
+    'a number is not wearing a bar',
+    /\.stat-bar,[\s\S]{0,200}?display: none/.test(css) || /\.stat-bar \{\s*display: none/.test(css)
+  )
+  check('the headline is large enough to be a headline', /h1 \{[\s\S]{0,200}?font-size: clamp\(54px, 8\.4vw, 124px\)/.test(css))
+  check('the page is laid out on a left rail, not a stack of cards', /\.split \{[\s\S]{0,160}?grid-template-columns: minmax\(150px, 210px\)/.test(css))
+  check('and every page opens on the same plate', /\.page-head/.test(css) && /className="hero"/.test(readFileSync(join(root, 'src/app/admin/(panel)/page.tsx'), 'utf8')))
   check('content rises on a stagger', /\.rise/.test(css) && /var\(--i/.test(css))
   check('and any machine that asked for less motion gets none', /prefers-reduced-motion: reduce/.test(css))
   check(

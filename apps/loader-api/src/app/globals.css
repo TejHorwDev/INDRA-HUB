@@ -2580,58 +2580,245 @@ tbody tr:nth-child(n + 7) { animation-delay: 280ms; }
     display: none;
   }
 }
-
 /* ============================================================================
- * v4 — matte, quiet, and big enough to read
+ * v5 — the same room, built properly
  *
- * The panel spent four versions adding surface: a light that followed the pointer, a
- * ring that chased it, cards that tilted toward it, a gradient wash on every panel, a
- * moving tape of repeated facts, and a moving pill under the nav. Every one of those is
- * motion or light in service of itself, and together they read as glare.
+ * v4 was subtraction: every light and every tilt turned off. It was correct and it was
+ * dull, because a page is not made good by what is removed from it. This is the build.
  *
- * This section turns all of it off and spends the difference on the two things that
- * actually decide whether a page is pleasant: how big the type is, and how much space
- * is between things. Nothing here introduces a colour; the palette is unchanged.
+ * The idea is an instrument panel laid out like a broadsheet: one enormous statement at
+ * the top, a rail of figures under it, and everything else hanging off a single vertical
+ * rule with its label in the left margin. Black, dark grey, white — nothing else — and
+ * the design carried entirely by scale, rule weight, and the amount of air between
+ * things.
  * ========================================================================== */
-
-/* ---------------------------------------------------------------- type ---- */
 
 body {
   background: #08090a;
   color: var(--ink);
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.62;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1 {
-  font-size: clamp(46px, 6.4vw, 88px);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 0.94;
-  margin: 0 0 18px;
+/* The one column the whole page acknowledges: everything below the bar starts here. */
+.page {
+  /* The hero plate sits flush under the bar; the space lives inside it. */
+  padding-top: 0;
 }
 
-h2 {
-  font-size: clamp(17px, 1.5vw, 21px);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
+/* ------------------------------------------------------------- the head ---- */
 
-.lede {
-  font-size: clamp(14px, 1.15vw, 17px);
-  line-height: 1.6;
-  color: var(--ink-2);
-  max-width: 68ch;
-  margin: 0;
+/*
+ * Full bleed and darker than the page: the top of the page is a plate bolted onto it,
+ * not a card floating on it. It runs edge to edge, under the bar, and ends on a hairline.
+ */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: clamp(28px, 4vw, 72px);
+  margin: 0 calc(var(--gutter) * -1) clamp(40px, 5vw, 72px);
+  padding: clamp(30px, 4vw, 58px) var(--gutter) clamp(30px, 4vw, 52px);
+  background: #0b0c0d;
+  border-bottom: 1px solid var(--line);
 }
 
 .eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.18em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 clamp(18px, 2vw, 28px);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
   color: var(--ink-3);
-  margin: 0 0 22px;
+}
+
+.eyebrow .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.eyebrow .dot[data-tone='warn'] {
+  background: var(--warn);
+}
+
+.eyebrow .dot[data-tone='off'] {
+  background: var(--ink-4);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(54px, 8.4vw, 124px);
+  font-weight: 600;
+  line-height: 0.86;
+  letter-spacing: -0.052em;
+  color: var(--white);
+}
+
+.lede {
+  margin: clamp(16px, 1.6vw, 24px) 0 0;
+  max-width: 54ch;
+  font-size: clamp(13.5px, 1.05vw, 16px);
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+/* Three facts, stacked in the corner of the plate, set like a masthead. */
+.hero-facts {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: clamp(20px, 2.4vw, 44px);
+  margin: 0;
+}
+
+.hero-facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.hero-facts dt {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.hero-facts dd {
+  margin: 0;
+  font-size: clamp(18px, 1.7vw, 26px);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------- the figures ---- */
+
+/*
+ * Four numbers on a rail. No tile, no border, no background — a hairline above, a
+ * hairline below, and a rule between each pair. The number is set light and enormous;
+ * the label is the smallest thing on the page, which is what makes the number read.
+ */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 0 clamp(48px, 6vw, 88px);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: none;
+  gap: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: clamp(22px, 2.4vw, 34px) clamp(16px, 1.8vw, 30px);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.stat + .stat {
+  border-left: 1px solid var(--line);
+}
+
+.stat:first-child {
+  padding-left: 0;
+}
+
+.stat-value {
+  font-size: clamp(42px, 5.6vw, 84px);
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.055em;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.stat-bar,
+.card::before,
+.card::after,
+.stat::before,
+.stat::after,
+.tile::before,
+.tile::after {
+  display: none;
+}
+
+/* -------------------------------------------------------- the left rail ---- */
+
+/*
+ * Every section below is two columns: a label in the left margin and the content beside
+ * it, hanging off one vertical rule. It is the oldest layout in print and it is the one
+ * that makes a wide screen look composed instead of stretched.
+ */
+.split {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 64px);
+  padding: clamp(26px, 3vw, 40px) 0 clamp(30px, 3.4vw, 48px);
+  border-top: 1px solid var(--line);
+}
+
+.split:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+
+.split-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+.split-label .count {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink-4);
+}
+
+.split-body {
+  min-width: 0;
+}
+
+.block-action {
+  display: inline-block;
+  margin-top: 20px;
+  padding-bottom: 3px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line-3);
+  transition: color 140ms var(--ease), border-color 140ms var(--ease);
+}
+
+.block-action:hover {
+  color: var(--white);
+  border-color: var(--white);
 }
 
 .quiet {
@@ -2643,29 +2830,278 @@ h2 {
   font-size: 12.5px;
 }
 
-/* ------------------------------------------------------------ the frame ---- */
+/* --------------------------------------------------------- the two lists ---- */
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(110px, 168px) minmax(0, 1fr);
+  margin: 0;
+  gap: 0;
+}
+
+.kv dt,
+.kv dd {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.kv dt {
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.kv dd {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.rows {
+  border-top: 1px solid var(--line);
+}
+
+.row-link {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 104px 96px;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0 20px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  transition: background-color 160ms var(--ease);
+}
+
+/* A white mark that grows down the row you are on. Matte, and worth more than a glow. */
+.row-link::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 0;
+  background: var(--white);
+  transform: translateY(-50%);
+  transition: height 220ms var(--ease);
+}
+
+.row-link:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.row-link:hover::before {
+  height: 58%;
+}
+
+.row-name {
+  font-size: clamp(16px, 1.4vw, 21px);
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  color: var(--white);
+}
+
+.row-meta {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------- surfaces ---- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: clamp(22px, 2.2vw, 32px);
+  margin-bottom: 22px;
+  box-shadow: none;
+  transform: none;
+}
+
+.card:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--line-2);
+}
+
+.card h2,
+h2 {
+  font-size: clamp(15px, 1.25vw, 18px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--white);
+}
+
+.card h2 {
+  margin: 0 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.card h2::after {
+  display: none;
+}
+
+/* --------------------------------------------------------------- tables ---- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  padding: 0 0 12px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+tbody td {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+tbody td strong {
+  font-size: clamp(14px, 1.2vw, 17px);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--white);
+}
+
+tbody tr {
+  transition: background-color 160ms var(--ease);
+}
+
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+/* ---------------------------------------------------------------- pills ---- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.pill::before {
+  display: none;
+}
+
+.pill.ok {
+  color: var(--success);
+  border-color: rgba(87, 201, 161, 0.32);
+  background: none;
+}
+
+.pill.off {
+  color: var(--ink-3);
+  border-color: var(--line);
+}
+
+.pill.warn {
+  color: var(--warn);
+  border-color: rgba(207, 174, 116, 0.32);
+  background: none;
+}
+
+/* --------------------------------------------------------------- inputs ---- */
+
+input[type='text'],
+input[type='search'],
+input[type='password'],
+input[type='url'],
+select,
+textarea {
+  background: #0a0b0c;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13.5px;
+  padding: 10px 12px;
+  transition: border-color 160ms var(--ease), background-color 160ms var(--ease);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--line-3);
+  background: #0c0d0e;
+}
+
+.btn {
+  border-radius: 8px;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.btn::after {
+  display: none;
+}
+
+.btn.primary {
+  background: var(--white);
+  border-color: var(--white);
+  color: #08090a;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #ffffff;
+  transform: none;
+}
+
+.btn:hover:not(:disabled) {
+  transform: none;
+}
+
+/* ----------------------------------------------------------------- chrome ---- */
 
 .bar {
   background: #08090a;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 72px;
+  margin-bottom: 0;
 }
 
 .bar-inner {
-  height: 68px;
+  height: 66px;
 }
 
 .bar-user {
   display: none;
 }
 
-/* Four words, one of them white. No pill, no measurement, no sliding background. */
 .nav {
   display: flex;
   align-items: center;
-  gap: clamp(18px, 2vw, 34px);
+  gap: clamp(18px, 2vw, 32px);
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -2678,11 +3114,10 @@ h2 {
 
 .nav a {
   position: relative;
-  font-size: 13.5px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  color: var(--ink-3);
   padding: 4px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
   transition: color 160ms var(--ease);
 }
 
@@ -2699,228 +3134,33 @@ h2 {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -2px;
+  bottom: -3px;
   height: 1px;
   background: var(--white);
 }
 
-/* ------------------------------------------------------------- surfaces ---- */
-
-.card,
-.stat,
-.tile {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: none;
-  transform: none;
-}
-
-.card {
-  padding: 30px 32px;
-  border-radius: var(--r-lg);
-  margin-bottom: 24px;
-}
-
-.card:hover,
-.stat:hover,
-.tile:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: var(--line-2);
-}
-
-/* No light in a corner, no wash on top, no glare behind the pointer. */
-.card::before,
-.card::after,
-.stat::before,
-.stat::after,
-.tile::before,
-.tile::after {
-  display: none;
-}
-
-.block {
-  margin-top: clamp(48px, 5vw, 76px);
-}
-
-.block h2 {
-  margin: 0 0 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.block h2 .count {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--ink-3);
-  margin-left: 10px;
-  letter-spacing: 0.04em;
-}
-
-.block-action {
-  display: inline-block;
-  margin-top: 18px;
-  font-size: 13px;
-  color: var(--ink-2);
-  border-bottom: 1px solid var(--line-3);
-  padding-bottom: 2px;
-}
-
-.block-action:hover {
-  color: var(--white);
-  border-color: var(--white);
-}
-
-/* --------------------------------------------------------------- stats ---- */
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin-top: clamp(40px, 4vw, 64px);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: none;
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 34px 26px 30px;
-  background: none;
-  border: 0;
-  border-radius: 0;
-  overflow: visible;
-}
-
-.stat + .stat {
-  border-left: 1px solid var(--line);
-}
-
-.stat:first-child {
-  padding-left: 0;
-}
-
-.stat-value {
-  font-size: clamp(38px, 4.4vw, 62px);
-  font-weight: 600;
-  letter-spacing: -0.045em;
-  line-height: 1;
-  color: var(--white);
-}
-
-.stat-label {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-/* The share bar encoded a proportion of a total nobody asked for. */
-.stat-bar {
-  display: none;
-}
-
-/* ---------------------------------------------------- lists and tables ---- */
-
-.kv {
-  display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
-  gap: 0;
-  margin: 0;
-  border-top: 1px solid var(--line);
-}
-
-.kv dt,
-.kv dd {
-  padding: 15px 0;
-  border-bottom: 1px solid var(--line);
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.kv dt {
-  font-size: 13px;
-  color: var(--ink-3);
-}
-
-.kv dd {
-  font-size: 13.5px;
-  color: var(--ink);
-}
-
-.rows {
-  border-top: 1px solid var(--line);
-}
-
-.row-link {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px 100px 90px;
-  align-items: center;
-  gap: 18px;
-  padding: 18px 4px;
-  border-bottom: 1px solid var(--line);
-  color: var(--ink);
-  transition: background-color 140ms var(--ease), padding-left 140ms var(--ease);
-}
-
-.row-link:hover {
-  background: rgba(255, 255, 255, 0.022);
-  padding-left: 12px;
-}
-
-.row-name {
-  font-size: clamp(15px, 1.35vw, 19px);
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-.row-meta {
-  font-size: 12px;
-  color: var(--ink-3);
-}
-
-/* Pills are labels, not lights. */
-.pill {
-  height: 22px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: none;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--ink-2);
-  border: 1px solid var(--line-2);
-  justify-self: start;
-}
-
-.pill::before {
-  display: none;
-}
-
-.pill.ok {
-  color: var(--success);
-  border-color: rgba(87, 201, 161, 0.3);
-  background: none;
-}
-
-.pill.off {
-  color: var(--ink-3);
-  border-color: var(--line);
-  background: none;
-}
-
-/* The tape told you the same nine facts the page already states, in a loop. */
 .tape,
 .endpoints {
   display: none;
 }
 
-@media (max-width: 860px) {
+.foot {
+  margin-top: clamp(40px, 5vw, 72px);
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2933,6 +3173,11 @@ h2 {
     border-top: 1px solid var(--line);
   }
 
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
   .row-link {
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -2942,12 +3187,69 @@ h2 {
   }
 }
 
-/* Whoever asked for stillness still gets every fact on the page. */
 @media (prefers-reduced-motion: reduce) {
-  .card,
-  .stat,
-  .tile,
-  .row-link {
+  .row-link,
+  .row-link::before,
+  .nav a,
+  .btn,
+  .block-action,
+  tbody tr {
     transition: none;
   }
+}
+
+/* --------------------------------------------------------------- the door ---- */
+
+.center {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(24px, 5vw, 64px);
+  background: #08090a;
+}
+
+.login {
+  width: min(460px, 100%);
+  text-align: left;
+}
+
+.login-mark {
+  display: none;
+}
+
+.login-title {
+  margin: 0;
+  font-size: clamp(44px, 7vw, 76px);
+  font-weight: 600;
+  line-height: 0.9;
+  letter-spacing: -0.05em;
+  color: var(--white);
+}
+
+.login-sub {
+  margin: 14px 0 clamp(34px, 4vw, 54px);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* The form is not a card on this page — it is the page. */
+.login .card {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: clamp(24px, 3vw, 34px) 0 0;
+  margin: 0;
+}
+
+.login-foot {
+  margin: clamp(28px, 3vw, 40px) 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-4);
 }

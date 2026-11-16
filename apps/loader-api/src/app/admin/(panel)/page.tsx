@@ -79,19 +79,35 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <p className="eyebrow">
-          <span className="dot" data-tone={failure || maintenance ? 'warn' : undefined} />
-          {state}
-        </p>
+      <section className="hero">
+        <div>
+          <p className="eyebrow">
+            <span className="dot" data-tone={failure || maintenance ? 'warn' : undefined} />
+            {state}
+          </p>
+          <h1>Overview</h1>
+          <p className="lede">
+            {failure
+              ? 'The database did not answer.'
+              : `Everything the loader is serving, and everything it is being told, on one page.`}
+          </p>
+        </div>
 
-        <h1>Overview</h1>
-        <p className="lede">
-          {failure
-            ? 'The database did not answer.'
-            : `Publishing ${apps.length} product${apps.length === 1 ? '' : 's'} to every loader on ${feedVersion ? `v${feedVersion}` : 'the current build'}.`}
-        </p>
-      </div>
+        <dl className="hero-facts">
+          <div>
+            <dt>Build</dt>
+            <dd>{feedVersion ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>Products</dt>
+            <dd>{apps.length}</dd>
+          </div>
+          <div>
+            <dt>Weight</dt>
+            <dd>{size(bytes)}</dd>
+          </div>
+        </dl>
+      </section>
 
       {failure ? <p className="notice error">{failure}</p> : null}
 
@@ -109,74 +125,77 @@ export default async function OverviewPage(): Promise<React.JSX.Element> {
         <Stat value={size(bytes)} label="Installers" index={3} />
       </div>
 
-      <section className="block">
-        <h2>What the app is told</h2>
-        <dl className="kv">
-          <dt>Film</dt>
-          <dd>
-            {video ? (
-              <>
-                <span className="mono">{video.split('/').pop()}</span>
-                {filmBlur || filmDim ? (
-                  <span className="hint">
-                    {filmBlur}px blur · {filmDim}% dark
-                  </span>
-                ) : null}
-              </>
-            ) : (
-              <span className="quiet">none — the wash is showing</span>
-            )}
-          </dd>
+      <section className="split">
+        <h2 className="split-label">What the app is told</h2>
+        <div className="split-body">
+          <dl className="kv">
+            <dt>Film</dt>
+            <dd>
+              {video ? (
+                <>
+                  <span className="mono">{video.split('/').pop()}</span>
+                  {filmBlur || filmDim ? (
+                    <span className="hint">
+                      {filmBlur}px blur · {filmDim}% dark
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="quiet">none — the wash is showing</span>
+              )}
+            </dd>
 
-          <dt>Website</dt>
-          <dd>{website ? <span className="mono">{website}</span> : <span className="quiet">hidden</span>}</dd>
+            <dt>Website</dt>
+            <dd>{website ? <span className="mono">{website}</span> : <span className="quiet">hidden</span>}</dd>
 
-          <dt>Announcement</dt>
-          <dd>{notice ? <span>{notice}</span> : <span className="quiet">none</span>}</dd>
+            <dt>Announcement</dt>
+            <dd>{notice ? <span>{notice}</span> : <span className="quiet">none</span>}</dd>
 
-          <dt>Access</dt>
-          <dd>
-            <span className="mono">
-              {gated} of {apps.length} gated
-            </span>
-            <span className="hint">by INDRA Auth, when the app opens</span>
-          </dd>
+            <dt>Access</dt>
+            <dd>
+              <span className="mono">
+                {gated} of {apps.length} gated
+              </span>
+              <span className="hint">by INDRA Auth, when the app opens</span>
+            </dd>
 
-          <dt>Update feed</dt>
-          <dd>
-            {feedVersion ? (
-              <span className="mono">{feedVersion}</span>
-            ) : (
-              <span className="quiet">{feed === null ? 'no release published' : 'GitHub unreachable'}</span>
-            )}
-          </dd>
-        </dl>
-        <Link href="/admin/settings" className="block-action">
-          Change these
-        </Link>
+            <dt>Update feed</dt>
+            <dd>
+              {feedVersion ? (
+                <span className="mono">{feedVersion}</span>
+              ) : (
+                <span className="quiet">{feed === null ? 'no release published' : 'GitHub unreachable'}</span>
+              )}
+            </dd>
+          </dl>
+          <Link href="/admin/settings" className="block-action">
+            Change these
+          </Link>
+        </div>
       </section>
 
-      <section className="block">
-        <h2>
-          Catalogue <span className="count">{apps.length}</span>
+      <section className="split">
+        <h2 className="split-label">
+          Catalogue <span className="count">{String(apps.length).padStart(2, '0')}</span>
         </h2>
-
-        {apps.length === 0 ? (
-          <p className="quiet">
-            Nothing published yet. <Link href="/admin/apps">Add the first product.</Link>
-          </p>
-        ) : (
-          <div className="rows">
-            {apps.map((app) => (
-              <Link key={app.id} href="/admin/apps" className="row-link">
-                <span className="row-name">{app.name}</span>
-                <span className="row-meta mono">v{app.version}</span>
-                <span className="row-meta mono">{size(app.exe_bytes ?? 0)}</span>
-                <span className={`pill ${app.status === 'active' ? 'ok' : 'off'}`}>{app.status}</span>
-              </Link>
-            ))}
-          </div>
-        )}
+        <div className="split-body">
+          {apps.length === 0 ? (
+            <p className="quiet">
+              Nothing published yet. <Link href="/admin/apps">Add the first product.</Link>
+            </p>
+          ) : (
+            <div className="rows">
+              {apps.map((app) => (
+                <Link key={app.id} href="/admin/apps" className="row-link">
+                  <span className="row-name">{app.name}</span>
+                  <span className="row-meta mono">v{app.version}</span>
+                  <span className="row-meta mono">{size(app.exe_bytes ?? 0)}</span>
+                  <span className={`pill ${app.status === 'active' ? 'ok' : 'off'}`}>{app.status}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   )

@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
  * The door.
  *
  * No marketing, no illustration, no logo wall — you are here because you already know
- * what this is. So the page is a matte field, two hairlines crossing it in slow
- * opposition, the mark, and the form.
+ * what this is. The wordmark at the size of a poster, one line under it, two fields, one
+ * button. That is the whole page, and at this size it does not need anything else.
  */
 export default function LoginPage(): React.JSX.Element {
   return (

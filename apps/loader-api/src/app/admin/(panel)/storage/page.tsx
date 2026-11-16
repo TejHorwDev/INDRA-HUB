@@ -51,12 +51,31 @@ export default async function StoragePage(): Promise<React.JSX.Element> {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <h1>Storage</h1>
-        <p className="lede">
-          Where the installers live, and how much of it is used.
-        </p>
-      </div>
+      <section className="hero">
+        <div>
+          <p className="eyebrow">
+            <span className="dot" data-tone="off" />
+            Files
+          </p>
+          <h1>Storage</h1>
+          <p className="lede">Where the installers live, and how much of it is used.</p>
+        </div>
+
+        <dl className="hero-facts">
+          <div>
+            <dt>Driver</dt>
+            <dd>{driver()}</dd>
+          </div>
+          <div>
+            <dt>Files</dt>
+            <dd>{files ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>Used</dt>
+            <dd>{total === null ? '—' : formatBytes(total)}</dd>
+          </div>
+        </dl>
+      </section>
 
       <StorageSettingsCard />
 
