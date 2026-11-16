@@ -1,9 +1,13 @@
+import Clip from './Clip'
+
 /*
  * Product artwork, as the panel publishes it.
  *
  * The panel accepts a still or a clip, and most of what is published there is a clip —
  * a .webm of the product running in game. An <img> pointed at a .webm is four empty
  * boxes, which is exactly what this file exists to prevent.
+ *
+ * Clips go through <Clip>, which only decodes them while they are on screen.
  */
 export default function Artwork({
   src,
@@ -28,17 +32,7 @@ export default function Artwork({
   return (
     <>
       {video ? (
-        <video
-          className={className}
-          src={src}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload={eager ? 'auto' : 'metadata'}
-          aria-hidden
-          style={style}
-        />
+        <Clip src={src} className={className} style={style} eager={eager} />
       ) : (
         <img className={className} src={src} alt="" loading={eager ? 'eager' : 'lazy'} style={style} />
       )}

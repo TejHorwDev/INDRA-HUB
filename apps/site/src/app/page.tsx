@@ -1,4 +1,5 @@
 import Artwork from '@/components/Artwork'
+import Clip from '@/components/Clip'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
 import { getConfig, getLoader, getProducts, INSTALLER_URL, size, type Product } from '@/lib/catalogue'
@@ -87,9 +88,7 @@ export default async function Home(): Promise<React.JSX.Element> {
 
       <main id="top">
         <section className="hero">
-          {config.video ? (
-            <video className="hero-film" src={config.video} autoPlay muted loop playsInline preload="auto" aria-hidden />
-          ) : null}
+          {config.video ? <Clip src={config.video} className="hero-film" eager /> : null}
           <span className="hero-veil" aria-hidden />
 
           <div className="wrap">
