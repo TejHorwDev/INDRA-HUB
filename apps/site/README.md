@@ -73,12 +73,15 @@ folder changes.
 
 ## Where the design lives
 
-`src/app/globals.css`, one file, no framework. Matte black, dark grey, white; the layout
-is a broadsheet — a narrow label column on the left, content hanging off it at full width,
-and a headline that is the largest thing on the screen by a factor of two.
+`src/app/globals.css`, one file, and it is a copy of the loader's design system:
+`apps/loader/src/renderer/src/index.css`. Same tokens — `#070708` matte black, `#0c0c0f`
+surfaces, `rgba(255,255,255,0.065)` hairlines, `--lift` and `--sheen` on every panel, the
+white-to-`#cfcfd4` gradient wordmark, `cubic-bezier(.22,.61,.36,1)`. Same silk backdrop:
+four off-centre washes and a fixed grain. Same card: the artwork *is* the card, the name on
+it over a bottom scrim, one small state line under the name, nothing else.
 
-The hero film is the one the panel publishes, dimmed and softened to a texture; if no film
-is set the hero is a plain matte field and nothing breaks.
+If the app's look changes, this file should change with it — they are meant to be the same
+object at two distances.
 
 ## Env
 

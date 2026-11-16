@@ -1,10 +1,10 @@
 import { INSTALLER_URL, getLoader, size } from '@/lib/catalogue'
 
 /*
- * The bar.
+ * The bar: the app's title bar, straightened out for the web.
  *
- * Sticky, and it always carries the one action the page exists for. The links are absolute
- * so that the bar on a product page still points at the right place.
+ * Wordmark, two links, one white button. No badge, no announcement, nothing that has to be
+ * kept in sync with anything.
  */
 export default async function SiteBar(): Promise<React.JSX.Element> {
   const loader = await getLoader()
@@ -14,20 +14,16 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
   return (
     <header className="bar">
       <div className="bar-inner">
-        <a className="wordmark" href="/" aria-label="INDRA — home">
+        <a className="brand" href="/" aria-label="INDRA — home">
           <i aria-hidden />
-          INDRA
+          <span className="wordmark">INDRA</span>
         </a>
 
         <nav className="nav" aria-label="Sections">
-          <a href="/#products">Products</a>
-          <a href="/#how">How it works</a>
-          <a href="/#get">
-            Download{version ? ` ${version}` : ''}
-            {weighted ? ` · ${weighted}` : ''}
-          </a>
-          <a className="btn primary sm keep" href={INSTALLER_URL}>
-            Get the loader
+          <a href="/#library">Library</a>
+          <a href="/#how">Loader{version ? ` ${version}` : ''}</a>
+          <a className="btn solid keep" href={INSTALLER_URL}>
+            Download{weighted ? ` · ${weighted}` : ''}
           </a>
         </nav>
       </div>
