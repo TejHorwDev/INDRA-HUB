@@ -3,7 +3,7 @@ import HeroFilm from '@/components/HeroFilm'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getConfig, getLoader, getProducts, size, type Product } from '@/lib/catalogue'
+import { downloadTarget, getConfig, getLoader, getProducts, size, type Product } from '@/lib/catalogue'
 
 export const revalidate = 10
 
@@ -78,6 +78,8 @@ function Card({ product, first }: { product: Product; first: boolean }): React.J
 export default async function Home(): Promise<React.JSX.Element> {
   const [products, loader, config] = await Promise.all([getProducts(), getLoader(), getConfig()])
 
+  const download = downloadTarget(loader, config)
+
   const live = products.filter((product) => product.status === 'active')
   const version = loader.version ? `v${loader.version}` : 'latest'
   const weighted = loader.bytes ? size(loader.bytes) : ''
@@ -128,7 +130,7 @@ export default async function Home(): Promise<React.JSX.Element> {
               </p>
 
               <div className="hero-actions">
-                <a className="btn solid lg" href={loader.href} title={loader.name ?? undefined}>
+                <a className="btn solid lg" title={loader.name ?? undefined} {...download.link}>
                   {DOWNLOAD}
                   Download for Windows
                 </a>
@@ -203,7 +205,7 @@ export default async function Home(): Promise<React.JSX.Element> {
               </div>
 
               <div className="band-actions">
-                <a className="btn solid lg" href={loader.href} title={loader.name ?? undefined}>
+                <a className="btn solid lg" title={loader.name ?? undefined} {...download.link}>
                   {DOWNLOAD}
                   Download
                 </a>

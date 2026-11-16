@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getLoader, size } from '@/lib/catalogue'
+import { downloadTarget, getConfig, getLoader, size } from '@/lib/catalogue'
 
 /*
  * The bar: the app's title bar, straightened out for the web.
@@ -8,7 +8,8 @@ import { getLoader, size } from '@/lib/catalogue'
  * kept in sync with anything.
  */
 export default async function SiteBar(): Promise<React.JSX.Element> {
-  const loader = await getLoader()
+  const [loader, config] = await Promise.all([getLoader(), getConfig()])
+  const download = downloadTarget(loader, config)
   const version = loader.version ? `v${loader.version}` : ''
   const weighted = loader.bytes ? size(loader.bytes) : ''
 
@@ -23,7 +24,7 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
         <nav className="nav" aria-label="Sections">
           <a href="/#library">Library</a>
           <a href="/#how">Loader{version ? ` ${version}` : ''}</a>
-          <a className="btn solid keep" href={loader.href}>
+          <a className="btn solid keep" {...download.link}>
             Download{weighted ? ` · ${weighted}` : ''}
           </a>
         </nav>

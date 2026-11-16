@@ -20,6 +20,25 @@ export const dynamic = 'force-dynamic'
  * are clamped here rather than trusted — the app applies them directly to a video
  * element, and a stored 900 would blur the window into a single grey rectangle.
  */
+/*
+ * A link, or nothing at all.
+ *
+ * The panel is trusted, but a config row is a string that reaches an `href` on the website
+ * and a `Location` header on the download route, and `javascript:` in either of those is
+ * not a link. Only http and https get through, and a value that is not one is published as
+ * empty — the site then uses the built-in download, which always works.
+ */
+export function safeLink(value: string | undefined): string {
+  const raw = (value ?? '').trim()
+  if (!raw || raw.length > 900) return ''
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : ''
+  } catch {
+    return ''
+  }
+}
+
 const limit = (value: string | undefined, max: number): number => {
   const number = Number(value ?? 0)
   if (!Number.isFinite(number) || number <= 0) return 0
@@ -28,7 +47,10 @@ const limit = (value: string | undefined, max: number): number => {
 
 export async function GET(): Promise<Response> {
   if (!databaseReady()) {
-    return Response.json({ website: '', video: '' }, { headers: { 'cache-control': 'no-store' } })
+    return Response.json(
+      { website: '', video: '', download: '' },
+      { headers: { 'cache-control': 'no-store' } }
+    )
   }
 
   try {
@@ -40,7 +62,15 @@ export async function GET(): Promise<Response> {
         notice: config.notice ?? '',
         maintenance: config.maintenance === '1' || config.maintenance === 'true' ? '1' : '0',
         filmBlur: limit(config.film_blur, 40),
-        filmDim: limit(config.film_dim, 100)
+        filmDim: limit(config.film_dim, 100),
+        /*
+         * Where the Download button goes. Empty means the built-in pipe — the newest GitHub
+         * release, streamed by this service with Range support. A value means the owner
+         * would rather hand it out from somewhere else (MediaFire, his own CDN, a mirror),
+         * and the website sends people straight there: no cold start, no bandwidth, no
+         * dependency on this service being awake.
+         */
+        download: safeLink(config.download)
       },
       { headers: { 'cache-control': 'public, max-age=60, stale-while-revalidate=300' } }
     )
