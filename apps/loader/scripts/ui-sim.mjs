@@ -364,7 +364,16 @@ check(
   'the product screen offers Update instead of Launch',
   /behind \?[\s\S]{0,700}?onClick=\{onUpdate\}/.test(detail) && !/behind \? 'Update' : running/.test(detail)
 )
-check('and pressing it starts what it just fetched', /onUpdate=\{\(\) => \{[\s\S]{0,900}?await bridge\.files\.launch\(selected\.id\)/.test(appShell))
+/*
+ * An update is a download, not a launch.
+ *
+ * It opened what it fetched for one release. Being current and starting a program are
+ * two different things to want, and only one of them was asked for — so when the swap
+ * finishes the screen is an installed product again, with Launch on it.
+ */
+const updateHandler = appShell.slice(appShell.indexOf('onUpdate={() =>'), appShell.indexOf('onLaunch={() =>'))
+check('updating does not launch', !/launch\(/.test(updateHandler))
+check('and it puts the screen back in step with the disk', /bridge\.files\.states\(\)\.then\(setInstalls\)/.test(updateHandler))
 /*
  * A replacement nobody saw is indistinguishable from one that never happened.
  *
