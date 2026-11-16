@@ -41,3 +41,26 @@ services:
         sync: false
       - key: ADMIN_SESSION_SECRET
         sync: false
+
+  # The public site. Same repository, same Supabase, no secrets of its own: it reads the
+  # two public endpoints the loader already reads, and hands out the installer through
+  # the panel's own pipe.
+  - type: web
+    name: indra-site
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: apps/site
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      # Where the catalogue lives. Change this and the site reads a different deployment.
+      - key: INDRA_API
+        value: https://indra-loader-api.onrender.com
+      # This service's own address, for canonical links and the sitemap.
+      - key: SITE_URL
+        value: https://indra-site.onrender.com
