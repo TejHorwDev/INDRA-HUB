@@ -13,15 +13,25 @@ exists:
 | the release | `GET /api/loader/update` | the current loader version and its size |
 | the download | `GET /api/loader/installer` | the installer itself, streamed with Range |
 
-Add a product in the panel and it appears here within a minute. Change the film in the
-panel and the hero changes. Nothing on this site has to be edited to publish anything.
+**How live it is.** Every read is cached for ten seconds, and every page revalidates on the
+same clock. Lock a product in the panel and it is locked here — dimmed, glyph, the word
+Locked — within ten seconds. Upload a new clip to a product and that clip is what plays.
+Ship 1.0.53 and the site says 1.0.53. No deploy, no cache to clear, nothing to keep in
+sync. The one limit is the panel's own API: on a free tier that sleeps, the first request
+after it wakes is slow, and no amount of caching on this side changes that.
+
+The download is always the newest build: the button points at
+`GET /api/loader/installer`, which resolves the latest release on every request.
+
+Add a product in the panel and it appears here within ten seconds. Nothing on this site
+has to be edited to publish anything.
 
 ## The pages
 
 | route | what it is |
 | --- | --- |
-| `/` | the front page: hero film, the catalogue grid, three steps, the download |
-| `/p/<slug>` | one product — its own artwork full bleed, its live build, the loader link |
+| `/` | the front page: the library shelf of clips, three steps, the download |
+| `/p/<slug>` | one product — its clip, its live build, the loader link |
 | `/sitemap.xml`, `/robots.txt` | written from the catalogue, so a product is listed the moment it is published |
 
 Product addresses are the name (`/p/streamer-max`), not the UUID in the panel. An older
@@ -70,6 +80,14 @@ repository, set **root directory `apps/site`**, and drop `bootstrap.mjs`. Nothin
 folder changes.
 
 **Render is not needed.** `render.yaml` at the repository root only defines the panel now.
+
+## Video
+
+Product artwork is published as `.webm`/`.mp4`, so the shelf is video. `<Media>` decides
+when a clip is worth decoding: it starts as it approaches the viewport, pauses the moment
+it leaves, and stops when the tab is hidden. Clips are never scaled or filtered while they
+play — that re-samples every frame — and each gets its own compositor layer so a playing
+card does not repaint its border and scrim sixty times a second.
 
 ## Where the design lives
 

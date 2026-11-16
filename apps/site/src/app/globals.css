@@ -423,6 +423,11 @@ h1.hero-title {
   background: #06060a;
   opacity: 0;
   transition: opacity 260ms linear;
+  /*
+   * Its own compositor layer. A playing video that shares a layer with the card forces the
+   * card's border, shadow and scrim to be repainted for every frame of the clip.
+   */
+  transform: translateZ(0);
 }
 
 .media-video.is-live {

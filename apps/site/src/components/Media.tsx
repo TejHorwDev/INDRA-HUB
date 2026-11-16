@@ -3,66 +3,76 @@
 import { useEffect, useRef, useState } from 'react'
 
 /*
- * One clip at a time. Never two.
+ * A product's clip, playing the way the loader plays it.
  *
- * The catalogue publishes product artwork as video, and video is the expensive thing on a
- * page: every playing clip is a decoder and a surface being painted, and four of them at
- * once is what makes a shelf feel heavy under the pointer.
+ * The panel publishes artwork as video, so the shelf is video. That has to be smooth, and
+ * smoothness here is a budget: a clip is only worth decoding while somebody can see it.
  *
- * So this component owns a single global slot: whoever plays last is the only thing
- * playing. Hover a card and its clip starts, the card you left stops. Nothing downloads
- * until it is asked for (`preload="none"`), and nothing is ever decoded off screen.
+ * So playback follows the viewport. A clip starts a little before it scrolls into view
+ * (200px of margin, enough to have a first frame ready) and pauses the moment it leaves.
+ * Scrolling away from the shelf stops every decoder on the page. Hiding the tab stops them
+ * too. Nothing is ever decoded off screen, and nothing is ever re-sampled: the video is
+ * never scaled or filtered, it only fades in when it is actually playing.
  *
- * The clip fades in over the card's name plate rather than being revealed by a scale, so
- * the video surface is never resampled — a transformed video is re-rendered every frame,
- * which is the other half of what "laggy" was.
+ * The card's name plate sits under it, so a card is finished before a single byte of video
+ * has arrived — the clip fades in over it instead of replacing a hole.
  */
-
-/** The one clip allowed to play. Module scope, shared by every card on the page. */
-let playing: HTMLVideoElement | null = null
 
 export default function Media({
   src,
   dim = 0,
-  auto = false
+  priority = false
 }: {
   src: string
   dim?: number
-  /** Play without being asked: the first card, and the product's own page. */
-  auto?: boolean
+  /** The first card and a product's own page: fetch straight away. */
+  priority?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLVideoElement>(null)
   const [live, setLive] = useState(false)
 
-  const start = (): void => {
+  useEffect(() => {
     const element = ref.current
     if (!element) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-    if (playing && playing !== element) playing.pause()
-    playing = element
-    void element.play().catch(() => undefined)
-  }
+    /** Whether playback is currently wanted. */
+    let wanted = false
 
-  const stop = (): void => {
-    if (ref.current) ref.current.pause()
-  }
-
-  useEffect(() => {
-    if (!auto) return
-    const element = ref.current
-    if (!element) return
-    element.preload = 'auto'
-    start()
-    return () => {
-      element.pause()
-      if (playing === element) playing = null
+    const sync = (): void => {
+      if (wanted && !document.hidden) {
+        void element.play().catch(() => undefined)
+      } else {
+        element.pause()
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto])
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          wanted = entry.isIntersecting
+          // Ask for the clip as it approaches, so the first frame is there when it lands.
+          if (wanted && element.preload !== 'auto') element.preload = 'auto'
+          sync()
+        }
+      },
+      { threshold: 0.2, rootMargin: '200px 0px' }
+    )
+
+    observer.observe(element)
+
+    const onVisibility = (): void => sync()
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      observer.disconnect()
+      document.removeEventListener('visibilitychange', onVisibility)
+      element.pause()
+    }
+  }, [])
 
   return (
-    <span className="media" onPointerEnter={start} onPointerLeave={stop} onFocus={start} onBlur={stop}>
+    <span className="media">
       <video
         ref={ref}
         className={live ? 'media-video is-live' : 'media-video'}
@@ -70,7 +80,7 @@ export default function Media({
         muted
         loop
         playsInline
-        preload={auto ? 'auto' : 'none'}
+        preload={priority ? 'auto' : 'metadata'}
         disablePictureInPicture
         disableRemotePlayback
         onPlaying={() => setLive(true)}

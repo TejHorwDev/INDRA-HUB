@@ -122,7 +122,14 @@ function toProduct(raw: RawApp): Product | null {
 async function once<T>(path: string, fallback: T): Promise<T> {
   try {
     const response = await fetch(`${API}${path}`, {
-      next: { revalidate: 60 },
+      /*
+       * Ten seconds, not a minute.
+       *
+       * This is the whole of "is the site connected to the panel": a product locked, a
+       * build re-uploaded, a new loader shipped — all of it is visible on the public site
+       * within ten seconds of the panel writing it, with no deploy and no cache to clear.
+       */
+      next: { revalidate: 10 },
       /*
        * Twenty-five seconds, then give up.
        *
