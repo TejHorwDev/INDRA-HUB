@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import Artwork from '@/components/Artwork'
+import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getLoader, getProduct, INSTALLER_URL, size } from '@/lib/catalogue'
+import { getLoader, getProduct, getProducts, INSTALLER_URL, size } from '@/lib/catalogue'
 
 export const revalidate = 60
 
@@ -16,6 +17,21 @@ export const revalidate = 60
  */
 
 type Params = { params: Promise<{ id: string }> }
+
+/*
+ * Every product is built ahead of time.
+ *
+ * A product page that renders on request has to ask the panel for the catalogue before it
+ * can answer, and when that API is cold the click sits there — which is what "the page
+ * takes ages to change" was. Prerendered, it is a file on a CDN and the navigation is
+ * instant. Anything published after this build still resolves, on demand.
+ */
+export async function generateStaticParams(): Promise<Array<{ id: string }>> {
+  const products = await getProducts()
+  return products.map((product) => ({ id: product.slug }))
+}
+
+export const dynamicParams = true
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const product = await getProduct((await params).id)
@@ -55,23 +71,17 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
         <div className="wrap">
           <div className="detail">
             <div className="detail-art">
-              {product.image ? (
-                <Artwork
-                  src={product.image}
-                  video={product.imageIsVideo}
-                  blur={product.artworkBlur}
-                  dim={product.artworkDim}
-                  eager
-                />
-              ) : (
-                <span className="card-blank">
-                  <span>{product.name.slice(0, 2).toUpperCase()}</span>
-                </span>
-              )}
+              <span className="card-plate" aria-hidden>
+                <span>{product.name.slice(0, 2).toUpperCase()}</span>
+              </span>
+
+              {product.image && product.imageIsVideo ? (
+                <Media src={product.image} dim={product.artworkDim} auto />
+              ) : null}
             </div>
 
             <div>
-              <a className="back" href="/#library">
+              <Link className="back" href="/#library">
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
                   <path
                     d="M7.5 2.5 4 6l3.5 3.5"
@@ -82,7 +92,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
                   />
                 </svg>
                 The library
-              </a>
+              </Link>
 
               <h1 className="wordmark">{product.name}</h1>
 
@@ -112,9 +122,9 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
                   </svg>
                   Download the loader
                 </a>
-                <a className="btn ghost lg" href="/#library">
+                <Link className="btn ghost lg" href="/#library">
                   Back to the library
-                </a>
+                </Link>
               </div>
 
               <dl className="facts">

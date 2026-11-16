@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
 import { INSTALLER_URL } from '@/lib/catalogue'
@@ -21,9 +22,9 @@ export default function NotFound(): React.JSX.Element {
               <p className="tagline">This address is gone. The library is not.</p>
 
               <div className="detail-actions">
-                <a className="btn solid lg" href="/#library">
+                <Link className="btn solid lg" href="/#library">
                   The library
-                </a>
+                </Link>
                 <a className="btn ghost lg" href={INSTALLER_URL}>
                   Download the loader
                 </a>

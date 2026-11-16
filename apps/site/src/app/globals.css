@@ -242,15 +242,13 @@ body::after {
   border-bottom: 1px solid var(--hairline);
 }
 
-.hero-film {
+.hero-light {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -3;
-  opacity: 0.26;
+  inset: auto 0 -30% 0;
+  height: 78%;
+  z-index: -2;
   pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0) 74%);
 }
 
 .hero-veil {
@@ -404,33 +402,41 @@ h1.hero-title {
   box-shadow: var(--lift), var(--sheen);
 }
 
-.card-art {
+/*
+ * The media layer.
+ *
+ * Absolutely placed, never transformed, never filtered: both of those make the browser
+ * re-sample a moving picture every frame, which is precisely the cost this page cannot
+ * afford. It fades in when it is playing and is invisible otherwise.
+ */
+.media {
   position: absolute;
   inset: 0;
-  transform: scale(1);
-  transition: transform 520ms var(--ease);
+  display: block;
+  overflow: hidden;
 }
 
-.card:hover .card-art {
-  transform: scale(1.035);
-}
-
-.card-art img,
-.card-art video {
+.media-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   background: #06060a;
+  opacity: 0;
+  transition: opacity 260ms linear;
 }
 
-.card-art .artwork-dim {
+.media-video.is-live {
+  opacity: 1;
+}
+
+.media .artwork-dim {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
 /* A product with nothing published yet still has to look deliberate. */
-.card-blank {
+.card-plate {
   position: absolute;
   inset: 0;
   display: grid;
@@ -440,7 +446,7 @@ h1.hero-title {
     var(--surface);
 }
 
-.card-blank span {
+.card-plate span {
   font-size: 34px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -600,8 +606,7 @@ h1.hero-title {
   box-shadow: var(--lift), var(--sheen);
 }
 
-.detail-art img,
-.detail-art video {
+.detail-art .media-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
