@@ -101,6 +101,17 @@ folder changes.
 
 **Render is not needed.** `render.yaml` at the repository root only defines the panel now.
 
+## Where the artwork is served from
+
+Not from here, and not through the panel. `images/` and `videos/` in the bucket are public —
+they are the picture in the window — so an upload stores the storage provider's own URL, the
+browser caches it for a year, and the provider's edge answers. An installer is *not* media and
+still streams through the API, where it can be gated and counted.
+
+That is worth stating because the alternative was measured: every card used to be relayed by
+the API, which lives on a free tier that sleeps after fifteen idle minutes. Two hops and a cold
+start is the difference between a shelf that pops and a shelf that fills in one card at a time.
+
 ## Artwork
 
 Whatever the panel published is what the card shows, and the URL is the only thing that
@@ -109,10 +120,11 @@ Both fade in over the name plate, and an artwork that cannot be read leaves the 
 place rather than a broken-media glyph.
 
 The backdrop behind the hero is the panel's own film (`videos/…` in the settings), with the
-panel's dim as an overlay and its blur applied only when it is not zero. Its `<video>` carries
-`autoplay`, `muted` and `loop` as attributes rather than as React props, so it starts while
-the page is still hydrating — a backdrop that waits for JavaScript has already missed the
-moment it was there for.
+panel's dim as an overlay and its blur applied only when it is not zero. It starts while the
+page is still hydrating — its `<video>` carries `autoplay`, `muted` and `loop` — and `<HeroFilm>`
+pauses it as soon as the hero leaves the screen or the tab is hidden. A full-bleed 1080p frame
+decoded per frame of scroll, for a picture nobody can see, is the single most expensive thing
+this page could do; it does not do it.
 
 ## Video
 
