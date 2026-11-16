@@ -38,39 +38,43 @@ export function objectUrl(request: Request, key: string): string {
  * The object key inside a URL we handed out.
  *
  * The panel stores absolute addresses, and the bucket is what actually holds the bytes.
- * To answer "is this file still there?" something has to get from one to the other, and
- * this is it: the tail of `/api/files/<key>`, or of the public base when the bucket is
- * world-readable.
+ * To answer "is this file still there?" something has to get from one to the other.
  *
- * Anything else — a GitHub release asset, a link somebody pasted, a key that would
- * escape its folder — returns null, because it is not ours to check or delete.
+ * It used to look for `/api/files/` and for `PUBLIC_BASE_URL`, which was true while the
+ * API was the only thing that ever served an object. It is not true any more: artwork is
+ * handed out as a URL on the storage provider's own domain — Supabase's
+ * `…/storage/v1/object/public/<bucket>/images/x.webm`, Backblaze's
+ * `…/file/<bucket>/images/x.webm`, R2's `…/<key>` — and none of those contain the marker
+ * it was looking for, so every artwork would have read as missing and a replaced file
+ * would have been left behind in the bucket forever.
+ *
+ * So the rule is the one thing every address has in common: the path ends with a folder
+ * this code issues and a filename inside it. Anything else — a GitHub release asset, a
+ * link somebody pasted, a key that would escape its folder — returns null, because it is
+ * not ours to check or delete.
  */
 export function keyFromUrl(url: string): string | null {
   const raw = (url ?? '').trim()
   if (!raw) return null
 
-  const marker = '/api/files/'
-  let tail = ''
-  const at = raw.indexOf(marker)
-  if (at >= 0) {
-    tail = raw.slice(at + marker.length)
-  } else if (env.publicBaseUrl && raw.startsWith(env.publicBaseUrl)) {
-    tail = raw.slice(env.publicBaseUrl.length)
-  } else {
-    // No public base and no marker: not an address this deployment serves.
-    return null
-  }
-
-  // A query string or fragment is not part of the key.
-  tail = tail.split('?')[0].split('#')[0].replace(/^\/+/, '')
-
+  let pathname: string
   try {
-    tail = decodeURIComponent(tail)
+    pathname = new URL(raw, 'https://placeholder.invalid').pathname
   } catch {
     return null
   }
 
-  return isObjectKey(tail) ? tail : null
+  const match = /\/((?:exes|images|videos)\/[^/]+)$/.exec(pathname)
+  if (!match) return null
+
+  let key: string
+  try {
+    key = decodeURIComponent(match[1])
+  } catch {
+    return null
+  }
+
+  return isObjectKey(key) ? key : null
 }
 
 /** The prefix every key we issue starts with, by kind. */
