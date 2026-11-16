@@ -13,11 +13,15 @@
 #   B2_KEY_ID                    from the Backblaze application key
 #   B2_APPLICATION_KEY           from the same key
 #   B2_BUCKET                    the bucket name, e.g. indra-files
-#   B2_REGION                    the bucket's region, e.g. us-west-004
+#   B2_REGION                    the bucket's region, e.g. us-east-005
 #   B2_PUBLIC_URL                optional, only when a Cloudflare domain sits in front
 #   API_BASE_URL                 optional, defaults to the Render service
 #
 # Run it once with `apply` off to see exactly what would move, then again with it on.
+#
+# When it fails it says why in three places, because a red X is not a diagnosis: an
+# annotation on the run page, the job summary, and `storage-report.txt` on the branch it ran
+# from — that last one because the log API is not always reachable.
 
 name: storage
 
@@ -30,7 +34,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: storage
@@ -47,12 +51,43 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not 20: the Supabase client wants a native WebSocket, and Node 20 does not
+          # have one — it fails with "Node.js detected but native WebSocket not found"
+          # before it has read a single row.
+          node-version: 22
           cache: npm
           cache-dependency-path: apps/loader-api/package-lock.json
 
       - name: install
         run: npm ci --prefix apps/loader-api
+
+      #
+      # Six values, copied by hand, is the most likely thing to be wrong and the least
+      # likely thing to be visible from a phone. A missing one names itself.
+      #
+      - name: preflight
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          B2_REGION: ${{ secrets.B2_REGION }}
+        run: |
+          missing=""
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY B2_KEY_ID B2_APPLICATION_KEY B2_BUCKET B2_REGION; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. Add them under Settings → Secrets and variables → Actions."
+            {
+              echo "## Missing secrets"
+              echo ""
+              echo "These are empty:$missing"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "all six secrets are present"
 
       - name: migrate
         working-directory: apps/loader-api
@@ -66,4 +101,35 @@ jobs:
           B2_REGION: ${{ secrets.B2_REGION }}
           B2_PUBLIC_URL: ${{ secrets.B2_PUBLIC_URL }}
           API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://indra-loader-api.onrender.com' }}
-        run: node scripts/migrate-storage.mjs ${{ inputs.apply && '--apply' || '' }}
+        run: |
+          set -o pipefail
+          node scripts/migrate-storage.mjs ${{ inputs.apply && '--apply' || '' }} 2>&1 | tee migrate.log
+
+      - name: explain
+        if: failure()
+        working-directory: apps/loader-api
+        run: |
+          cp migrate.log ../../storage-report.txt 2>/dev/null || true
+          if [ -f migrate.log ]; then
+            reason=$(grep -m1 -E "^(::error::|[A-Z][a-z]+Error:|Error:)" migrate.log | grep -v "throw new" | head -c 400 || true)
+          else
+            reason="the migration never started"
+          fi
+          echo "::error::storage migration failed — ${reason:-see storage-report.txt on the branch}"
+          {
+            echo "## storage migration"
+            echo ""
+            echo '```'
+            tail -40 migrate.log 2>/dev/null || echo "no log was written"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: leave the log behind
+        if: failure()
+        run: |
+          if [ ! -f storage-report.txt ]; then echo "nothing to hand over"; exit 0; fi
+          git config user.name "arena-agent"
+          git config user.email "agent@arena.ai"
+          git add -f storage-report.txt
+          git commit -m "ci: storage failure report" || true
+          git push origin "HEAD:${{ github.ref_name }}" || echo "could not push the report"

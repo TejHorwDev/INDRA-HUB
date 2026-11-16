@@ -1,4 +1,6 @@
+import { readConfig } from '@/lib/db'
 import { latestLoaderRelease } from '@/lib/github'
+import { safeLink } from '@/lib/url'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +24,30 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request): Promise<Response> {
   try {
+    const probe = new URL(request.url).searchParams.get('probe') === '1'
+
+    /*
+     * The owner can hand the installer out from somewhere else.
+     *
+     * A 116 MB download that starts on a free instance that has been asleep takes half a
+     * minute to begin, and the bandwidth is somebody else's problem when the file can live
+     * on a mirror. So when the panel carries a link, this route stops being a pipe and
+     * becomes a signpost: 302, no body, no bytes through here.
+     *
+     * Not on `?probe=1`, though: the panel uses that to ask a real release how big the
+     * file is, and the answer has to come from the release, not from the mirror.
+     */
+    if (!probe) {
+      const config = await readConfig().catch(() => null)
+      const mirror = safeLink(config?.download)
+      if (mirror) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: mirror, 'cache-control': 'no-store' }
+        })
+      }
+    }
+
     const release = await latestLoaderRelease()
     if (!release) {
       return Response.json({ error: 'No release has been published yet.' }, { status: 404 })
@@ -37,15 +63,15 @@ export async function GET(request: Request): Promise<Response> {
      * wants to print "what is published" without pulling the file. One range request
      * for the first byte gets GitHub's own `content-range`, which carries the total.
      */
-    if (new URL(request.url).searchParams.get('probe') === '1') {
-      const probe = await fetch(url, {
+    if (probe) {
+      const head = await fetch(url, {
         redirect: 'follow',
         cache: 'no-store',
         headers: { range: 'bytes=0-0' }
       })
       const total = Number(
-        /\/(\d+)$/.exec(probe.headers.get('content-range') ?? '')?.[1] ??
-          probe.headers.get('content-length') ??
+        /\/(\d+)$/.exec(head.headers.get('content-range') ?? '')?.[1] ??
+          head.headers.get('content-length') ??
           0
       )
       return Response.json(
@@ -54,7 +80,7 @@ export async function GET(request: Request): Promise<Response> {
           tag: release.tag,
           name,
           bytes: Number.isFinite(total) ? total : 0,
-          reachable: probe.ok || probe.status === 206
+          reachable: head.ok || head.status === 206
         },
         { headers: { 'cache-control': 'no-store' } }
       )

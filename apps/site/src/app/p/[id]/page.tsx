@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getLoader, getProduct, getProducts, size } from '@/lib/catalogue'
+import { downloadTarget, getConfig, getLoader, getProduct, getProducts, size } from '@/lib/catalogue'
 
 export const revalidate = 10
 
@@ -58,7 +58,8 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
   // An old id link lands on the readable address rather than on two spellings of one page.
   if (handle !== product.slug) redirect(`/p/${product.slug}`)
 
-  const loader = await getLoader()
+  const [loader, config] = await Promise.all([getLoader(), getConfig()])
+  const download = downloadTarget(loader, config)
   const loaderVersion = loader.version ? `v${loader.version}` : 'latest'
   const weighted = loader.bytes ? size(loader.bytes) : ''
   const live = product.status === 'active'
@@ -108,7 +109,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
               ) : null}
 
               <div className="detail-actions">
-                <a className="btn solid lg" href={loader.href} title={loader.name ?? undefined}>
+                <a className="btn solid lg" title={loader.name ?? undefined} {...download.link}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                     <path
                       d="M8 2v8m0 0 3-3m-3 3L5 7M3 12.5h10"

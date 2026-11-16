@@ -84,8 +84,32 @@ const s3 = new S3Client({
   region: B2_REGION,
   endpoint: B2_ENDPOINT,
   credentials: { accessKeyId: B2_KEY_ID, secretAccessKey: B2_APPLICATION_KEY },
-  forcePathStyle: true
+  forcePathStyle: true,
+  // Backblaze refuses the checksum trailer this SDK sends by default, and the failure
+  // reads as NotImplemented rather than as anything to do with checksums.
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED'
 })
+
+/**
+ * Say what broke, in one line, on the run page.
+ *
+ * This script is run by somebody who has just pasted six secrets into a form, from a phone
+ * as often as not, and a Node stack trace is not an answer to "it stopped". The stage is
+ * tracked so the line can name the thing that failed, and `::error::` is what turns a
+ * console line into an annotation the run page shows without opening a log.
+ */
+let stage = 'starting'
+
+function report(error) {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  console.error(`::error::${stage} — ${message}`)
+  console.error(error)
+  process.exit(1)
+}
+
+process.on('unhandledRejection', report)
+process.on('uncaughtException', report)
 
 const mb = (bytes) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
@@ -229,6 +253,7 @@ function replaceBase(url, base = targetBase) {
 
 /* ------------------------------------------------------------------------- run */
 
+stage = 'listing the bucket'
 const objects = await listSource()
 const total = objects.reduce((sum, object) => sum + object.bytes, 0)
 
@@ -241,6 +266,7 @@ for (const object of objects) {
   console.log(`  ${object.key.padEnd(60)} ${mb(object.bytes).padStart(9)}  ${object.type}`)
 }
 
+stage = 'reading the rows'
 const changes = await rewrittenRows()
 console.log('')
 console.log(`${changes.length} rows point at an address that has to move${changes.length ? ':' : '.'}`)
@@ -267,6 +293,7 @@ for (const object of objects) {
     continue
   }
   try {
+    stage = `copying ${object.key}`
     await copy(object)
     copied += 1
     console.log(`  copied ${object.key}`)
@@ -287,6 +314,7 @@ if (failed.length > 0) {
 }
 
 for (const change of changes) {
+  stage = `rewriting ${change.table}.${change.id}`
   const { error } = await supabase.from(change.table).update(change.patch).eq(change.table === 'loader_config' ? 'key' : 'id', change.id)
   if (error) {
     console.log(`  FAILED row ${change.table}.${change.id}: ${error.message}`)
@@ -302,6 +330,7 @@ if (objects.some((object) => object.key.startsWith('images/') || object.key.star
   console.log('Public addresses, checked:')
   for (const object of objects.filter((entry) => !entry.key.startsWith('exes/'))) {
     const url = `${targetBase}/${object.key}`
+    stage = `checking ${object.key}`
     const response = await fetch(url, { headers: { range: 'bytes=0-1' } }).catch(() => null)
     const ok = response && (response.ok || response.status === 206)
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${response?.status ?? '—'}  ${url}`)

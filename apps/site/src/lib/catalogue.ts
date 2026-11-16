@@ -45,6 +45,15 @@ export interface SiteConfig {
   /** 0–100, from the panel: how hard the film is dimmed and blurred. */
   filmDim: number
   filmBlur: number
+  /**
+   * Where the Download buttons go, when the panel says somewhere other than here.
+   *
+   * A 116 MB installer streamed by the panel's free instance has to wake it first, and that
+   * is half a minute of spinner on the one click that has to feel like a decision. A link
+   * the owner pasted — a mirror, a CDN, a file host — starts immediately and costs nothing.
+   * Empty means the panel's own pipe, which is always the right build.
+   */
+  download: string
 }
 
 interface RawApp {
@@ -232,6 +241,25 @@ function count(value: unknown): number {
   return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : 0
 }
 
+/**
+ * A link, or nothing.
+ *
+ * The value comes from a form and ends up in an `href`. Anything that is not http(s) — a
+ * `javascript:` URL, a typo, a stray space — becomes empty, and the page falls back to the
+ * built-in download instead of shipping something strange to a visitor.
+ */
+function link(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const raw = value.trim()
+  if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : ''
+  } catch {
+    return ''
+  }
+}
+
 export async function getConfig(): Promise<SiteConfig> {
   const body = await read<Record<string, unknown>>('/api/loader/config', {})
   return {
@@ -240,7 +268,33 @@ export async function getConfig(): Promise<SiteConfig> {
     notice: typeof body['notice'] === 'string' ? body['notice'] : '',
     maintenance: body['maintenance'] === true || body['maintenance'] === '1' || body['maintenance'] === 'true',
     filmDim: count(body['filmDim']),
-    filmBlur: count(body['filmBlur'])
+    filmBlur: count(body['filmBlur']),
+    download: link(body['download'])
+  }
+}
+
+/**
+ * Where a Download button actually goes.
+ *
+ * One function, because there are four of them — the bar, the hero, the closing band and a
+ * product page — and four chances to forget the mirror. The panel's link wins when it is
+ * set; otherwise the panel's own pipe, which now also redirects to the mirror, so an old
+ * link and a new button land in the same place.
+ *
+ * `away` is true when the link is a page rather than a file, so the caller can open a tab
+ * instead of navigating off the site.
+ */
+export function downloadTarget(loader: Loader, config: SiteConfig): {
+  href: string
+  away: boolean
+  link: { href: string; target?: string; rel?: string }
+} {
+  const href = config.download || loader.href
+  const away = Boolean(config.download) && !/\.(exe|msi|zip|7z|rar|dmg)$/i.test(config.download.split(/[?#]/)[0])
+  return {
+    href,
+    away,
+    link: away ? { href, target: '_blank', rel: 'noopener noreferrer' } : { href }
   }
 }
 

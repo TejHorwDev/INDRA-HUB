@@ -67,7 +67,12 @@ R2 is the better ceiling and the worse paperwork: its public address is a domain
 to arrange before media can be handed out at the edge. B2's is arithmetic — the region
 gives the host. Both are supported by `storage.ts`; `STORAGE_DRIVER` decides.
 
-### Moving the bucket to B2
+### Moving the bucket to B2 — optional
+
+Nothing here requires it. Supabase alone carries this catalogue comfortably; the move is
+for the day the monthly egress line starts to matter, and it is a bucket, a workflow and one
+environment variable when that day comes.
+
 
 Three steps, none of them code.
 
@@ -121,6 +126,23 @@ The backdrop is the biggest thing a first visit downloads — 13.8 MB at 1080p. 
 before and after, and replaces the object under the same key, so nothing needs repointing.
 It needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and nothing else. Run it with
 `apply` off first; a loop behind a dim overlay loses nothing at a tenth of the size.
+
+## Where the download goes
+
+The Download button has two possible homes, and the panel decides which.
+
+**Empty** — the built-in pipe: `/api/loader/installer` resolves the newest GitHub release,
+streams it with `Range` support, and the site prints that build's real name and size. Always
+the right file, and the first byte waits for a free instance to wake up.
+
+**A link** — paste a mirror into Settings → Links → *Loader download link* (MediaFire, Drive,
+a CDN, your own server) and every Download button on the site goes straight there, plus
+`/api/loader/installer` 302s to it so old links keep working. Nothing passes through this
+service, so nothing can be asleep.
+
+Only `http(s)` is accepted; anything else is published as empty and the built-in download
+stays in use. `?probe=1` still asks GitHub — that is how the page knows what build it is
+advertising — so a broken mirror never changes the version printed next to the button.
 
 ## Deploying it
 

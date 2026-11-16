@@ -69,7 +69,17 @@ function s3(): S3Client {
       secretAccessKey: settings.b2.applicationKey
     },
     // B2 is path-style; R2 accepts either.
-    forcePathStyle: true
+    forcePathStyle: true,
+    /*
+     * No checksum, please. Since SDK v3.729 every `PutObject` carries a CRC32 either as a
+     * header or as a trailer, and Backblaze answers `STREAMING-UNSIGNED-PAYLOAD-TRAILER`
+     * with NotImplemented — so an upload that is otherwise perfect fails. On a presigned
+     * URL it is worse: the checksum is part of the signature, and the browser that PUTs
+     * the bytes has no way to send the header it was signed with, so the signature is
+     * simply wrong.
+     */
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED'
   })
 }
 
