@@ -1,24 +1,22 @@
 /*
  * What the site knows about the catalogue.
  *
- * The desktop app and this page read the same two public endpoints, so there is exactly
- * one place a product is published and exactly one answer about what is live. The panel
- * is the source; this is a view of it.
+ * The panel is the only source. Every product, every version, every piece of artwork and
+ * every download link on this site comes from the same endpoints the desktop app reads,
+ * so publishing something in the panel publishes it here.
  *
- * Both reads are allowed to fail. A marketing page that throws because a free-tier API
- * is asleep is a page nobody can buy anything from — so a failed read is an empty
- * catalogue and a version that says so, not an error screen.
+ * Nothing here is allowed to throw. A front page that dies because a free-tier API is
+ * asleep is a page nobody can install anything from: a failed read is an empty catalogue,
+ * a retry, and a page that still works.
  */
 
 /** The API that already serves the loader. Overridable for a staging deploy. */
+const API = (process.env['INDRA_API'] ?? 'https://indra-loader-api.onrender.com').replace(/\/+$/, '')
+
 /**
- * This site's own address, used for canonical links and the sitemap. Only wrong in a
- * preview, and a preview is not what search engines read.
+ * This site's own address, for canonical links and the sitemap.
  */
 export const SITE_URL = (process.env['SITE_URL'] ?? 'https://indra-site.onrender.com').replace(/\/+$/, '')
-
-
-const API = (process.env['INDRA_API'] ?? 'https://indra-loader-api.onrender.com').replace(/\/+$/, '')
 
 export interface Product {
   id: string
@@ -26,8 +24,13 @@ export interface Product {
   slug: string
   name: string
   description: string
+  /** The description's opening claim, and the features it lists after it. */
+  tagline: string
+  features: string[]
   version: string
   image: string
+  /** True when the published artwork is a clip rather than a still. */
+  imageIsVideo: boolean
   artworkBlur: number
   artworkDim: number
   status: 'active' | 'locked'
@@ -66,39 +69,69 @@ export function slug(name: string): string {
     .slice(0, 60)
 }
 
+/**
+ * The panel accepts artwork as an image or as a clip — most of what is published there is
+ * a .webm or .mp4 of the product running. A still is an <img>; a clip is a looping
+ * <video>. Getting this wrong is the difference between a catalogue and four empty boxes.
+ */
+export function isVideo(url: string): boolean {
+  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url)
+}
+
+/**
+ * A description is written the way a person writes a line of copy: a claim, a dash, then
+ * what it actually does. Split it once, here, so the page can set the claim large and the
+ * features as a list.
+ */
+function split(description: string): { tagline: string; features: string[] } {
+  const parts = description
+    .split(/\s+[-–—]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length <= 1) return { tagline: description.trim(), features: [] }
+  return { tagline: parts[0], features: parts.slice(1) }
+}
+
 /** Every field is normalised here, so the page never has to think about a missing one. */
 function toProduct(raw: RawApp): Product | null {
   const id = typeof raw.id === 'string' ? raw.id : ''
   const name = typeof raw.name === 'string' ? raw.name.trim() : ''
   if (!id || !name) return null
 
+  const description = typeof raw.description === 'string' ? raw.description.trim() : ''
+  const image = typeof raw.image === 'string' ? raw.image : ''
+  const { tagline, features } = split(description)
+
   return {
     id,
     slug: slug(name) || id,
     name,
-    description: typeof raw.description === 'string' ? raw.description : '',
+    description,
+    tagline,
+    features,
     version: typeof raw.version === 'string' && raw.version ? raw.version : '1.0.0',
-    image: typeof raw.image === 'string' ? raw.image : '',
+    image,
+    imageIsVideo: isVideo(image),
     artworkBlur: typeof raw.artworkBlur === 'number' ? raw.artworkBlur : 0,
     artworkDim: typeof raw.artworkDim === 'number' ? raw.artworkDim : 0,
     status: raw.status === 'locked' ? 'locked' : 'active'
   }
 }
 
-async function read<T>(path: string, fallback: T): Promise<T> {
+async function once<T>(path: string, fallback: T): Promise<T> {
   try {
     const response = await fetch(`${API}${path}`, {
-      // A minute of cache: fast for everyone, and a product added in the panel is on the
-      // site before anybody could complain that it is not.
       next: { revalidate: 60 },
       /*
-       * Nine seconds, then give up.
+       * Twenty-five seconds, then give up.
        *
        * The API is a free-tier service that sleeps, and the first request after it wakes
-       * can take half a minute. A visitor must not wait for that: the page renders from
-       * the cache with whatever it has, and the next regeneration picks the catalogue up.
+       * can take half an hour's worth of patience. A front page that times out at nine
+       * seconds renders "nothing is published" — which is exactly how a catalogue of four
+       * products ends up looking like an empty page.
        */
-      signal: AbortSignal.timeout(9_000)
+      signal: AbortSignal.timeout(25_000)
     })
     if (!response.ok) return fallback
     return (await response.json()) as T
@@ -107,27 +140,45 @@ async function read<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
+/** One retry: a sleeping API usually answers on the second knock. */
+async function read<T>(path: string, fallback: T): Promise<T> {
+  const first = await once(path, fallback)
+  if (first !== fallback) return first
+  return once(path, fallback)
+}
+
 /*
  * A stand-in catalogue for looking at the design without a deployment.
  *
  *   INDRA_SITE_DEMO=1 npm run dev
  *
- * Only reached when that variable is set, and never on the deployed service — the real
- * page has no idea this exists. It exists because "does the grid look right with four
- * cards in it" should not require a live database and a push to main.
+ * Only reached when that variable is set, and never on the deployed service.
  */
 function demoProducts(): Product[] {
-  return ['External Max', 'Internal Max', 'Streamer Max', 'FPS Booster'].map((name, index) => ({
-    id: `demo-${index}`,
-    slug: slug(name),
-    name,
-    description: '',
-    version: '1.0.0',
-    image: '',
-    artworkBlur: 0,
-    artworkDim: 0,
-    status: 'active'
-  }))
+  const rows: Array<[string, string]> = [
+    ['External Max', 'Best external cheats in the market - aimbot (external, AI, rage) - ESP menu - skin changer'],
+    ['INTERNAL MAX', 'Best internal cheats in the market - aimbot (AI, silent, rage) - full ESP - skin changer'],
+    ['STREAMER MAX', 'Best streamer cheats in the market - aimbot (AI, rage) - streamer ESP - invisible on OBS, Discord and Medal'],
+    ['FPS BOOSTER', 'More frames on the same hardware - process priority - GPU scheduling - one click']
+  ]
+
+  return rows.map(([name, description], index) => {
+    const { tagline, features } = split(description)
+    return {
+      id: `demo-${index}`,
+      slug: slug(name),
+      name,
+      description,
+      tagline,
+      features,
+      version: '1.0.0',
+      image: '',
+      imageIsVideo: false,
+      artworkBlur: 0,
+      artworkDim: 0,
+      status: index === 1 ? 'locked' : 'active'
+    }
+  })
 }
 
 export async function getProducts(): Promise<Product[]> {
@@ -139,7 +190,7 @@ export async function getProducts(): Promise<Product[]> {
 }
 
 /**
- * One product, by id.
+ * One product, by address or by id.
  *
  * Read from the same list the grid is built from rather than a second endpoint, so a card
  * and the page it opens can never disagree about a version.
