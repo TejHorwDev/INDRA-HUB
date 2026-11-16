@@ -78,9 +78,11 @@ export default function Card({ app, available, install, onOpen }: Props): React.
               'h-1 w-1 rounded-full ' +
               (install?.state === 'installed'
                 ? 'bg-[var(--color-success)]'
-                : available
-                  ? 'bg-white'
-                  : 'bg-[var(--color-ink-3)]')
+                : install?.state === 'update'
+                  ? 'bg-[var(--color-accent)]'
+                  : available
+                    ? 'bg-white'
+                    : 'bg-[var(--color-ink-3)]')
             }
           />
           <span className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-[var(--color-ink-2)]">
@@ -105,8 +107,16 @@ function label(available: boolean, install: InstallView | null): string {
   if (!available) return 'Locked'
   // Without a length from the server a percentage is a lie; bytes are not.
   if (install?.state === 'downloading') {
-    return install.total > 0 ? `${install.percent}%` : `${(install.received / 1048576).toFixed(0)} MB`
+    const amount =
+      install.total > 0 ? `${install.percent}%` : `${(install.received / 1048576).toFixed(0)} MB`
+    // A replacement is a different act from a first download, and the card says which.
+    return install.updating ? `Updating · ${amount}` : amount
   }
+  /*
+   * The build on this machine is not the one being published. The product still opens —
+   * it is last month's — but the card is the only place that can say so.
+   */
+  if (install?.state === 'update') return 'Update'
   if (install?.state === 'installed') return 'Downloaded'
   if (install?.state === 'error') return 'Download failed'
   return 'Ready'

@@ -19,6 +19,13 @@ export interface InstalledApp {
   id: string
   name: string
   version: string
+  /**
+   * The hash the catalogue published for the file that was downloaded.
+   *
+   * Absent on anything downloaded before this was recorded, which is why the comparison
+   * that uses it is skipped rather than assumed unequal.
+   */
+  sha256?: string
   /** Absolute path to the executable. */
   exe: string
   bytes: number

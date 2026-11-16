@@ -121,6 +121,9 @@ function filesMock(): LoaderBridge['files'] {
     const current: InstallView = views.get(id) ?? {
       id,
       state: 'absent',
+      // The browser fallback has no catalogue behind it, so nothing can be behind.
+      latest: null,
+      updating: false,
       running: false,
       percent: 0,
       received: 0,

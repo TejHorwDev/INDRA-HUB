@@ -246,7 +246,10 @@ check('and does not paint over the film', !/bg-\[var\(--color-bg\)\]/.test(detai
  * empty. Both are checked here and in sim:download, from the disk.
  */
 check('the download button is rendered once, for the not-downloaded case', (detail.match(/onClick=\{onDownload\}/g) ?? []).length === 1)
-check('the installed state offers launch instead', /installed \? \([\s\S]{0,1200}onLaunch/.test(detail))
+check(
+  'the installed state offers launch instead',
+  /installed \|\| behind \? \([\s\S]{0,200}?onLaunch/.test(detail)
+)
 check('and says so in the status line', /Downloaded/.test(detail))
 
 const service = code(readFileSync(join(main, 'services/downloads.ts'), 'utf8'))
@@ -309,7 +312,30 @@ check(
 check('no length means bytes on screen, not a frozen 0%', /metered \? `\$\{percent\}%` : `\$\{megabytes\} MB`/.test(detail))
 check('the stripe moves when the length is unknown', /download-stripe/.test(readFileSync(join(renderer, 'index.css'), 'utf8')))
 check('a stall is detected rather than waited on', /STALL_MS/.test(service))
-check('and the transfer is continued, not restarted', /resumeFrom: resumableBytes\(target\.exe\)/.test(service))
+check('and the transfer is continued, not restarted', /resumeFrom: resumableBytes\(destination\)/.test(service))
+
+/*
+ * Products are rebuilt every month.
+ *
+ * A customer holding last month's executable was told DOWNLOADED and shown no button,
+ * forever — the card was a fact about the past presented as a statement about now. The
+ * loader now compares what it has with what the catalogue publishes, fetches the new one
+ * beside the old, swaps it in and deletes what it replaced.
+ */
+check('the catalogue publishes what it has', /published\.set\(app\.id, \{ version: app\.version, sha256: app\.sha256 \}\)/.test(service))
+check('a moved version is behind', /here\.version !== newest\.version/.test(service))
+check('and so is a re-uploaded file under the same version', /newest\.sha256 !== here\.sha256/.test(service))
+check('the hash is recorded with the download', /sha256: app\.sha256 \|\| undefined/.test(service))
+check('the new build is fetched beside the old one', /`\$\{target\.exe\}\.new`/.test(service))
+check('never written over a working executable', /if \(resumableBytes\(destination\) === 0\) discardPartial\(destination\)/.test(service))
+check('the old build is deleted after the swap', /rmSync\(target\.exe/.test(service) && /renameSync\(result\.path, target\.exe\)/.test(service))
+check('a failed replacement leaves the old build alone', /if \(replace\) \{\s*discardPartial\(destination\)\s*set\(id, \{ state: 'update'/.test(service))
+check('a running product is not replaced under itself', /if \(replace && isRunning\(id\)\) return stateOf\(id\)/.test(service))
+check('every catalogue read checks for updates', /void updateInstalled\(catalogue\.apps\)/.test(readFileSync(join(process.cwd(), 'src/main/ipc/index.ts'), 'utf8')))
+check('one pass at a time, and never behind somebody\'s download', /if \(updating\) return[\s\S]{0,80}if \(busy\(\)\) return/.test(service))
+check('the card says which of the two it is', /if \(install\?\.state === 'update'\) return 'Update'/.test(shelf))
+check('and a replacement is announced as one', /install\.updating \? `Updating · \$\{amount\}`/.test(shelf))
+check('the product screen offers Update beside Launch', /behind \? 'Update' : running \? 'Running' : 'Launch'/.test(detail))
 
 /*
  * A fixed response cannot reach a cache written before the fix.
