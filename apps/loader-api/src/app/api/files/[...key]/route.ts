@@ -38,7 +38,26 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ key: string[] }> }
 ): Promise<Response> {
-  const { key } = await params
+  /*
+   * A failure here is the difference between a card that plays and a card that does not,
+   * and a bare 500 says nothing about which of the four things behind this route broke —
+   * the bucket, the signature, the stream, or the name. The detail is returned as well as
+   * logged, the same way the update route does it, because the person who can see the JSON
+   * is the person who can fix it.
+   */
+  try {
+    return await serve(request, await params)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    console.error('[files]', detail)
+    return Response.json(
+      { error: 'The file could not be read.', detail: detail.slice(0, 300) },
+      { status: 500, headers: { 'cache-control': 'no-store' } }
+    )
+  }
+}
+
+async function serve(request: Request, { key }: { key: string[] }): Promise<Response> {
   // The bucket may have been changed in the panel since this process started.
   await ensureStorageConfig()
   const path = key.join('/')
