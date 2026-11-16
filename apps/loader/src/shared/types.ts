@@ -269,6 +269,16 @@ export interface LoaderBridge {
     /** Shows the downloaded file in Explorer. */
     reveal: (id: string) => Promise<void>
     onState: (listener: (states: Record<string, InstallView>) => void) => () => void
+    /**
+     * A product on this machine was replaced by a newer build.
+     *
+     * Separate from `onState` because it is an event, not a condition: the state says
+     * DOWNLOADED before and after, and the only thing that changed is which month the
+     * file is from.
+     */
+    onUpdated: (
+      listener: (update: { id: string; name: string; version: string }) => void
+    ) => () => void
   }
 
   /** Opens a URL in the real browser. The main process allows https only. */
