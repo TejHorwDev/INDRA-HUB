@@ -1,19 +1,31 @@
 import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
-import { API_ORIGIN, SITE_URL } from '@/lib/catalogue'
+import { API_ORIGIN, SITE_URL, getConfig } from '@/lib/catalogue'
 import './globals.css'
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  alternates: { canonical: '/' },
-  title: 'INDRA — software for people who notice the difference',
-  description:
-    'Everything INDRA publishes, in one place. One loader, one sign-in, every product — installed and kept current automatically.',
-  openGraph: {
-    title: 'INDRA',
-    description: 'One loader. Every product. Kept current automatically.',
-    type: 'website'
+/*
+ * The title is the brand's, not this repository's.
+ *
+ * A deployment that was sold carries the buyer's name, set in Settings → Brand, and the tab
+ * of a browser is part of the shop window. It is read from the panel rather than baked in,
+ * so a rename does not need a deploy.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const config = await getConfig()
+  const name = config.brandName
+  const tagline = config.brandTagline || 'software for people who notice the difference'
+
+  return {
+    metadataBase: new URL(SITE_URL),
+    alternates: { canonical: '/' },
+    title: `${name} — ${tagline}`,
+    description: `Everything ${name} publishes, in one place. One loader, one sign-in, every product — installed and kept current automatically.`,
+    openGraph: {
+      title: name,
+      description: tagline,
+      type: 'website'
+    }
   }
 }
 

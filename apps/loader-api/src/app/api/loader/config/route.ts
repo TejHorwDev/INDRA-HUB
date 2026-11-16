@@ -30,7 +30,7 @@ const limit = (value: string | undefined, max: number): number => {
 export async function GET(): Promise<Response> {
   if (!databaseReady()) {
     return Response.json(
-      { website: '', video: '', download: '' },
+      { website: '', video: '', download: '', brandName: 'INDRA', brandMark: 'INDRA', brandTagline: '' },
       { headers: { 'cache-control': 'no-store' } }
     )
   }
@@ -52,7 +52,16 @@ export async function GET(): Promise<Response> {
          * and the website sends people straight there: no cold start, no bandwidth, no
          * dependency on this service being awake.
          */
-        download: safeLink(config.download)
+        download: safeLink(config.download),
+        /*
+         * The brand travels with the config because all three surfaces read this endpoint:
+         * the site renders it, the panel renders it, and the loader shows it on the splash
+         * and in Settings. A rename therefore reaches an installed copy on its next launch,
+         * with no release and no store review.
+         */
+        brandName: (config.brand_name ?? '').trim() || 'INDRA',
+        brandMark: (config.brand_mark ?? '').trim() || (config.brand_name ?? '').trim() || 'INDRA',
+        brandTagline: (config.brand_tagline ?? '').trim()
       },
       { headers: { 'cache-control': 'public, max-age=60, stale-while-revalidate=300' } }
     )
