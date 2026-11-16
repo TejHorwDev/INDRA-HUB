@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import HeroFilm from '@/components/HeroFilm'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
@@ -83,39 +84,31 @@ export default async function Home(): Promise<React.JSX.Element> {
   /* The file itself, printed under the button — but only once the probe has seen it. */
   const file = loader.verified && loader.name ? loader.name : ''
 
+  /*
+   * Artwork is served from the panel's storage host, which is not this one: a handshake and a
+   * DNS lookup per visit, four cards that cannot start until it is done, and no way to warm it
+   * from the server. React lifts this into the head.
+   */
+  const mediaOrigin = (() => {
+    const source = products.find((product) => product.image)?.image
+    if (!source) return ''
+    try {
+      return new URL(source, 'https://indra-site').origin
+    } catch {
+      return ''
+    }
+  })()
+
   return (
     <>
       <SiteBar />
 
+      {mediaOrigin ? <link rel="preconnect" href={mediaOrigin} /> : null}
+
       <main id="top">
         <section className="hero">
-          {/*
-           * The film the panel publishes, if it published one.
-           *
-           * It is a plain <video> with autoplay, muted and loop on the element itself, so it
-           * starts without waiting for this page's JavaScript — and it is the only decoder
-           * on the page that runs without being asked, because a backdrop that waits for an
-           * observer has already missed the moment it was there for. Never scaled, never
-           * filtered unless the panel asks for a blur, and dimmed by an overlay rather than
-           * by a filter: the frame stays on the GPU either way.
-           */}
           {config.video ? (
-            <div
-              className="hero-film"
-              aria-hidden
-              style={
-                config.filmBlur
-                  ? { filter: `blur(${Math.min(40, config.filmBlur) / 2}px)`, transform: 'scale(1.04)' }
-                  : undefined
-              }
-            >
-              <video src={config.video} autoPlay muted loop playsInline preload="auto" />
-              <span
-                className="hero-film-dim"
-                style={{ background: `rgba(6, 6, 8, ${Math.min(85, config.filmDim) / 100})` }}
-              />
-              <span className="hero-veil" />
-            </div>
+            <HeroFilm src={config.video} dim={config.filmDim} blur={config.filmBlur} />
           ) : (
             <span className="hero-light" aria-hidden />
           )}
