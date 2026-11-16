@@ -640,20 +640,23 @@ export default function App(): React.JSX.Element {
           }}
           onUpdate={() => {
             /*
-             * One press: fetch the current build, then open it. An update that leaves you
-             * holding a file you have to find and double-click is only half a feature —
-             * the reason you pressed the button was to run the new version.
+             * Fetch the current build, and stop there.
+             *
+             * It used to open the file the moment it landed, which is a thing an updater
+             * should not decide: you pressed Update to be current, not to start a program
+             * — and a game or a tool that opens itself out of a download is a surprise,
+             * not a convenience. When the swap is done the screen is an installed product
+             * again, and the button is Launch.
+             *
+             * The completion is announced by the service (`files:updated`); this only
+             * puts the screen back in step with the disk.
              */
-            void bridge.files.download(selected.id).then(async (view) => {
+            void bridge.files.download(selected.id).then((view) => {
               if (view.state === 'error') {
                 toast(`Update failed — ${view.error ?? 'try again.'}`)
                 return
               }
-              // The completion is already announced by the service (`files:updated`),
-              // so this press says nothing twice — it just starts what it fetched.
-              const result = await bridge.files.launch(selected.id)
-              if (result.ok) void bridge.files.states().then(setInstalls)
-              else toast(`Could not launch — ${result.error ?? 'unknown error'}`)
+              void bridge.files.states().then(setInstalls)
             })
           }}
           onLaunch={() => {
