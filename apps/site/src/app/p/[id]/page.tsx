@@ -34,18 +34,17 @@ export async function generateStaticParams(): Promise<Array<{ id: string }>> {
 export const dynamicParams = true
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const [product, config] = await Promise.all([getProduct((await params).id), getConfig()])
-  const brand = config.brandName
-  if (!product) return { title: `Not found — ${brand}` }
+  const product = await getProduct((await params).id)
+  if (!product) return { title: 'Not found — INDRA' }
 
   return {
-    title: `${product.name} — ${brand}`,
+    title: `${product.name} — INDRA`,
     description:
       product.description ||
-      `${product.name}, build ${product.version}, delivered and kept current by the ${brand} loader.`,
+      `${product.name}, build ${product.version}, delivered and kept current by the INDRA loader.`,
     openGraph: {
       title: product.name,
-      description: product.description || `Build ${product.version}, via the ${brand} loader.`,
+      description: product.description || `Build ${product.version}, via the INDRA loader.`,
       type: 'website'
     }
   }

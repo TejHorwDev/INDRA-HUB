@@ -21,9 +21,7 @@ export default async function SiteFoot(): Promise<React.JSX.Element> {
 
   return (
     <footer className="foot">
-      <span>
-        {config.brandName} — {new Date().getFullYear()}
-      </span>
+      <span>INDRA — {new Date().getFullYear()}</span>
       <span>
         <i className="dot" aria-hidden />
         {config.maintenance ? 'Panel in maintenance' : 'Panel online'}

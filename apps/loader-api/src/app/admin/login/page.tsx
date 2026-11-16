@@ -1,17 +1,5 @@
 import LoginForm from '@/components/LoginForm'
-import { readConfig } from '@/lib/db'
-import { adminReady, databaseReady } from '@/lib/env'
-
-/** The same brand the panel and the site use, so a customer's login page is theirs. */
-async function brand(): Promise<string> {
-  if (!databaseReady()) return 'INDRA'
-  try {
-    const config = await readConfig()
-    return (config.brand_name ?? '').trim() || 'INDRA'
-  } catch {
-    return 'INDRA'
-  }
-}
+import { adminReady } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,16 +10,14 @@ export const dynamic = 'force-dynamic'
  * what this is. The wordmark at the size of a poster, one line under it, two fields, one
  * button. That is the whole page, and at this size it does not need anything else.
  */
-export default async function LoginPage(): Promise<React.JSX.Element> {
-  const named = await brand()
-
+export default function LoginPage(): React.JSX.Element {
   return (
     <main className="center">
       <div className="login">
         <div className="login-mark">
           <span className="brand-mark" aria-hidden="true" />
         </div>
-        <h1 className="login-title">{named}</h1>
+        <h1 className="login-title">INDRA LOADER</h1>
         <p className="login-sub">Control panel</p>
 
         {adminReady() ? (

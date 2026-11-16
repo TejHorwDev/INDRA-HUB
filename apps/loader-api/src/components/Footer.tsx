@@ -26,7 +26,7 @@ export default function Footer(): React.JSX.Element {
 
   return (
     <footer className="foot">
-      <span className="foot-brand">control panel</span>
+      <span className="foot-brand">INDRA LOADER · control panel</span>
       <span className="foot-live">
         <i />
         <span className="mono" suppressHydrationWarning>
