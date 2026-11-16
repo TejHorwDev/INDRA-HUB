@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getLoader, getProducts, INSTALLER_URL, size, type Product } from '@/lib/catalogue'
+import { getLoader, getProducts, size, type Product } from '@/lib/catalogue'
 
 export const revalidate = 10
 
@@ -82,6 +82,8 @@ export default async function Home(): Promise<React.JSX.Element> {
   const live = products.filter((product) => product.status === 'active')
   const version = loader.version ? `v${loader.version}` : 'latest'
   const weighted = loader.bytes ? size(loader.bytes) : ''
+  /* The file itself, printed under the button — but only once the probe has seen it. */
+  const file = loader.verified && loader.name ? loader.name : ''
 
   return (
     <>
@@ -106,7 +108,7 @@ export default async function Home(): Promise<React.JSX.Element> {
               </p>
 
               <div className="hero-actions">
-                <a className="btn solid lg" href={INSTALLER_URL}>
+                <a className="btn solid lg" href={loader.href} title={loader.name ?? undefined}>
                   {DOWNLOAD}
                   Download for Windows
                 </a>
@@ -115,7 +117,9 @@ export default async function Home(): Promise<React.JSX.Element> {
                 </a>
               </div>
 
-              <span className="hero-meta">{weighted ? `${weighted} · ` : ''}Windows 10 / 11 · 64-bit</span>
+              <span className="hero-meta">
+                {[file, weighted, 'Windows 10 / 11 · 64-bit'].filter(Boolean).join(' · ')}
+              </span>
             </div>
           </div>
         </section>
@@ -177,7 +181,7 @@ export default async function Home(): Promise<React.JSX.Element> {
               </div>
 
               <div className="band-actions">
-                <a className="btn solid lg" href={INSTALLER_URL}>
+                <a className="btn solid lg" href={loader.href} title={loader.name ?? undefined}>
                   {DOWNLOAD}
                   Download
                 </a>

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
-import { SITE_URL } from '@/lib/catalogue'
+import { API_ORIGIN, SITE_URL } from '@/lib/catalogue'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -32,6 +32,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <head>
+        {/*
+         * The panel is a different origin and the download goes straight at it, so open the
+         * connection while the page is still painting. It is one handshake saved on the only
+         * click on this site that has to feel instant.
+         */}
+        <link rel="preconnect" href={API_ORIGIN} crossOrigin="" />
+      </head>
       <body>{children}</body>
     </html>
   )
