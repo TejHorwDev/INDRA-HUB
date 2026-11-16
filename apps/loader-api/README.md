@@ -39,7 +39,7 @@ INDRA HUB (`indra-hub`, ref `cztyznuoferktewdhyji`):
 |---|---|
 | `loader_apps` | the catalogue, RLS on with no policy |
 | `loader_config` | the one link, seeded empty |
-| `loader-files` | a private bucket, 300 MB per file |
+| `loader-files` | a public bucket, 300 MB per file |
 
 The tables are `loader_*` on purpose: every other table in that project is `indra_*`
 and belongs to the hub. Two applications, one database, one bill, one backup — and a
@@ -50,20 +50,77 @@ repository, so a second deployment can be rebuilt from nothing.
 
 ### Capacity, honestly
 
-Supabase Storage gives 1 GB on the free plan, which is about **eight** 116 MB
-installers. That is enough to launch and not enough to grow. When the catalogue
-starts filling up, either raise the plan or move to Cloudflare R2 — and moving is a
-configuration change, not a code change:
+Supabase Storage gives **1 GB of storage and 5 GB of egress a month** on the free plan.
+This catalogue is about 200 MB of installers plus a 14 MB backdrop film, and every visit
+pulls a few megabytes of artwork — so the free plan is a countdown, not a home.
+
+Backblaze B2 gives **10 GB of storage and 1 GB of downloads a day**, free, with no card.
+That is several times the headroom, and it is where this deployment is meant to live:
+
+| | storage | egress | per-file ceiling |
+|---|---|---|---|
+| Supabase free | 1 GB | 5 GB / month | 50 MB (raised here to 300) |
+| **Backblaze B2** | **10 GB** | **1 GB / day** | none (5 GB single upload) |
+| Cloudflare R2 | 10 GB | **unmetered** | none (5 GB single PUT) |
+
+R2 is the better ceiling and the worse paperwork: its public address is a domain you have
+to arrange before media can be handed out at the edge. B2's is arithmetic — the region
+gives the host. Both are supported by `storage.ts`; `STORAGE_DRIVER` decides.
+
+### Moving the bucket to B2
+
+Three steps, none of them code.
+
+**1. The bucket.** Backblaze → *My Account → Buckets → Create a Bucket*. Name it
+(`indra-files`), pick a region close to the people downloading, and **set it to Public** —
+artwork is handed out from `f004.backblazeb2.com` and a private bucket answers 401 there.
+Then *Application Keys → Add a New Application Key*, limited to that bucket, with read and
+write. It shows the key and the secret **once**.
+
+**2. The move.** Add these in GitHub → *Settings → Secrets and variables → Actions*:
 
 ```
-STORAGE_DRIVER=r2
-R2_ACCOUNT_ID=...
+SUPABASE_URL                 https://cztyznuoferktewdhyji.supabase.co
+SUPABASE_SERVICE_ROLE_KEY    Supabase → Project settings → API → service_role
+B2_KEY_ID                    from the application key
+B2_APPLICATION_KEY           from the application key
+B2_BUCKET                    indra-files
+B2_REGION                    us-west-004        (whatever the bucket says)
+B2_PUBLIC_URL                optional, only if a Cloudflare domain sits in front
 ```
 
-The same rows keep working; only new uploads land somewhere else.
+Then run the **storage** workflow. It starts as a dry run and prints every object, its
+size and every row whose address would move; run it again with `apply` on and it copies
+the bytes, rewrites the artwork addresses in `loader_apps.image_url` and `loader_config`
+to the bucket's public host, points `loader_apps.exe_url` at the API (an installer stays
+behind `/api/files/…`, where it is hashed and counted), and finally fetches the media back
+from the public host to prove it answers. It leaves the Supabase copies alone, so nothing
+is lost if you change your mind.
 
-If you leave `PUBLIC_BASE_URL` empty, files are served through `/api/files/<key>`
-and the bucket stays private. That is the default and the safer one.
+**3. The switch.** On Render, set the same five `B2_*` values (plus `STORAGE_DRIVER=b2`)
+and redeploy. From then on uploads land on B2 and reads come from whichever driver is
+active. Rollback is `STORAGE_DRIVER=supabase` and an undeploy — the old files are still
+there.
+
+Only new objects are affected by the driver, so the migration has to run *before* the
+switch, not after: it is what moves the existing ones.
+
+### What is public, and why
+
+`images/` and `videos/` are handed out as the bucket's own public URL, because a card
+preview and a backdrop film are the picture in the window and the storage provider's edge
+serves them far better than this service can — cached, resumable, at the visitor's edge
+instead of at a free instance that may be asleep. Installers are **not** media: an `exes/`
+key is still streamed by `/api/files/…`, where it can be gated, hashed and counted, and a
+stale media row that still points at `/api/files/…` gets a 302 to the public address.
+
+### The film
+
+The backdrop is the biggest thing a first visit downloads — 13.8 MB at 1080p. The
+**slim-media** workflow re-encodes it in place (no audio, 24 fps, CRF 30), reports the
+before and after, and replaces the object under the same key, so nothing needs repointing.
+It needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` and nothing else. Run it with
+`apply` off first; a loop behind a dim overlay loses nothing at a tenth of the size.
 
 ## Deploying it
 

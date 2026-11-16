@@ -1,0 +1,110 @@
+# Make the backdrop film cost a fraction of what it costs now.
+#
+# The film behind the hero is 13.8 MB — for a loop that plays behind a dim overlay, on a
+# phone, over a connection that is often not fast. That is the single largest thing a first
+# visit downloads, and on B2's free gigabyte-a-day it is the difference between ~70 visits a
+# day and ~400.
+#
+# A 1080p re-encode at a modest bitrate, without an audio track nobody hears, lands around
+# a tenth of the size with nothing visible lost behind the overlay. The object keeps its
+# key, so the address stored in the panel stays correct and the site picks it up on its
+# next revalidate — there is nothing to repoint.
+#
+# Needs two secrets: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. The download is public, the
+# write is not.
+#
+# Run it with `apply` off first: it encodes, prints both sizes, and uploads nothing.
+
+name: slim-media
+
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: 'Object key in the bucket (videos/… or images/…mp4)'
+        type: string
+        default: videos/mwgj8whb-m2bnh1-topographic-textures.1920x1080.mp4
+      width:
+        description: 'Width in pixels; height follows the aspect ratio'
+        type: string
+        default: '1920'
+      fps:
+        description: 'Frames per second'
+        type: string
+        default: '24'
+      crf:
+        description: 'Quality: lower is bigger and better (18 near-lossless, 30 small, 34 smallest)'
+        type: string
+        default: '30'
+      apply:
+        description: 'Replace the object with the smaller encode'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slim-media
+
+jobs:
+  slim:
+    name: re-encode
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BUCKET: ${{ secrets.SUPABASE_BUCKET || 'loader-files' }}
+      KEY: ${{ inputs.key }}
+
+    steps:
+      - name: check tools
+        run: ffmpeg -version | head -1
+
+      - name: fetch
+        run: |
+          curl -fsSL "$SUPABASE_URL/storage/v1/object/public/$BUCKET/$KEY" -o before.bin
+          printf 'before: %s bytes\n' "$(stat -c %s before.bin)"
+
+      - name: encode
+        run: |
+          # -an: a backdrop has no sound. faststart: the moov atom goes first, so playback
+          # can begin before the file has finished arriving — the difference between a film
+          # that starts and one that appears to hang on a slow line.
+          ffmpeg -y -loglevel error -i before.bin \
+            -an \
+            -vf "scale=${{ inputs.width }}:-2:flags=lanczos,fps=${{ inputs.fps }}" \
+            -c:v libx264 -preset slow -crf ${{ inputs.crf }} -profile:v high -level 4.1 \
+            -pix_fmt yuv420p -movflags +faststart \
+            after.mp4
+          printf 'after:  %s bytes\n' "$(stat -c %s after.mp4)"
+
+      - name: report
+        run: |
+          before=$(stat -c %s before.bin)
+          after=$(stat -c %s after.mp4)
+          echo "### $KEY" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | bytes | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| before | $before | $(awk "BEGIN{printf \"%.1f MB\", $before/1048576}") |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| after | $after | $(awk "BEGIN{printf \"%.2f MB\", $after/1048576}") |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| saved | $((before-after)) | $(awk "BEGIN{printf \"%.0f%%\", 100*($before-$after)/$before}") |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$after" -ge "$before" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "The encode came out no smaller. Nothing to replace — try a higher crf." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: replace
+        if: ${{ inputs.apply }}
+        run: |
+          curl -fsS -X POST "$SUPABASE_URL/storage/v1/object/$BUCKET/$KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "x-upsert: true" \
+            -H "Content-Type: video/mp4" \
+            --data-binary @after.mp4 \
+            -o /dev/null -w 'uploaded: HTTP %{http_code}\n'
+          echo "Replaced in place. The key is unchanged, so nothing needs repointing." >> "$GITHUB_STEP_SUMMARY"

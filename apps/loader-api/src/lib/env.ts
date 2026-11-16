@@ -25,7 +25,13 @@ export const env = {
     accountId: text('R2_ACCOUNT_ID'),
     accessKeyId: text('R2_ACCESS_KEY_ID'),
     secretAccessKey: text('R2_SECRET_ACCESS_KEY'),
-    bucket: text('R2_BUCKET')
+    bucket: text('R2_BUCKET'),
+    /**
+     * R2's public address is not derivable — it is either an `r2.dev` subdomain or a
+     * domain of your own — so it has to be given. Without it, media on R2 falls back to
+     * being streamed by this service, which is correct and slower.
+     */
+    publicUrl: text('R2_PUBLIC_URL')
   },
 
   b2: {
@@ -34,6 +40,12 @@ export const env = {
     bucket: text('B2_BUCKET'),
     /** Optional: derived from the region when it is not set. See `b2Endpoint()`. */
     endpoint: text('B2_ENDPOINT'),
+    /**
+     * Where a *public* B2 bucket answers, when it is not the derived
+     * `https://f004.backblazeb2.com/file/<bucket>` — a Cloudflare custom domain, for
+     * instance. Optional: the cluster host is arithmetic. See `b2PublicBase()`.
+     */
+    publicUrl: text('B2_PUBLIC_URL'),
     region: text('B2_REGION') || 'us-west-004'
   },
 

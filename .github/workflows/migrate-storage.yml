@@ -1,0 +1,69 @@
+# Move the bucket to Backblaze B2, where the free plan is 10 GB of storage and a gigabyte a
+# day of downloads instead of 1 GB of storage and 5 GB a month.
+#
+# This runs here rather than on a laptop because it needs two sets of credentials at once —
+# Supabase's to read, B2's to write — and the repository is already where they can sit
+# without being pasted anywhere. Nothing is printed that is secret; the script only ever
+# talks about keys, sizes and addresses.
+#
+# Add these in Settings → Secrets and variables → Actions before the first run:
+#
+#   SUPABASE_URL                 https://cztyznuoferktewdhyji.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY    the service role key, from Supabase → Project settings → API
+#   B2_KEY_ID                    from the Backblaze application key
+#   B2_APPLICATION_KEY           from the same key
+#   B2_BUCKET                    the bucket name, e.g. indra-files
+#   B2_REGION                    the bucket's region, e.g. us-west-004
+#   B2_PUBLIC_URL                optional, only when a Cloudflare domain sits in front
+#   API_BASE_URL                 optional, defaults to the Render service
+#
+# Run it once with `apply` off to see exactly what would move, then again with it on.
+
+name: storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Copy the files and rewrite the rows (leave off for a dry run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storage
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: migrate to b2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/loader-api/package-lock.json
+
+      - name: install
+        run: npm ci --prefix apps/loader-api
+
+      - name: migrate
+        working-directory: apps/loader-api
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET || 'loader-files' }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          B2_REGION: ${{ secrets.B2_REGION }}
+          B2_PUBLIC_URL: ${{ secrets.B2_PUBLIC_URL }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://indra-loader-api.onrender.com' }}
+        run: node scripts/migrate-storage.mjs ${{ inputs.apply && '--apply' || '' }}

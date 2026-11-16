@@ -210,9 +210,25 @@ async function main() {
   const urls = await bundle('src/lib/url.ts', 'url')
 
   check('our own url yields its key', urls.keyFromUrl('https://x.onrender.com/api/files/exes/a.exe') === 'exes/a.exe')
-  check('a public base yields its key', urls.keyFromUrl(`${process.env.PUBLIC_BASE_URL ?? 'https://cdn.test'}/exes/b.exe`) !== undefined)
+  check('a public base yields its key', urls.keyFromUrl('https://cdn.test/exes/b.exe') === 'exes/b.exe')
   check('a query string is not part of the key', urls.keyFromUrl('https://x/api/files/images/c.png?v=2') === 'images/c.png')
   check('a percent-encoded name decodes', urls.keyFromUrl('https://x/api/files/exes/my%2Eexe') === 'exes/my.exe')
+  /*
+   * The three addresses a row can hold now that artwork is served by the bucket rather
+   * than by this service. Each of them was unreadable while `keyFromUrl` looked for
+   * `/api/files/`, which made every artwork look missing and left a replaced file in the
+   * bucket for ever.
+   */
+  check(
+    'a supabase public url yields its key',
+    urls.keyFromUrl('https://ref.supabase.co/storage/v1/object/public/loader-files/images/a.webm') === 'images/a.webm'
+  )
+  check(
+    'a backblaze public url yields its key',
+    urls.keyFromUrl('https://f004.backblazeb2.com/file/indra-files/videos/f.mp4') === 'videos/f.mp4'
+  )
+  check('an r2 public url yields its key', urls.keyFromUrl('https://pub-abc123.r2.dev/images/a.webm') === 'images/a.webm')
+  check('a page is not an object', urls.keyFromUrl('https://site.example/p/external-max') === null)
   // Keys are sanitised on the way in, so a space cannot be in one — and must not be
   // laundered into one by decoding.
   check('a space is refused, because a key never has one', urls.keyFromUrl('https://x/api/files/exes/my%20app.exe') === null)

@@ -341,9 +341,50 @@ export interface UploadTarget {
  * Installers are not media and are not public: an `exes/` key still comes through this
  * server, where it can be gated, hashed and counted.
  */
+/**
+ * Where a public B2 bucket answers.
+ *
+ * Backblaze gives a public bucket two addresses: the S3 endpoint, which wants a
+ * signature, and a friendly host — `f004.backblazeb2.com/file/<bucket>/<key>` — which
+ * wants nothing. The cluster number is the tail of the region, so `us-west-004` is
+ * `f004`; that is arithmetic, not configuration. `B2_PUBLIC_URL` exists for the day a
+ * Cloudflare domain sits in front of it, which is also how B2's egress gets to be free.
+ */
+export function b2PublicBase(): string | null {
+  const settings = storageSettings()
+  if (env.b2.publicUrl) return env.b2.publicUrl.replace(/\/+$/, '')
+  if (!settings.b2.bucket) return null
+  const cluster = /(\d{3})\s*$/.exec(settings.b2.region)?.[1] ?? '004'
+  return `https://f${cluster}.backblazeb2.com/file/${settings.b2.bucket}`
+}
+
+function r2PublicBase(): string | null {
+  return env.r2.publicUrl ? env.r2.publicUrl.replace(/\/+$/, '') : null
+}
+
 export function mediaUrlFor(key: string): string | null {
   if (!key.startsWith('images/') && !key.startsWith('videos/')) return null
-  if (driver() !== 'supabase' || !env.supabaseUrl) return null
+
+  const active = driver()
+
+  /*
+   * B2 and R2 are object stores with a public host in front of them, so artwork there is
+   * a plain URL too — which matters, because the alternative is this service fetching and
+   * forwarding every card clip and every backdrop film, and that is exactly what was
+   * wrong with the site before. R2's address cannot be derived (it is an `r2.dev`
+   * subdomain or a domain of your own), so without `R2_PUBLIC_URL` it stays behind the
+   * proxy: correct, slower, and never a broken link.
+   */
+  if (active === 'b2') {
+    const base = b2PublicBase()
+    return base ? `${base}/${key}` : null
+  }
+  if (active === 'r2') {
+    const base = r2PublicBase()
+    return base ? `${base}/${key}` : null
+  }
+
+  if (active !== 'supabase' || !env.supabaseUrl) return null
   const base = env.supabaseUrl.replace(/\/+$/, '')
   return `${base}/storage/v1/object/public/${env.supabaseBucket}/${key}`
 }
