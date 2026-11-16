@@ -1,6 +1,6 @@
 import { readConfig } from '@/lib/db'
 import { latestLoaderRelease } from '@/lib/github'
-import { safeLink } from '@/app/api/loader/config/route'
+import { safeLink } from '@/lib/url'
 
 export const dynamic = 'force-dynamic'
 
