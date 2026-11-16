@@ -119,7 +119,7 @@ function toProduct(raw: RawApp): Product | null {
   }
 }
 
-async function once<T>(path: string, fallback: T): Promise<T> {
+async function once<T>(path: string, fallback: T, timeoutMs = 25_000): Promise<T> {
   try {
     const response = await fetch(`${API}${path}`, {
       /*
@@ -131,14 +131,14 @@ async function once<T>(path: string, fallback: T): Promise<T> {
        */
       next: { revalidate: 10 },
       /*
-       * Twenty-five seconds, then give up.
+       * Twenty-five seconds by default, then give up.
        *
        * The API is a free-tier service that sleeps, and the first request after it wakes
        * can take half an hour's worth of patience. A front page that times out at nine
        * seconds renders "nothing is published" — which is exactly how a catalogue of four
        * products ends up looking like an empty page.
        */
-      signal: AbortSignal.timeout(25_000)
+      signal: AbortSignal.timeout(timeoutMs)
     })
     if (!response.ok) return fallback
     return (await response.json()) as T
@@ -218,21 +218,86 @@ export async function getConfig(): Promise<SiteConfig> {
   }
 }
 
-/** The newest published loader, read from the panel so the site does not touch GitHub. */
-export async function getLoader(): Promise<{ version: string | null; bytes: number | null }> {
-  // The update feed answers with a nested object — the same one the desktop app adopts.
-  const body = await read<{ update?: { version?: unknown; size?: unknown } | null }>(
-    '/api/loader/update',
-    {}
-  )
-  const update = body.update ?? null
-  const version = update && typeof update.version === 'string' && update.version ? update.version : null
-  const bytes = update && typeof update.size === 'number' && update.size > 0 ? update.size : null
-  return { version, bytes }
+/** The proxy every download goes through. The panel streams the installer and passes Range. */
+export const INSTALLER_URL = `${API}/api/loader/installer`
+
+/** Where the panel lives, so the page can open a connection to it before anyone clicks. */
+export const API_ORIGIN = API
+
+/**
+ * What the Download button is going to hand over.
+ *
+ * Three things were wrong with asking the update feed for this. The update feed describes
+ * the *payload* — the 400 KB `.asar` the installed loader swaps in when it updates itself —
+ * so the site was printing "0.4 MB" next to a 116 MB installer, which reads as a fake
+ * download. It is cached for a minute inside the panel. And it never checks that the file
+ * is actually there.
+ *
+ * So the number on the page now comes from the download itself: `?probe=1` resolves the
+ * newest release exactly the way a real click does, asks GitHub for the first byte of the
+ * file, and answers with the asset's name, its true size, and whether it is reachable. The
+ * page repeats only what that check returned, which is why the version under "Download"
+ * and the file you get are the same build by construction.
+ */
+interface InstallerProbe {
+  version?: unknown
+  name?: unknown
+  bytes?: unknown
+  reachable?: unknown
 }
 
-/** Every download is this one URL: the panel streams the installer and passes Range through. */
-export const INSTALLER_URL = `${API}/api/loader/installer`
+export interface Loader {
+  /** The newest published build — the version the download actually delivers. */
+  version: string | null
+  /** The installer's real size. Null when it could not be verified; the page then says nothing. */
+  bytes: number | null
+  /** The file you get, e.g. `INDRA-LOADER-Setup-1.0.52.exe`. */
+  name: string | null
+  /** True when the pipe answered with a file that exists. */
+  verified: boolean
+  /**
+   * The address the button points at, carrying the version.
+   *
+   * The panel caches a response for five minutes, and an installer URL that changes with
+   * every release means a cached copy can only ever be the build it was named after — never
+   * last week's installer handed out under this week's version number.
+   */
+  href: string
+}
+
+export async function getLoader(): Promise<Loader> {
+  const [body, probe] = await Promise.all([
+    // The update feed answers with a nested object — the same one the desktop app adopts.
+    read<{ update?: { version?: unknown; tag?: unknown } | null }>('/api/loader/update', {}),
+    /*
+     * No retry, and a shorter leash than the catalogue.
+     *
+     * This one is a verification, not the page's content: if it is slow the page should
+     * still render on time, without a size, rather than stall on a sleeping API twice.
+     */
+    once<InstallerProbe>('/api/loader/installer?probe=1', {}, 12_000)
+  ])
+
+  const update = body.update ?? null
+  const probed = typeof probe.version === 'string' && probe.version ? probe.version : null
+  const version =
+    probed ?? (update && typeof update.version === 'string' && update.version ? update.version : null)
+
+  const bytes = typeof probe.bytes === 'number' && probe.bytes > 0 ? probe.bytes : null
+
+  return {
+    version,
+    bytes,
+    name:
+      typeof probe.name === 'string' && probe.name
+        ? probe.name
+        : version
+          ? `INDRA-LOADER-Setup-${version}.exe`
+          : null,
+    verified: probe.reachable === true && bytes !== null,
+    href: version ? `${INSTALLER_URL}?v=${encodeURIComponent(version)}` : INSTALLER_URL
+  }
+}
 
 export function size(bytes: number | null): string {
   if (!bytes) return ''

@@ -10,8 +10,9 @@ exists:
 | --- | --- | --- |
 | the catalogue | `GET /api/loader/apps` | products, artwork, versions, which are live |
 | the settings | `GET /api/loader/config` | the film behind the hero, the published website |
-| the release | `GET /api/loader/update` | the current loader version and its size |
+| the release | `GET /api/loader/update` | the current loader version |
 | the download | `GET /api/loader/installer` | the installer itself, streamed with Range |
+| the download, checked | `GET /api/loader/installer?probe=1` | the version, name and true size of the file the button hands over |
 
 **How live it is.** Every read is cached for ten seconds, and every page revalidates on the
 same clock. Lock a product in the panel and it is locked here — dimmed, glyph, the word
@@ -21,7 +22,18 @@ sync. The one limit is the panel's own API: on a free tier that sleeps, the firs
 after it wakes is slow, and no amount of caching on this side changes that.
 
 The download is always the newest build: the button points at
-`GET /api/loader/installer`, which resolves the latest release on every request.
+`GET /api/loader/installer`, which resolves the latest release on every request, and the
+address carries the version (`?v=1.0.52`) so a cached response can only ever be the build it
+was named after.
+
+**The number under the button is the file, not a guess.** The update feed describes the
+*payload* — the 400 KB `.asar` an installed loader swaps in when it updates itself — and
+printing that next to a 116 MB installer was how this site came to advertise a fake
+download. So the version, the filename and the size all come from `?probe=1`, which resolves
+the release exactly the way a click does and asks GitHub for the first byte of the real
+asset. If that check fails, the page prints no size at all rather than a wrong one. The probe
+runs on the same ten-second clock, which also keeps the panel's release lookup warm, so the
+click does not land on a cold resolver.
 
 Add a product in the panel and it appears here within ten seconds. Nothing on this site
 has to be edited to publish anything.

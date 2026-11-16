@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { INSTALLER_URL, getLoader, size } from '@/lib/catalogue'
+import { getLoader, size } from '@/lib/catalogue'
 
 /*
  * The bar: the app's title bar, straightened out for the web.
@@ -23,7 +23,7 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
         <nav className="nav" aria-label="Sections">
           <a href="/#library">Library</a>
           <a href="/#how">Loader{version ? ` ${version}` : ''}</a>
-          <a className="btn solid keep" href={INSTALLER_URL}>
+          <a className="btn solid keep" href={loader.href}>
             Download{weighted ? ` · ${weighted}` : ''}
           </a>
         </nav>

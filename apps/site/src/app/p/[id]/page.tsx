@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getLoader, getProduct, getProducts, INSTALLER_URL, size } from '@/lib/catalogue'
+import { getLoader, getProduct, getProducts, size } from '@/lib/catalogue'
 
 export const revalidate = 10
 
@@ -110,7 +110,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
               ) : null}
 
               <div className="detail-actions">
-                <a className="btn solid lg" href={INSTALLER_URL}>
+                <a className="btn solid lg" href={loader.href} title={loader.name ?? undefined}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
                     <path
                       d="M8 2v8m0 0 3-3m-3 3L5 7M3 12.5h10"
@@ -146,7 +146,9 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
                 </div>
               </dl>
 
-              {weighted ? <p className="hero-meta" style={{ marginTop: 18, display: 'block' }}>Loader {loaderVersion} · {weighted}</p> : null}
+              <p className="hero-meta" style={{ marginTop: 18, display: 'block' }}>
+                {[`Loader ${loaderVersion}`, loader.name ?? '', weighted].filter(Boolean).join(' · ')}
+              </p>
             </div>
           </div>
 
