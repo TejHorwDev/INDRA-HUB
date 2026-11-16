@@ -38,9 +38,13 @@ export interface Product {
 
 export interface SiteConfig {
   website: string
+  /** The backdrop film, published in the panel. Empty when the panel has none. */
   video: string
   notice: string
   maintenance: boolean
+  /** 0–100, from the panel: how hard the film is dimmed and blurred. */
+  filmDim: number
+  filmBlur: number
 }
 
 interface RawApp {
@@ -223,13 +227,20 @@ export async function getProduct(handle: string): Promise<Product | null> {
   return products.find((product) => product.slug === key) ?? products.find((product) => product.id === handle) ?? null
 }
 
+function count(value: unknown): number {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : 0
+}
+
 export async function getConfig(): Promise<SiteConfig> {
   const body = await read<Record<string, unknown>>('/api/loader/config', {})
   return {
     website: typeof body['website'] === 'string' ? body['website'] : '',
     video: typeof body['video'] === 'string' ? body['video'] : '',
     notice: typeof body['notice'] === 'string' ? body['notice'] : '',
-    maintenance: body['maintenance'] === true || body['maintenance'] === '1' || body['maintenance'] === 'true'
+    maintenance: body['maintenance'] === true || body['maintenance'] === '1' || body['maintenance'] === 'true',
+    filmDim: count(body['filmDim']),
+    filmBlur: count(body['filmBlur'])
   }
 }
 

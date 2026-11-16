@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { getLoader, getProducts, size, type Product } from '@/lib/catalogue'
+import { getConfig, getLoader, getProducts, size, type Product } from '@/lib/catalogue'
 
 export const revalidate = 10
 
@@ -54,9 +54,7 @@ function Card({ product, first }: { product: Product; first: boolean }): React.J
         <span>{initials}</span>
       </span>
 
-      {product.image && product.imageIsVideo ? (
-        <Media src={product.image} dim={product.artworkDim} priority={first} />
-      ) : null}
+      {product.image ? <Media src={product.image} dim={product.artworkDim} priority={first} /> : null}
 
       <span className="card-scrim" aria-hidden />
       {live ? null : (
@@ -77,7 +75,7 @@ function Card({ product, first }: { product: Product; first: boolean }): React.J
 }
 
 export default async function Home(): Promise<React.JSX.Element> {
-  const [products, loader] = await Promise.all([getProducts(), getLoader()])
+  const [products, loader, config] = await Promise.all([getProducts(), getLoader(), getConfig()])
 
   const live = products.filter((product) => product.status === 'active')
   const version = loader.version ? `v${loader.version}` : 'latest'
@@ -91,7 +89,36 @@ export default async function Home(): Promise<React.JSX.Element> {
 
       <main id="top">
         <section className="hero">
-          <span className="hero-light" aria-hidden />
+          {/*
+           * The film the panel publishes, if it published one.
+           *
+           * It is a plain <video> with autoplay, muted and loop on the element itself, so it
+           * starts without waiting for this page's JavaScript — and it is the only decoder
+           * on the page that runs without being asked, because a backdrop that waits for an
+           * observer has already missed the moment it was there for. Never scaled, never
+           * filtered unless the panel asks for a blur, and dimmed by an overlay rather than
+           * by a filter: the frame stays on the GPU either way.
+           */}
+          {config.video ? (
+            <div
+              className="hero-film"
+              aria-hidden
+              style={
+                config.filmBlur
+                  ? { filter: `blur(${Math.min(40, config.filmBlur) / 2}px)`, transform: 'scale(1.04)' }
+                  : undefined
+              }
+            >
+              <video src={config.video} autoPlay muted loop playsInline preload="auto" />
+              <span
+                className="hero-film-dim"
+                style={{ background: `rgba(6, 6, 8, ${Math.min(85, config.filmDim) / 100})` }}
+              />
+              <span className="hero-veil" />
+            </div>
+          ) : (
+            <span className="hero-light" aria-hidden />
+          )}
 
           <div className="wrap">
             <div className="hero-inner fade-up">
@@ -120,6 +147,8 @@ export default async function Home(): Promise<React.JSX.Element> {
               <span className="hero-meta">
                 {[file, weighted, 'Windows 10 / 11 · 64-bit'].filter(Boolean).join(' · ')}
               </span>
+
+              {config.notice ? <p className="hero-notice">{config.notice}</p> : null}
             </div>
           </div>
         </section>

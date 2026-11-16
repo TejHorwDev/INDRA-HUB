@@ -9,7 +9,7 @@ exists:
 | it reads | from | what for |
 | --- | --- | --- |
 | the catalogue | `GET /api/loader/apps` | products, artwork, versions, which are live |
-| the settings | `GET /api/loader/config` | the film behind the hero, the published website |
+| the settings | `GET /api/loader/config` | the film behind the hero, its dim and blur, the notice, the published website |
 | the release | `GET /api/loader/update` | the current loader version |
 | the download | `GET /api/loader/installer` | the installer itself, streamed with Range |
 | the download, checked | `GET /api/loader/installer?probe=1` | the version, name and true size of the file the button hands over |
@@ -100,6 +100,19 @@ repository, set **root directory `apps/site`**, and drop `bootstrap.mjs`. Nothin
 folder changes.
 
 **Render is not needed.** `render.yaml` at the repository root only defines the panel now.
+
+## Artwork
+
+Whatever the panel published is what the card shows, and the URL is the only thing that
+decides which: a `.webm`/`.mp4` is a looping `<video>`, a `.png`/`.jpg`/`.webp` is an `<img>`.
+Both fade in over the name plate, and an artwork that cannot be read leaves the plate in
+place rather than a broken-media glyph.
+
+The backdrop behind the hero is the panel's own film (`videos/…` in the settings), with the
+panel's dim as an overlay and its blur applied only when it is not zero. Its `<video>` carries
+`autoplay`, `muted` and `loop` as attributes rather than as React props, so it starts while
+the page is still hydrating — a backdrop that waits for JavaScript has already missed the
+moment it was there for.
 
 ## Video
 
