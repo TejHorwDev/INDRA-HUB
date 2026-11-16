@@ -56,13 +56,19 @@ INDRA_SITE_DEMO=1 npm run dev
   healthCheckPath: /
 ```
 
-Two ways, both fine:
+Three ways, in order of how much they depend on your accounts:
 
-1. **Blueprint** — point Render at the repository, apply `render.yaml`, and you get both
-   services (`indra-loader-api` and `indra-site`).
-2. **New Web Service** — root directory `apps/site`, build `npm install && npm run build`,
-   start `npm start`, two env vars: `INDRA_API=https://indra-loader-api.onrender.com` and
-   `SITE_URL=<the service's own URL>`.
+1. **Public Git repository — no account connection needed.** If Render's GitHub connection
+   is refusing to link, this is the way in: the repository is public, so Render can clone it
+   with no login at all. New **Web Service** → *Public Git repository* →
+   `https://github.com/TejHorwDev/INDRA-HUB` → branch `main` → **Root Directory** `apps/site`
+   → runtime Node → build `npm install && npm run build` → start `npm start` → env
+   `INDRA_API=https://indra-loader-api.onrender.com`, `SITE_URL=<the service's own URL>`.
+   The one cost: without a linked Git account Render cannot auto-deploy, so a push is
+   followed by **Manual Deploy → Deploy latest commit**.
+2. **Blueprint** — point Render at the repository, apply `render.yaml`, and you get both
+   services (`indra-loader-api` and `indra-site`) with auto-deploy.
+3. **New Web Service, Git-connected** — same fields as (1), plus automatic deploys on push.
 
 No secrets. Nothing to copy between services. The site is public read-only.
 
