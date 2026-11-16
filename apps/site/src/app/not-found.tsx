@@ -4,9 +4,6 @@ import { INSTALLER_URL } from '@/lib/catalogue'
 
 /*
  * A product that has been taken down is not a dead end.
- *
- * Nothing is published for good, so an old link has to land somewhere that still makes
- * sense: the site says the address is gone, and offers the two things that are not.
  */
 export default function NotFound(): React.JSX.Element {
   return (
@@ -14,28 +11,26 @@ export default function NotFound(): React.JSX.Element {
       <SiteBar />
 
       <main>
-        <section className="plate">
-          <span className="plate-veil" aria-hidden />
+        <div className="wrap">
+          <div className="detail">
+            <div>
+              <p className="label">404</p>
+              <h1 className="wordmark" style={{ marginTop: 12 }}>
+                Not here.
+              </h1>
+              <p className="tagline">This address is gone. The library is not.</p>
 
-          <div className="shell">
-            <div className="plate-inner">
-              <p className="label">404 — nothing at this address</p>
-
-              <h1 className="metal">This one is gone.</h1>
-
-              <div className="actions" style={{ justifyContent: 'flex-start' }}>
-                <a className="btn primary" href="/#products">
-                  See the lineup
+              <div className="detail-actions">
+                <a className="btn solid lg" href="/#library">
+                  The library
                 </a>
-                <a className="btn ghost" href={INSTALLER_URL}>
+                <a className="btn ghost lg" href={INSTALLER_URL}>
                   Download the loader
                 </a>
               </div>
             </div>
           </div>
-        </section>
 
-        <div className="shell">
           <SiteFoot />
         </div>
       </main>
