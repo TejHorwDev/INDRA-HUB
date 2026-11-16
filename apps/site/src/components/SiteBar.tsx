@@ -3,10 +3,8 @@ import { INSTALLER_URL, getLoader, size } from '@/lib/catalogue'
 /*
  * The bar.
  *
- * Four words and one button, at every width. The links are absolute so that the bar on a
- * product page still points at the right place — an in-page anchor on a subpage is a link
- * that goes nowhere, and that is the kind of small wrongness a visitor feels without being
- * able to name it.
+ * Sticky, and it always carries the one action the page exists for. The links are absolute
+ * so that the bar on a product page still points at the right place.
  */
 export default async function SiteBar(): Promise<React.JSX.Element> {
   const loader = await getLoader()
@@ -17,17 +15,18 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
     <header className="bar">
       <div className="bar-inner">
         <a className="wordmark" href="/" aria-label="INDRA — home">
-          INDRA <span>SOFTWARE</span>
+          <i aria-hidden />
+          INDRA
         </a>
 
-        <nav className="bar-links" aria-label="Sections">
+        <nav className="nav" aria-label="Sections">
           <a href="/#products">Products</a>
           <a href="/#how">How it works</a>
           <a href="/#get">
             Download{version ? ` ${version}` : ''}
-            {weighted ? <span className="bar-sub"> {weighted}</span> : null}
+            {weighted ? ` · ${weighted}` : ''}
           </a>
-          <a className="button primary keep" href={INSTALLER_URL} style={{ height: 38, padding: '0 18px', fontSize: 13 }}>
+          <a className="btn primary sm keep" href={INSTALLER_URL}>
             Get the loader
           </a>
         </nav>
