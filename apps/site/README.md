@@ -72,6 +72,14 @@ INDRA_SITE_DEMO=1 npm run dev
 The panel's `website` setting points at it, so the loader and the site agree about where
 "the website" is.
 
+**One setting there is not in this repository.** The project has Deployment Protection set to
+Vercel Authentication with `all_except_custom_domains`, which puts a Vercel login in front of
+every `*.vercel.app` address — including the production alias. Anyone who is not signed in to
+the team sees a login wall instead of the site, and an anonymous `curl` of the alias answers
+with Vercel's SSO screen. Turn it off in **Settings → Deployment Protection → Vercel
+Authentication**, or serve the site from a custom domain (custom domains are exempt). The
+connector used to deploy this project cannot change that setting.
+
 ### How it is deployed, and why it is odd
 
 Vercel refuses to be handed a Git repository until a Git login connection exists on the
