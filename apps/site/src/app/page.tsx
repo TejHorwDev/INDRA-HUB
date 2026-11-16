@@ -119,7 +119,7 @@ export default async function Home(): Promise<React.JSX.Element> {
             <div className="hero-inner fade-up">
               <span className="kicker">
                 <i />
-                {config.brandName} LOADER {version}
+                INDRA LOADER {version}
               </span>
 
               <h1 className="hero-title wordmark">Browse the library.</h1>

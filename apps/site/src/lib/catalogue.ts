@@ -54,16 +54,6 @@ export interface SiteConfig {
    * Empty means the panel's own pipe, which is always the right build.
    */
   download: string
-  /**
-   * Whose name is on the site.
-   *
-   * A deployment can be sold, and a customer's loader should not be introduced as somebody
-   * else's product. These come from the panel, are set in Settings → Brand, and fall back to
-   * the defaults so a fresh deployment looks finished before anybody has typed anything.
-   */
-  brandName: string
-  brandMark: string
-  brandTagline: string
 }
 
 interface RawApp {
@@ -279,16 +269,8 @@ export async function getConfig(): Promise<SiteConfig> {
     maintenance: body['maintenance'] === true || body['maintenance'] === '1' || body['maintenance'] === 'true',
     filmDim: count(body['filmDim']),
     filmBlur: count(body['filmBlur']),
-    download: link(body['download']),
-    brandName: word(body['brandName']) || 'INDRA',
-    brandMark: word(body['brandMark']) || word(body['brandName']) || 'INDRA',
-    brandTagline: word(body['brandTagline'])
+    download: link(body['download'])
   }
-}
-
-/** A word from the panel: trimmed, length-capped, and never a wall of text in a heading. */
-function word(value: unknown): string {
-  return typeof value === 'string' ? value.trim().slice(0, 60) : ''
 }
 
 /**
