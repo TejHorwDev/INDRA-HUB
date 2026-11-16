@@ -88,6 +88,8 @@ export default function AppDetail({
   const metered = Boolean(install && install.total > 0)
   const megabytes = install ? (install.received / 1048576).toFixed(1) : '0.0'
   const installed = state === 'installed'
+  /** On this machine, but behind the published build: launchable, and worth replacing. */
+  const behind = state === 'update'
 
   const size = install && install.total > 0 ? `${(install.total / 1048576).toFixed(1)} MB` : ''
   const status = running
@@ -96,13 +98,19 @@ export default function AppDetail({
       ? metered
         ? `Downloading ${percent}%`
         : `Downloading ${megabytes} MB`
-      : installed
-        ? size
-          ? `Downloaded · ${size}`
-          : 'Downloaded'
-        : state === 'error'
-          ? 'Download failed'
-          : 'Not downloaded'
+      : behind
+        ? /* The version is the reason this line exists, and the size is the cost of it —
+             but the number itself stays off this screen, as it always has. */
+          size
+          ? `Update available · ${size}`
+          : 'Update available'
+        : installed
+          ? size
+            ? `Downloaded · ${size}`
+            : 'Downloaded'
+          : state === 'error'
+            ? 'Download failed'
+            : 'Not downloaded'
 
   return (
     <div className="absolute inset-0 z-30">
@@ -254,24 +262,25 @@ export default function AppDetail({
                   Cancel
                 </button>
               </>
-            ) : installed ? (
+            ) : installed || behind ? (
               <>
                 <button
                   type="button"
-                  onClick={onLaunch}
-                  disabled={running}
+                  onClick={behind ? onDownload : onLaunch}
+                  disabled={!behind && running}
                   className="grid flex-1 place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background,color] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:bg-white/[0.06] disabled:text-[var(--color-ink-3)] disabled:hover:bg-white/[0.06]"
                   style={{ height: BUTTON, borderRadius: 10 }}
                 >
-                  {running ? 'Running' : 'Launch'}
+                  {behind ? 'Update' : running ? 'Running' : 'Launch'}
                 </button>
                 <button
                   type="button"
-                  onClick={onReveal}
+                  onClick={behind ? onLaunch : onReveal}
+                  disabled={behind && running}
                   className="grid place-items-center border border-[var(--hairline-strong)] bg-transparent px-4 text-[12.5px] font-medium text-[var(--color-ink-2)] transition-[border-color,color] duration-150 hover:border-white/25 hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                   style={{ height: BUTTON, borderRadius: 10 }}
                 >
-                  Open folder
+                  {behind ? (running ? 'Running' : 'Launch') : 'Open folder'}
                 </button>
               </>
             ) : (

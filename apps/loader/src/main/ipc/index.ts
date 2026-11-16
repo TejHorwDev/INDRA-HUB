@@ -6,7 +6,7 @@ import { rememberVideo } from '../lib/backdrop-cache'
 import { currentFilmSource, ensureFilm, filmSource } from '../lib/film'
 import { loadCatalogue } from '../services/catalog'
 import { entitlementReport, ownedProductIds } from '../services/entitlement'
-import { cancelDownload, startDownload, states, uninstall } from '../services/downloads'
+import { cancelDownload, startDownload, states, uninstall, updateInstalled } from '../services/downloads'
 import { launch } from '../services/launch'
 import {
   checkForUpdates,
@@ -81,6 +81,17 @@ export function registerIpc(handlers: Handlers): void {
   // renderer still has no network of its own.
   ipcMain.handle('catalogue:load', async () => {
     const catalogue = await loadCatalogue()
+
+    /*
+     * The library keeps itself current.
+     *
+     * Every read of the catalogue is also the moment to compare it with what is on this
+     * machine: products are rebuilt monthly, and a customer running last month's
+     * executable had no way to find out. Behind on the following line, replaced in the
+     * background, old build deleted.
+     */
+    void updateInstalled(catalogue.apps)
+
     const film = catalogue.config.video
     // The launch card cannot fetch, so every read leaves a note for next time.
     rememberVideo(film)

@@ -72,11 +72,25 @@ export interface LoaderApp {
 
 /* ------------------------------------------------------------------- files */
 
-export type InstallState = 'absent' | 'downloading' | 'installed' | 'error'
+/*
+ * `update` is installed-but-behind: the file is on this machine and the catalogue has
+ * moved on. It is a real state rather than a flag on `installed`, because everything the
+ * interface says and does depends on which of the two it is.
+ */
+export type InstallState = 'absent' | 'downloading' | 'installed' | 'update' | 'error'
 
 export interface InstallView {
   id: string
   state: InstallState
+  /**
+   * The catalogue's current version, when it is known.
+   *
+   * Filled in whenever the catalogue has been read, for every product on this machine —
+   * which is what lets "installed" become "update" without another request.
+   */
+  latest: string | null
+  /** A newer build is being fetched to replace the one on disk. */
+  updating: boolean
   /** True while the launched process is alive. */
   running: boolean
   percent: number

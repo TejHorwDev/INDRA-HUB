@@ -1,5 +1,5 @@
 import { BrowserWindow, net } from 'electron'
-import { existsSync } from 'node:fs'
+import { existsSync, renameSync, rmSync } from 'node:fs'
 import type { InstallView, LoaderApp } from '@shared/types'
 import { discardPartial, downloadToFile, resumableBytes } from '../lib/downloader'
 import { loadCatalogue } from './catalog'
@@ -20,6 +20,54 @@ import { isRunning } from './launch'
 const entries = new Map<string, InstallView>()
 const controllers = new Map<string, AbortController>()
 
+/*
+ * What the catalogue currently publishes, by id.
+ *
+ * Kept here rather than in the renderer because the decision it feeds — "this machine is
+ * behind" — is a filesystem question, and it has to be answerable by the process that
+ * owns the file. It is refreshed on every catalogue read.
+ */
+const published = new Map<string, { version: string; sha256: string }>()
+
+/**
+ * Is the build on this machine behind the one being published?
+ *
+ * Two answers, because there are two ways to fall behind. The version is the obvious
+ * one — it is what the panel shows and what a person types when they publish. The hash
+ * is the one that catches the case where somebody re-uploads a fixed executable and
+ * forgets to change the version: same label, different file, and the customer would
+ * otherwise never be told. Anything downloaded before the hash was recorded falls back
+ * to the version alone.
+ */
+export function isStale(id: string): boolean {
+  const newest = published.get(id)
+  if (!newest) return false
+  const here = installed(id)
+  if (!here) return false
+  if (here.version !== newest.version) return true
+  if (newest.sha256 && here.sha256 && newest.sha256 !== here.sha256) return true
+  return false
+}
+
+/**
+ * Tell the downloader what the catalogue is currently offering.
+ *
+ * Called after every successful catalogue read. A product whose published version has
+ * moved on becomes `update` on the next state read, with no further network traffic —
+ * the version is already in the answer that was fetched for the library.
+ */
+export function noteCatalogue(apps: LoaderApp[]): void {
+  let changed = false
+  for (const app of apps) {
+    const before = published.get(app.id)
+    if (!before || before.version !== app.version || before.sha256 !== app.sha256) {
+      published.set(app.id, { version: app.version, sha256: app.sha256 })
+      changed = true
+    }
+  }
+  if (changed) broadcast()
+}
+
 function broadcast(): void {
   const snapshot = states()
   for (const window of BrowserWindow.getAllWindows()) {
@@ -31,6 +79,8 @@ function set(id: string, patch: Partial<InstallView>): void {
   const current = entries.get(id) ?? {
     id,
     state: 'absent',
+    latest: published.get(id)?.version ?? null,
+    updating: false,
     running: false,
     percent: 0,
     received: 0,
@@ -69,9 +119,14 @@ export function states(): Record<string, InstallView> {
 
   // What is on disk, whether or not this process has ever touched it.
   for (const entry of allInstalled()) {
+    const latest = published.get(entry.id)?.version ?? null
+    // On disk and behind: still usable, no longer current.
+    const behind = Boolean(latest && latest !== entry.version)
     result[entry.id] = {
       id: entry.id,
-      state: 'installed',
+      state: behind ? 'update' : 'installed',
+      latest,
+      updating: false,
       running: isRunning(entry.id),
       percent: 100,
       received: entry.bytes,
@@ -88,9 +143,12 @@ export function states(): Record<string, InstallView> {
       continue
     }
     const onDisk = installed(id)
+    const latest = published.get(id)?.version ?? null
+    const behind = Boolean(onDisk && latest && latest !== onDisk.version)
     result[id] = {
       ...view,
-      state: onDisk ? 'installed' : 'absent',
+      latest,
+      state: onDisk ? (behind ? 'update' : 'installed') : 'absent',
       running: onDisk ? isRunning(id) : false,
       percent: onDisk ? 100 : 0,
       received: onDisk ? onDisk.bytes : 0,
@@ -104,6 +162,8 @@ export function states(): Record<string, InstallView> {
     result[id] = {
       id,
       state: 'absent',
+      latest: published.get(id)?.version ?? null,
+      updating: false,
       running: false,
       percent: 0,
       received: 0,
@@ -121,6 +181,8 @@ export function stateOf(id: string): InstallView {
     states()[id] ?? {
       id,
       state: 'absent',
+      latest: published.get(id)?.version ?? null,
+      updating: false,
       running: false,
       percent: 0,
       received: 0,
@@ -139,13 +201,17 @@ export async function startDownload(id: string): Promise<InstallView> {
   if (entries.get(id)?.state === 'downloading') return stateOf(id)
 
   /*
-   * Downloaded once means downloaded. A file that is already in the library is not
-   * fetched again — not for a reinstall, not after a restart, and not because somebody
-   * pressed the button twice. Bandwidth is the reason this feature exists: one machine,
-   * one copy.
+   * Downloaded once means downloaded — unless the catalogue has moved on.
+   *
+   * A file that is already in the library is not fetched again for a reinstall, a
+   * restart, or a second press of the button. But the products are rebuilt every month,
+   * and a customer holding last month's executable has no way to know: the card said
+   * DOWNLOADED and the button was gone. So a version that no longer matches what is
+   * published is fetched, and replaces what is there.
    */
   const already = installed(id)
-  if (already) {
+  const replace = already !== null && isStale(id)
+  if (already && !replace) {
     set(id, {
       state: 'installed',
       percent: 100,
@@ -156,6 +222,12 @@ export async function startDownload(id: string): Promise<InstallView> {
     })
     return stateOf(id)
   }
+
+  /*
+   * A running executable is a locked file on Windows. Replacing it now would fail
+   * halfway through, so the update waits for a launch that is not happening.
+   */
+  if (replace && isRunning(id)) return stateOf(id)
 
   for (const [otherId, view] of entries) {
     if (view.state === 'downloading' && otherId !== id) {
@@ -181,16 +253,31 @@ export async function startDownload(id: string): Promise<InstallView> {
   const target = downloadTarget(app.name)
 
   /*
+   * A replacement is fetched beside the old build and swapped in at the end, never over
+   * it. Half a download written on top of a working executable is a broken product; a
+   * complete one renamed into place is a swap the filesystem does atomically.
+   */
+  const destination = replace ? `${target.exe}.new` : target.exe
+
+  /*
    * A fragment from an attempt that died is kept and continued, not thrown away. It is
    * only thrown away when it is too old to be trusted, which is what `resumableBytes`
    * decides — the server honours `Range`, so a retry costs the remainder rather than the
    * whole file.
    */
-  if (resumableBytes(target.exe) === 0) discardPartial(target.exe)
+  if (resumableBytes(destination) === 0) discardPartial(destination)
 
   let controller = new AbortController()
   controllers.set(id, controller)
-  set(id, { state: 'downloading', percent: 0, received: 0, total: 0, bytesPerSecond: 0, error: null })
+  set(id, {
+    state: 'downloading',
+    updating: replace,
+    percent: 0,
+    received: 0,
+    total: 0,
+    bytesPerSecond: 0,
+    error: null
+  })
 
   /*
    * A transfer that stops moving is not a transfer.
@@ -214,12 +301,12 @@ export async function startDownload(id: string): Promise<InstallView> {
   const runOnce = () =>
     downloadToFile({
       url: url.toString(),
-      destination: target.exe,
+      destination,
       signal: controller.signal,
       // Chromium's stack: system proxy, system certificates, same redirect
       // behaviour as a browser. Node's fetch ignores proxy settings entirely.
       request: (input, init) => net.fetch(input, init as never),
-      resumeFrom: resumableBytes(target.exe) || undefined,
+      resumeFrom: resumableBytes(destination) || undefined,
       onProgress: (progress) => {
         lastByteAt = Date.now()
         set(id, {
@@ -251,7 +338,7 @@ export async function startDownload(id: string): Promise<InstallView> {
         }
 
         // A checksum disagreement means what we kept is wrong, so it cannot be continued.
-        if (/checksum/i.test(lastMessage)) discardPartial(target.exe)
+        if (/checksum/i.test(lastMessage)) discardPartial(destination)
 
         if (attempt === MAX_ATTEMPTS) throw error
 
@@ -275,25 +362,62 @@ export async function startDownload(id: string): Promise<InstallView> {
     if (!result) throw new Error(lastMessage || 'the download could not be completed')
     clearInterval(watchdog)
 
+    /*
+     * The swap.
+     *
+     * The old build is deleted and the new one renamed into its place, so the folder
+     * holds exactly one executable for the product — no `.old`, no month-old copy eating
+     * disk, nothing to clean up by hand. If the rename fails the old build is still
+     * there, still launchable, and the file that was fetched is thrown away.
+     */
+    if (replace) {
+      if (existsSync(target.exe)) rmSync(target.exe, { force: true })
+      renameSync(result.path, target.exe)
+      result.path = target.exe
+    }
+
     record({
       id,
       name: app.name,
       version: app.version,
+      sha256: app.sha256 || undefined,
       exe: result.path,
       bytes: result.bytes,
       downloadedAt: new Date().toISOString()
     })
 
-    set(id, { state: 'installed', percent: 100, bytesPerSecond: 0, error: null })
+    set(id, { state: 'installed', updating: false, percent: 100, bytesPerSecond: 0, error: null })
     return stateOf(id)
   } catch (error) {
     if (controller.signal.aborted && !stalled) {
-      set(id, { state: 'absent', percent: 0, received: 0, bytesPerSecond: 0, error: null })
+      /*
+       * Cancelled. A cancelled replacement leaves the old build exactly where it was,
+       * so the product goes back to offering the update rather than claiming to be
+       * absent — which would put a Download button next to a file that is right there.
+       */
+      const kept = installed(id)
+      set(id, {
+        state: kept ? (isStale(id) ? 'update' : 'installed') : 'absent',
+        updating: false,
+        percent: 0,
+        received: kept?.bytes ?? 0,
+        bytesPerSecond: 0,
+        error: null
+      })
       return stateOf(id)
     }
 
     const message = error instanceof Error ? error.message : String(error)
     console.error('[downloads] failed', id, message)
+    /*
+     * A failed replacement is not a failed download. The product still opens — it is
+     * last month's build — so the card keeps saying UPDATE and tries again later.
+     */
+    if (replace) {
+      discardPartial(destination)
+      set(id, { state: 'update', updating: false, percent: 100, bytesPerSecond: 0, error: null })
+      return stateOf(id)
+    }
     set(id, {
       state: 'error',
       percent: 0,
@@ -337,4 +461,40 @@ export function uninstall(id: string): InstallView {
   }
   set(id, { state: 'absent', percent: 0, received: 0, total: 0, bytesPerSecond: 0, error: null })
   return stateOf(id)
+}
+
+/*
+ * Keeping every installed product current.
+ *
+ * Runs after a catalogue read. Any product on this machine whose published version has
+ * moved on is fetched in the background, swapped in when it is complete, and the build it
+ * replaced is deleted. Sequential on purpose: `startDownload` will not run two transfers
+ * at once, and a library updating itself behind the window is not a race worth having.
+ *
+ * Nothing here is announced as a task. The card it belongs to says UPDATE while it is
+ * behind and shows a percentage while it is being replaced; when it finishes it says
+ * DOWNLOADED again, and the only thing that changed is which month the file is from.
+ */
+let updating = false
+
+export async function updateInstalled(apps: LoaderApp[]): Promise<void> {
+  noteCatalogue(apps)
+  if (updating) return
+  // Never start behind somebody's own download.
+  if (busy()) return
+
+  const behind = apps.filter((app) => isStale(app.id) && !isRunning(app.id))
+  if (behind.length === 0) return
+
+  updating = true
+  try {
+    for (const app of behind) {
+      if (isRunning(app.id)) continue
+      await startDownload(app.id)
+    }
+  } catch (error) {
+    console.error('[downloads] update pass failed', error)
+  } finally {
+    updating = false
+  }
 }
