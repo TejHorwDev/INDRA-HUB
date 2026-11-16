@@ -99,7 +99,7 @@ export function allInstalled(): InstalledApp[] {
     .filter((entry): entry is InstalledApp => entry !== null)
 }
 
-/** Where a download for this name would go: inside the loader's own folder. */
-export function downloadTarget(name: string): { dir: string; exe: string } {
-  return appPaths(libraryDir(app.getPath('userData')), name)
+/** Where a download for this name and version would go: the loader's own folder. */
+export function downloadTarget(name: string, version = ''): { dir: string; exe: string } {
+  return appPaths(libraryDir(app.getPath('userData')), name, version)
 }

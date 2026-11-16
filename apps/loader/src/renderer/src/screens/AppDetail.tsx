@@ -44,6 +44,8 @@ interface Props {
   running: boolean
   onBack: () => void
   onDownload: () => void
+  /** Replace the build on this machine, then start it. */
+  onUpdate: () => void
   onCancel: () => void
   onLaunch: () => void
   onReveal: () => void
@@ -60,6 +62,7 @@ export default function AppDetail({
   running,
   onBack,
   onDownload,
+  onUpdate,
   onCancel,
   onLaunch,
   onReveal
@@ -262,25 +265,39 @@ export default function AppDetail({
                   Cancel
                 </button>
               </>
-            ) : installed || behind ? (
+            ) : behind ? (
+              /*
+               * Behind is the one state where the button that matters is not Launch.
+               *
+               * Starting last month's build is not what this screen is offering: it is
+               * offering the current one, fetched and then opened in one press.
+               */
+              <button
+                type="button"
+                onClick={onUpdate}
+                className="grid flex-1 place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+                style={{ height: BUTTON, borderRadius: 10 }}
+              >
+                Update
+              </button>
+            ) : installed ? (
               <>
                 <button
                   type="button"
-                  onClick={behind ? onDownload : onLaunch}
-                  disabled={!behind && running}
+                  onClick={onLaunch}
+                  disabled={running}
                   className="grid flex-1 place-items-center bg-[#f2f2f4] text-[12.5px] font-semibold text-[#0a0a0c] transition-[background,color] duration-150 hover:bg-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] disabled:bg-white/[0.06] disabled:text-[var(--color-ink-3)] disabled:hover:bg-white/[0.06]"
                   style={{ height: BUTTON, borderRadius: 10 }}
                 >
-                  {behind ? 'Update' : running ? 'Running' : 'Launch'}
+                  {running ? 'Running' : 'Launch'}
                 </button>
                 <button
                   type="button"
-                  onClick={behind ? onLaunch : onReveal}
-                  disabled={behind && running}
+                  onClick={onReveal}
                   className="grid place-items-center border border-[var(--hairline-strong)] bg-transparent px-4 text-[12.5px] font-medium text-[var(--color-ink-2)] transition-[border-color,color] duration-150 hover:border-white/25 hover:text-[var(--color-ink)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
                   style={{ height: BUTTON, borderRadius: 10 }}
                 >
-                  {behind ? (running ? 'Running' : 'Launch') : 'Open folder'}
+                  Open folder
                 </button>
               </>
             ) : (

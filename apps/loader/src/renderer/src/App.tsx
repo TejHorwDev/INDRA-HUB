@@ -638,6 +638,24 @@ export default function App(): React.JSX.Element {
               else if (view.state === 'installed') toast(`${selected.name} — downloaded and ready.`)
             })
           }}
+          onUpdate={() => {
+            /*
+             * One press: fetch the current build, then open it. An update that leaves you
+             * holding a file you have to find and double-click is only half a feature —
+             * the reason you pressed the button was to run the new version.
+             */
+            void bridge.files.download(selected.id).then(async (view) => {
+              if (view.state === 'error') {
+                toast(`Update failed — ${view.error ?? 'try again.'}`)
+                return
+              }
+              // The completion is already announced by the service (`files:updated`),
+              // so this press says nothing twice — it just starts what it fetched.
+              const result = await bridge.files.launch(selected.id)
+              if (result.ok) void bridge.files.states().then(setInstalls)
+              else toast(`Could not launch — ${result.error ?? 'unknown error'}`)
+            })
+          }}
           onLaunch={() => {
             void bridge.files.launch(selected.id).then((result) => {
               if (result.ok) {

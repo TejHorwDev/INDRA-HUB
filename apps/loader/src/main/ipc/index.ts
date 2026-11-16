@@ -6,7 +6,7 @@ import { rememberVideo } from '../lib/backdrop-cache'
 import { currentFilmSource, ensureFilm, filmSource } from '../lib/film'
 import { loadCatalogue } from '../services/catalog'
 import { entitlementReport, ownedProductIds } from '../services/entitlement'
-import { cancelDownload, startDownload, states, uninstall, updateInstalled } from '../services/downloads'
+import { cancelDownload, noteCatalogue, startDownload, states, uninstall } from '../services/downloads'
 import { launch } from '../services/launch'
 import {
   checkForUpdates,
@@ -83,14 +83,11 @@ export function registerIpc(handlers: Handlers): void {
     const catalogue = await loadCatalogue()
 
     /*
-     * The library keeps itself current.
-     *
-     * Every read of the catalogue is also the moment to compare it with what is on this
-     * machine: products are rebuilt monthly, and a customer running last month's
-     * executable had no way to find out. Behind on the following line, replaced in the
-     * background, old build deleted.
+     * Every read of the catalogue is also the moment to notice that a product on this
+     * machine is behind — that is what turns its card into UPDATE. Nothing is fetched
+     * from here: an update is the person's decision, and it starts from the button.
      */
-    void updateInstalled(catalogue.apps)
+    noteCatalogue(catalogue.apps)
 
     const film = catalogue.config.video
     // The launch card cannot fetch, so every read leaves a note for next time.

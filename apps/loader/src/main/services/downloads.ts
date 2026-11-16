@@ -250,14 +250,16 @@ export async function startDownload(id: string): Promise<InstallView> {
     return { ...stateOf(id), error: 'That download link is not secure, so it was refused.' }
   }
 
-  const target = downloadTarget(app.name)
+  const target = downloadTarget(app.name, app.version)
 
   /*
-   * A replacement is fetched beside the old build and swapped in at the end, never over
-   * it. Half a download written on top of a working executable is a broken product; a
-   * complete one renamed into place is a swap the filesystem does atomically.
+   * The file name carries the version, so a new build lands beside the old one and
+   * nothing is written over a working executable. The one case that would collide is a
+   * re-upload under the same version — same label, different bytes — and there the new
+   * file is fetched under a temporary name and swapped in at the end.
    */
-  const destination = replace ? `${target.exe}.new` : target.exe
+  const collide = existsSync(target.exe)
+  const destination = collide ? `${target.exe}.new` : target.exe
 
   /*
    * A fragment from an attempt that died is kept and continued, not thrown away. It is
@@ -370,10 +372,23 @@ export async function startDownload(id: string): Promise<InstallView> {
      * disk, nothing to clean up by hand. If the rename fails the old build is still
      * there, still launchable, and the file that was fetched is thrown away.
      */
-    if (replace) {
+    if (collide) {
       if (existsSync(target.exe)) rmSync(target.exe, { force: true })
       renameSync(result.path, target.exe)
       result.path = target.exe
+    }
+
+    /*
+     * And the build it replaced is deleted, whichever version that was.
+     *
+     * The name changed when the version did, so the old file is a different file — it
+     * would sit there forever otherwise, one executable per month ever published.
+     */
+    if (replace) {
+      const previous = installed(id)
+      if (previous && previous.exe !== result.path && existsSync(previous.exe)) {
+        rmSync(previous.exe, { force: true })
+      }
     }
 
     record({
@@ -480,40 +495,4 @@ export function uninstall(id: string): InstallView {
   }
   set(id, { state: 'absent', percent: 0, received: 0, total: 0, bytesPerSecond: 0, error: null })
   return stateOf(id)
-}
-
-/*
- * Keeping every installed product current.
- *
- * Runs after a catalogue read. Any product on this machine whose published version has
- * moved on is fetched in the background, swapped in when it is complete, and the build it
- * replaced is deleted. Sequential on purpose: `startDownload` will not run two transfers
- * at once, and a library updating itself behind the window is not a race worth having.
- *
- * Nothing here is announced as a task. The card it belongs to says UPDATE while it is
- * behind and shows a percentage while it is being replaced; when it finishes it says
- * DOWNLOADED again, and the only thing that changed is which month the file is from.
- */
-let updating = false
-
-export async function updateInstalled(apps: LoaderApp[]): Promise<void> {
-  noteCatalogue(apps)
-  if (updating) return
-  // Never start behind somebody's own download.
-  if (busy()) return
-
-  const behind = apps.filter((app) => isStale(app.id) && !isRunning(app.id))
-  if (behind.length === 0) return
-
-  updating = true
-  try {
-    for (const app of behind) {
-      if (isRunning(app.id)) continue
-      await startDownload(app.id)
-    }
-  } catch (error) {
-    console.error('[downloads] update pass failed', error)
-  } finally {
-    updating = false
-  }
 }
