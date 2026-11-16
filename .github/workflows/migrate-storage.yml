@@ -54,6 +54,38 @@ jobs:
       - name: install
         run: npm ci --prefix apps/loader-api
 
+      #
+      # A missing secret used to arrive as a stack of red text and a red X. It is the most
+      # likely failure by a wide margin — six values, copied by hand — and it deserves to
+      # name itself: the annotation shows on the run page, and the summary survives even
+      # when nobody can get at the log.
+      #
+      - name: preflight
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          B2_REGION: ${{ secrets.B2_REGION }}
+        run: |
+          missing=""
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY B2_KEY_ID B2_APPLICATION_KEY B2_BUCKET B2_REGION; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. Add them in Settings → Secrets and variables → Actions."
+            {
+              echo "## Missing secrets"
+              echo ""
+              echo "These are empty:$missing"
+              echo ""
+              echo "Add each one under Settings → Secrets and variables → Actions → New repository secret."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "all six secrets are present"
+
       - name: migrate
         working-directory: apps/loader-api
         env:
@@ -66,4 +98,20 @@ jobs:
           B2_REGION: ${{ secrets.B2_REGION }}
           B2_PUBLIC_URL: ${{ secrets.B2_PUBLIC_URL }}
           API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://indra-loader-api.onrender.com' }}
-        run: node scripts/migrate-storage.mjs ${{ inputs.apply && '--apply' || '' }}
+        run: |
+          set -o pipefail
+          node scripts/migrate-storage.mjs ${{ inputs.apply && '--apply' || '' }} 2>&1 | tee migrate.log
+
+      - name: explain
+        if: failure()
+        working-directory: apps/loader-api
+        run: |
+          reason=$(grep -m1 -E "Not set|not set|Error|error|FAILED|Cannot" migrate.log 2>/dev/null | head -c 400 || true)
+          echo "::error::storage migration failed: ${reason:-see the log}"
+          {
+            echo "## storage migration"
+            echo ""
+            echo '```'
+            tail -30 migrate.log 2>/dev/null || echo "no log was written"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
