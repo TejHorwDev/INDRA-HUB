@@ -13,11 +13,15 @@
 #   B2_KEY_ID                    from the Backblaze application key
 #   B2_APPLICATION_KEY           from the same key
 #   B2_BUCKET                    the bucket name, e.g. indra-files
-#   B2_REGION                    the bucket's region, e.g. us-west-004
+#   B2_REGION                    the bucket's region, e.g. us-east-005
 #   B2_PUBLIC_URL                optional, only when a Cloudflare domain sits in front
 #   API_BASE_URL                 optional, defaults to the Render service
 #
 # Run it once with `apply` off to see exactly what would move, then again with it on.
+#
+# When it fails it says why in three places, because a red X is not a diagnosis: an
+# annotation on the run page, the job summary, and `storage-report.txt` on the branch it ran
+# from — that last one because the log API is not always reachable.
 
 name: storage
 
@@ -30,8 +34,6 @@ on:
         default: false
 
 permissions:
-  # Read for the checkout; write only so a failed run can leave its log on the branch,
-  # because the log API is not always reachable and "it stopped" is not a diagnosis.
   contents: write
 
 concurrency:
@@ -57,10 +59,8 @@ jobs:
         run: npm ci --prefix apps/loader-api
 
       #
-      # A missing secret used to arrive as a stack of red text and a red X. It is the most
-      # likely failure by a wide margin — six values, copied by hand — and it deserves to
-      # name itself: the annotation shows on the run page, and the summary survives even
-      # when nobody can get at the log.
+      # Six values, copied by hand, is the most likely thing to be wrong and the least
+      # likely thing to be visible from a phone. A missing one names itself.
       #
       - name: preflight
         env:
@@ -76,24 +76,12 @@ jobs:
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
-            echo "::error::Missing repository secrets:$missing. Add them in Settings → Secrets and variables → Actions."
+            echo "::error::Missing repository secrets:$missing. Add them under Settings → Secrets and variables → Actions."
             {
               echo "## Missing secrets"
               echo ""
               echo "These are empty:$missing"
-              echo ""
-              echo "Add each one under Settings → Secrets and variables → Actions → New repository secret."
             } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: leave the log behind
-        if: failure()
-        run: |
-          if [ ! -f storage-report.txt ]; then echo "nothing to hand over"; exit 0; fi
-          git config user.name "arena-agent"
-          git config user.email "agent@arena.ai"
-          git add -f storage-report.txt
-          git commit -m "ci: storage failure report" || true
-          git push origin "HEAD:${{ github.ref_name }}" || echo "could not push the report"
             exit 1
           fi
           echo "all six secrets are present"
@@ -119,13 +107,17 @@ jobs:
         working-directory: apps/loader-api
         run: |
           cp migrate.log ../../storage-report.txt 2>/dev/null || true
-          reason=$(grep -m1 -E "Not set|not set|Error|error|FAILED|Cannot" migrate.log 2>/dev/null | head -c 400 || true)
-          echo "::error::storage migration failed: ${reason:-see the log}"
+          if [ -f migrate.log ]; then
+            reason=$(grep -m1 -E "^(::error::|[A-Z][a-z]+Error:|Error:)" migrate.log | grep -v "throw new" | head -c 400 || true)
+          else
+            reason="the migration never started"
+          fi
+          echo "::error::storage migration failed — ${reason:-see storage-report.txt on the branch}"
           {
             echo "## storage migration"
             echo ""
             echo '```'
-            tail -30 migrate.log 2>/dev/null || echo "no log was written"
+            tail -40 migrate.log 2>/dev/null || echo "no log was written"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
