@@ -12,7 +12,7 @@
  *   npm run sim
  */
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -360,7 +360,19 @@ async function main() {
   })
   check('every colour is grey, or one of the three statuses', offPalette.length === 0, offPalette.join(', '))
   check('the type is self-hosted, so it renders offline', /geist\/font\/sans/.test(readFileSync(join(root, 'src/app/layout.tsx'), 'utf8')))
-  check('the sections slide rather than blink', /\.nav-pill/.test(css) && /translateX\(var\(--x/.test(css))
+  /*
+   * v4: the surface is flat and the type is large.
+   *
+   * Four versions of this panel accumulated light — a pointer-following pool, a ring, a
+   * tilt on every card, a wash on every surface, a moving tape of repeated facts and a
+   * pill that slid under the nav. All of it was motion and glare in service of itself.
+   * These checks hold the other line now: no tilt, no bar under a number, no tape, and
+   * type big enough to read without leaning in.
+   */
+  check('the sections are words with a line under the one you are on', /\.nav a\[data-active='true'\]::after/.test(css))
+  check('cards are flat — nothing tilts or catches the pointer', /\.card::before,[\s\S]{0,120}?display: none/.test(css) && /\.card,\n\.stat,\n\.tile \{[^}]*box-shadow: none/.test(css))
+  check('a number is not wearing a bar', /\.stat-bar \{\s*display: none/.test(css))
+  check('the headline is large enough to be a headline', /h1 \{\s*font-size: clamp\(46px, 6\.4vw, 88px\)/.test(css))
   check('content rises on a stagger', /\.rise/.test(css) && /var\(--i/.test(css))
   check('and any machine that asked for less motion gets none', /prefers-reduced-motion: reduce/.test(css))
   check(
@@ -368,9 +380,9 @@ async function main() {
     /\.shell \{[^}]*max-width: none/.test(css)
   )
   check('the frame and the content share one gutter', /--gutter: clamp/.test(css))
-  check('cards are lit and tilted from the pointer', /--rx/.test(css) && /--px/.test(css))
+  check('and there is no ambience layer left in the app', !existsSync(join(root, 'src/components/Ambience.tsx')))
   check('below the fold, content waits for the scroll', /animation-timeline: view\(\)/.test(css))
-  check('the tape moves, and stops when you point at it', /\.tape-track/.test(css) && /animation-play-state: paused/.test(css))
+  check('the tape of repeated facts is gone from the overview', !/className="tape"/.test(readFileSync(join(root, 'src/app/admin/(panel)/page.tsx'), 'utf8')))
   const layout = readFileSync(join(root, 'src/app/admin/(panel)/layout.tsx'), 'utf8')
   check('the keyboard opens the jump box', /CommandPalette/.test(layout) && /metaKey/.test(readFileSync(join(root, 'src/components/CommandPalette.tsx'), 'utf8')))
   check('and Escape closes it', /key === 'Escape'/.test(readFileSync(join(root, 'src/components/CommandPalette.tsx'), 'utf8')))

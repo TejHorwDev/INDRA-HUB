@@ -2580,3 +2580,374 @@ tbody tr:nth-child(n + 7) { animation-delay: 280ms; }
     display: none;
   }
 }
+
+/* ============================================================================
+ * v4 — matte, quiet, and big enough to read
+ *
+ * The panel spent four versions adding surface: a light that followed the pointer, a
+ * ring that chased it, cards that tilted toward it, a gradient wash on every panel, a
+ * moving tape of repeated facts, and a moving pill under the nav. Every one of those is
+ * motion or light in service of itself, and together they read as glare.
+ *
+ * This section turns all of it off and spends the difference on the two things that
+ * actually decide whether a page is pleasant: how big the type is, and how much space
+ * is between things. Nothing here introduces a colour; the palette is unchanged.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------- type ---- */
+
+body {
+  background: #08090a;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: clamp(46px, 6.4vw, 88px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 0.94;
+  margin: 0 0 18px;
+}
+
+h2 {
+  font-size: clamp(17px, 1.5vw, 21px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.lede {
+  font-size: clamp(14px, 1.15vw, 17px);
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 68ch;
+  margin: 0;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+  margin: 0 0 22px;
+}
+
+.quiet {
+  color: var(--ink-3);
+}
+
+.hint {
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+/* ------------------------------------------------------------ the frame ---- */
+
+.bar {
+  background: #08090a;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 72px;
+}
+
+.bar-inner {
+  height: 68px;
+}
+
+.bar-user {
+  display: none;
+}
+
+/* Four words, one of them white. No pill, no measurement, no sliding background. */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(18px, 2vw, 34px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.nav-pill {
+  display: none;
+}
+
+.nav a {
+  position: relative;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--ink-3);
+  padding: 4px 0;
+  transition: color 160ms var(--ease);
+}
+
+.nav a:hover {
+  color: var(--ink);
+}
+
+.nav a[data-active='true'] {
+  color: var(--white);
+}
+
+.nav a[data-active='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--white);
+}
+
+/* ------------------------------------------------------------- surfaces ---- */
+
+.card,
+.stat,
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  transform: none;
+}
+
+.card {
+  padding: 30px 32px;
+  border-radius: var(--r-lg);
+  margin-bottom: 24px;
+}
+
+.card:hover,
+.stat:hover,
+.tile:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--line-2);
+}
+
+/* No light in a corner, no wash on top, no glare behind the pointer. */
+.card::before,
+.card::after,
+.stat::before,
+.stat::after,
+.tile::before,
+.tile::after {
+  display: none;
+}
+
+.block {
+  margin-top: clamp(48px, 5vw, 76px);
+}
+
+.block h2 {
+  margin: 0 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.block h2 .count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-left: 10px;
+  letter-spacing: 0.04em;
+}
+
+.block-action {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--line-3);
+  padding-bottom: 2px;
+}
+
+.block-action:hover {
+  color: var(--white);
+  border-color: var(--white);
+}
+
+/* --------------------------------------------------------------- stats ---- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin-top: clamp(40px, 4vw, 64px);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: none;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 34px 26px 30px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.stat + .stat {
+  border-left: 1px solid var(--line);
+}
+
+.stat:first-child {
+  padding-left: 0;
+}
+
+.stat-value {
+  font-size: clamp(38px, 4.4vw, 62px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: var(--white);
+}
+
+.stat-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* The share bar encoded a proportion of a total nobody asked for. */
+.stat-bar {
+  display: none;
+}
+
+/* ---------------------------------------------------- lists and tables ---- */
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.kv dt,
+.kv dd {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kv dt {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.kv dd {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.rows {
+  border-top: 1px solid var(--line);
+}
+
+.row-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 100px 90px;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 4px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  transition: background-color 140ms var(--ease), padding-left 140ms var(--ease);
+}
+
+.row-link:hover {
+  background: rgba(255, 255, 255, 0.022);
+  padding-left: 12px;
+}
+
+.row-name {
+  font-size: clamp(15px, 1.35vw, 19px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.row-meta {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* Pills are labels, not lights. */
+.pill {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: none;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+  border: 1px solid var(--line-2);
+  justify-self: start;
+}
+
+.pill::before {
+  display: none;
+}
+
+.pill.ok {
+  color: var(--success);
+  border-color: rgba(87, 201, 161, 0.3);
+  background: none;
+}
+
+.pill.off {
+  color: var(--ink-3);
+  border-color: var(--line);
+  background: none;
+}
+
+/* The tape told you the same nine facts the page already states, in a loop. */
+.tape,
+.endpoints {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat:nth-child(3) {
+    border-left: 0;
+  }
+
+  .stat:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+
+  .row-link {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .row-meta:nth-of-type(2) {
+    display: none;
+  }
+}
+
+/* Whoever asked for stillness still gets every fact on the page. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .stat,
+  .tile,
+  .row-link {
+    transition: none;
+  }
+}

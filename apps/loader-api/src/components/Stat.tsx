@@ -3,23 +3,22 @@
 import { useEffect, useState } from 'react'
 
 /*
- * One number, counted up.
+ * One number, at the size a number should be.
  *
- * A dashboard that fades in a finished figure is a screenshot. A figure that climbs
- * from zero for half a second is a reading — the eye follows the digit and arrives at
- * the value knowing it just happened. The count is skipped entirely for values that
- * are not integers, because "10.6 MB" counted from zero is nonsense.
+ * It counts up — a figure that climbs from zero for half a second is a reading rather
+ * than a screenshot. Everything else that used to live in this tile is gone: the wash
+ * behind it, the lit border, the tilt, and the thin bar underneath that encoded a share
+ * of a total nobody asked for. "3 active of 4" is a sentence, and the sentence is on the
+ * page already.
  */
 export default function Stat({
   value,
   label,
-  index = 0,
-  share
+  index = 0
 }: {
   value: number | string
   label: string
   index?: number
-  share?: number
 }): React.JSX.Element {
   const target = typeof value === 'number' ? value : Number.NaN
   const counts = Number.isFinite(target) && Math.abs(target) < 100000
@@ -56,9 +55,6 @@ export default function Stat({
     <div className="stat" style={{ '--i': index } as React.CSSProperties}>
       <span className="stat-value">{shown}</span>
       <span className="stat-label">{label}</span>
-      <span className="stat-bar" aria-hidden="true">
-        <i style={{ '--v': Math.min(1, Math.max(0, share ?? (counts ? 1 : 0.6))) } as React.CSSProperties} />
-      </span>
     </div>
   )
 }

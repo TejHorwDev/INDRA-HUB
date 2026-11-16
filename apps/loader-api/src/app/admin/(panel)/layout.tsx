@@ -15,8 +15,9 @@ export const dynamic = 'force-dynamic'
  * forgets to guard itself is still guarded. The API routes check again on their
  * own — a layout is not a boundary for anything that is not a page.
  *
- * The bar is glass: sticky, blurred, a hairline along its bottom edge. It is the one
- * thing on the page that never leaves, so it is also the one thing that can be quiet.
+ * The bar is solid, not glass: a blurred backdrop over a flat page is a trick that costs
+ * a compositor pass every frame to look very slightly different from a solid one. It is
+ * sticky, it is a hairline thick, and it holds four words, a search box and a sign-out.
  */
 export default async function PanelLayout({
   children
@@ -38,7 +39,6 @@ export default async function PanelLayout({
 
           <div className="bar-actions">
             <Nav />
-            <span className="bar-user">signed in</span>
             <CommandPalette />
             <SignOut />
           </div>
