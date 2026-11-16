@@ -75,9 +75,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
                 <span>{product.name.slice(0, 2).toUpperCase()}</span>
               </span>
 
-              {product.image && product.imageIsVideo ? (
-                <Media src={product.image} dim={product.artworkDim} priority />
-              ) : null}
+              {product.image ? <Media src={product.image} dim={product.artworkDim} priority /> : null}
             </div>
 
             <div>

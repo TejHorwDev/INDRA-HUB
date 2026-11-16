@@ -3,20 +3,34 @@
 import { useEffect, useRef, useState } from 'react'
 
 /*
- * A product's clip, playing the way the loader plays it.
+ * A product's artwork, playing the way the loader plays it.
  *
- * The panel publishes artwork as video, so the shelf is video. That has to be smooth, and
- * smoothness here is a budget: a clip is only worth decoding while somebody can see it.
+ * The panel publishes artwork as a clip or as a still, and the site does not get to have an
+ * opinion about which: whatever was uploaded is what the card shows. A still is an <img>, a
+ * clip is a <video> — and the extension in the URL is the only thing that decides, because
+ * that is how the file was published.
  *
- * So playback follows the viewport. A clip starts a little before it scrolls into view
- * (200px of margin, enough to have a first frame ready) and pauses the moment it leaves.
- * Scrolling away from the shelf stops every decoder on the page. Hiding the tab stops them
- * too. Nothing is ever decoded off screen, and nothing is ever re-sampled: the video is
- * never scaled or filtered, it only fades in when it is actually playing.
+ * Playback is a budget as well as a decision, so it follows the viewport: a clip starts as it
+ * approaches the screen (200px of margin, enough time to have a first frame ready) and pauses
+ * the moment it leaves. Hiding the tab pauses everything. Nothing is decoded off screen, and
+ * nothing is ever re-sampled — the video is never scaled or filtered while it plays.
  *
- * The card's name plate sits under it, so a card is finished before a single byte of video
- * has arrived — the clip fades in over it instead of replacing a hole.
+ * It also has to survive three things that used to stop it dead:
+ *
+ *  - **No JavaScript at all.** The `autoPlay` attribute is on the element, so the browser
+ *    starts the clip while the page is still hydrating instead of waiting for an effect.
+ *  - **A blocked `play()`.** Autoplay policies, an audio track that was not muted in time,
+ *    a decoder that was busy. The promise is retried on `canplay` and on the first tap.
+ *  - **A file that cannot be read.** A broken source hides itself and leaves the card's name
+ *    plate in place, instead of leaving a black hole with a broken-media glyph in it.
+ *
+ * The seat under it — the plate with the initials — is painted first, so a card is finished
+ * before a single byte of media has arrived, and the picture fades in over it.
  */
+
+function isVideo(url: string): boolean {
+  return /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i.test(url)
+}
 
 export default function Media({
   src,
@@ -24,27 +38,39 @@ export default function Media({
   priority = false
 }: {
   src: string
+  /** 0–90, straight from the panel: how much black sits over the artwork. */
   dim?: number
   /** The first card and a product's own page: fetch straight away. */
   priority?: boolean
 }): React.JSX.Element {
   const ref = useRef<HTMLVideoElement>(null)
   const [live, setLive] = useState(false)
+  const [broken, setBroken] = useState(false)
+
+  const video = isVideo(src)
 
   useEffect(() => {
+    if (!video) return
     const element = ref.current
     if (!element) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     /** Whether playback is currently wanted. */
     let wanted = false
+    let stopped = false
+
+    const start = (): void => {
+      if (stopped || !wanted || document.hidden) return
+      const attempt = element.play()
+      /*
+       * A rejected play() is not an error worth showing: it means the browser said "not
+       * yet". `canplay` and the first pointer event both try again.
+       */
+      if (attempt && typeof attempt.catch === 'function') attempt.catch(() => undefined)
+    }
 
     const sync = (): void => {
-      if (wanted && !document.hidden) {
-        void element.play().catch(() => undefined)
-      } else {
-        element.pause()
-      }
+      if (wanted && !document.hidden) start()
+      else element.pause()
     }
 
     const observer = new IntersectionObserver(
@@ -56,37 +82,72 @@ export default function Media({
           sync()
         }
       },
-      { threshold: 0.2, rootMargin: '200px 0px' }
+      { threshold: 0.05, rootMargin: '200px 0px' }
     )
 
     observer.observe(element)
 
     const onVisibility = (): void => sync()
+    const onCanPlay = (): void => start()
+    const onFirstTouch = (): void => start()
+
     document.addEventListener('visibilitychange', onVisibility)
+    element.addEventListener('canplay', onCanPlay)
+    window.addEventListener('pointerdown', onFirstTouch, { once: true })
+    window.addEventListener('touchstart', onFirstTouch, { once: true })
+
+    // The element may already be on screen before the observer's first callback.
+    const box = element.getBoundingClientRect()
+    if (box.top < window.innerHeight + 200 && box.bottom > -200) {
+      wanted = true
+      start()
+    }
 
     return () => {
+      stopped = true
       observer.disconnect()
       document.removeEventListener('visibilitychange', onVisibility)
+      element.removeEventListener('canplay', onCanPlay)
+      window.removeEventListener('pointerdown', onFirstTouch)
+      window.removeEventListener('touchstart', onFirstTouch)
       element.pause()
     }
-  }, [])
+  }, [video, src])
+
+  if (broken) return <span className="media" aria-hidden />
 
   return (
     <span className="media">
-      <video
-        ref={ref}
-        className={live ? 'media-video is-live' : 'media-video'}
-        src={src}
-        muted
-        loop
-        playsInline
-        preload={priority ? 'auto' : 'metadata'}
-        disablePictureInPicture
-        disableRemotePlayback
-        onPlaying={() => setLive(true)}
-        onPause={() => setLive(false)}
-        aria-hidden
-      />
+      {video ? (
+        <video
+          ref={ref}
+          className={live ? 'media-video is-live' : 'media-video'}
+          src={src}
+          muted
+          loop
+          playsInline
+          autoPlay
+          preload={priority ? 'auto' : 'metadata'}
+          disablePictureInPicture
+          disableRemotePlayback
+          onPlaying={() => setLive(true)}
+          onPause={() => setLive(false)}
+          onError={() => setBroken(true)}
+          aria-hidden
+        />
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          className={live ? 'media-still is-live' : 'media-still'}
+          src={src}
+          alt=""
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          onLoad={() => setLive(true)}
+          onError={() => setBroken(true)}
+          aria-hidden
+        />
+      )}
 
       {dim ? (
         <span

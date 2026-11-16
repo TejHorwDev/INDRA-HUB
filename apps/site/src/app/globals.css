@@ -242,6 +242,51 @@ body::after {
   border-bottom: 1px solid var(--hairline);
 }
 
+/*
+ * The backdrop film.
+ *
+ * Full bleed, behind everything, on its own compositor layer. The type sits on a veil rather
+ * than on the picture, so the first frame and the two-hundredth are equally readable.
+ */
+.hero-film {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  background: var(--bg);
+  pointer-events: none;
+}
+
+.hero-film video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.5;
+  transform: translateZ(0);
+}
+
+.hero-film-dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-film .hero-veil {
+  position: absolute;
+}
+
+.hero-notice {
+  margin: 2px 0 0;
+  max-width: 52ch;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.7;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
 .hero-light {
   position: absolute;
   inset: auto 0 -30% 0;
@@ -431,6 +476,22 @@ h1.hero-title {
 }
 
 .media-video.is-live {
+  opacity: 1;
+}
+
+/* A still artwork is the same layer, with the same fade — the panel decides which it is. */
+.media-still {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #06060a;
+  opacity: 0;
+  transition: opacity 260ms linear;
+  transform: translateZ(0);
+}
+
+.media-still.is-live {
   opacity: 1;
 }
 
