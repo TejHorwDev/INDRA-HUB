@@ -26,10 +26,42 @@ export default async function Login({
     )
   }
 
-  const user = await currentUser()
-  if (user) redirect(user.role === 'owner' ? '/' : '/me')
+  /*
+   * A database that refuses the very first query has to say so out loud. Otherwise the screen
+   * looks healthy, the form looks fine, and the button appears to do nothing — which is what a
+   * wrong key looks like from the outside.
+   */
+  let dbError: string | null = null
+  let first = false
 
-  const first = await needsOwner()
+  try {
+    const user = await currentUser()
+    if (user) redirect(user.role === 'owner' ? '/' : '/me')
+    first = await needsOwner()
+  } catch (error) {
+    const digest = (error as { digest?: unknown }).digest
+    if (typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT')) throw error
+    dbError = error instanceof Error ? error.message : String(error)
+  }
+
+  if (dbError) {
+    return (
+      <div className="login">
+        <div className="card">
+          <div className="body">
+            <span className="brand">Ledger</span>
+            <h1>The database refused the connection</h1>
+            <p className="error">{dbError.slice(0, 400)}</p>
+            <p className="note">
+              Usually the service key. It must be the <strong>service_role</strong> key from
+              Supabase → Settings → API Keys — not the anon / publishable one, which is what a
+              project hands you first.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="login">
