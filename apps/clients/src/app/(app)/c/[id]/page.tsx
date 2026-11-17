@@ -340,6 +340,10 @@ export default async function ClientPage({
                   <label htmlFor="summary">Line for the public page</label>
                   <input id="summary" name="summary" placeholder="One sentence — shown once delivered" />
                 </div>
+                <div className="field">
+                  <label htmlFor="cover">Cover image</label>
+                  <input id="cover" name="cover" placeholder="https://… a screenshot, optional" />
+                </div>
                 <button type="submit">Add work</button>
               </form>
             </div>
