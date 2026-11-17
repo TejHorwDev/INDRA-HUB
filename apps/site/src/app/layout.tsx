@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { API_ORIGIN, SITE_URL } from '@/lib/catalogue'
 import './globals.css'
+import './ledger.css'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

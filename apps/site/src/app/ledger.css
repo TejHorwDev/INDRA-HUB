@@ -1,0 +1,455 @@
+/*
+ * The ledger, living inside the site.
+ *
+ * Every rule is scoped under `.ledger` because the shopfront already owns `.card`, `.brand`,
+ * `.bar` and `.btn` — and it should keep them. What is borrowed here is the material: the
+ * same hairlines, the same machined top edge, the same quiet. What is new is the furniture
+ * a set of books needs: tables that read as tables, numbers that line up, forms that sit in
+ * a column.
+ */
+
+.ledger {
+  --l-hairline: rgba(255, 255, 255, 0.07);
+  --l-hairline-strong: rgba(255, 255, 255, 0.15);
+  --l-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --l-lift: 0 30px 70px -40px rgba(0, 0, 0, 0.95);
+  min-height: 100dvh;
+}
+
+/* -------------------------------------------------------------------- bar -- */
+
+.ledger-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(7, 7, 8, 0.88);
+  border-bottom: 1px solid var(--l-hairline);
+  backdrop-filter: blur(18px);
+}
+
+.ledger-bar-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 58px;
+}
+
+.ledger-mark {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ledger-mark b {
+  font-weight: 650;
+  background: linear-gradient(180deg, #fff 0%, #f2f2f4 58%, #cfcfd4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ledger-mark span {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: rgba(242, 240, 246, 0.38);
+}
+
+.ledger-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.ledger-nav a {
+  padding: 7px 12px;
+  border-radius: 9px;
+  color: rgba(242, 240, 246, 0.62);
+  transition: color 0.16s var(--ease), background 0.16s var(--ease);
+}
+
+.ledger-nav a:hover {
+  color: #f4f2f8;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ledger-page {
+  padding: 44px 0 96px;
+}
+
+/* ------------------------------------------------------------------ shell -- */
+
+.ledger .head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+
+.ledger .head h1 {
+  font-size: clamp(26px, 3.6vw, 38px);
+  font-weight: 520;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.ledger .head p {
+  margin: 6px 0 0;
+  color: rgba(242, 240, 246, 0.38);
+  font-size: 13px;
+}
+
+.ledger .grid {
+  display: grid;
+  gap: 16px;
+}
+
+.ledger .cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ledger .cols-2 {
+  grid-template-columns: 1.5fr 1fr;
+}
+
+@media (max-width: 980px) {
+  .ledger .cols-3,
+  .ledger .cols-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------ cards -- */
+
+.ledger .card {
+  background: #0c0c0f;
+  border: 1px solid var(--l-hairline);
+  border-radius: 16px;
+  box-shadow: var(--l-sheen), var(--l-lift);
+  overflow: hidden;
+}
+
+.ledger .card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--l-hairline);
+}
+
+.ledger .card > header h2 {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 246, 0.5);
+}
+
+.ledger .card .body {
+  padding: 20px;
+}
+
+.ledger .stat {
+  padding: 22px;
+}
+
+.ledger .stat small {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 246, 0.38);
+}
+
+.ledger .stat strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 29px;
+  font-weight: 480;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger .stat em {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 12px;
+  color: rgba(242, 240, 246, 0.38);
+}
+
+/* ------------------------------------------------------------------ table -- */
+
+.ledger table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ledger th {
+  text-align: left;
+  padding: 10px 20px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 246, 0.34);
+  font-weight: 600;
+  border-bottom: 1px solid var(--l-hairline);
+}
+
+.ledger td {
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--l-hairline);
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+
+.ledger tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ledger tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.ledger td.num,
+.ledger th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger .mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: rgba(242, 240, 246, 0.42);
+}
+
+.ledger .name {
+  font-weight: 550;
+}
+
+.ledger .sub {
+  color: rgba(242, 240, 246, 0.38);
+  font-size: 12px;
+}
+
+.ledger .empty {
+  padding: 34px 20px;
+  text-align: center;
+  color: rgba(242, 240, 246, 0.38);
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------------- form -- */
+
+.ledger form.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.ledger .field {
+  display: grid;
+  gap: 6px;
+}
+
+.ledger .field label {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 246, 0.38);
+}
+
+.ledger input,
+.ledger select,
+.ledger textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--l-hairline-strong);
+  background: #131317;
+  color: #f4f2f8;
+  font: inherit;
+  font-size: 13.5px;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease);
+}
+
+.ledger input:focus,
+.ledger select:focus,
+.ledger textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: #17171c;
+}
+
+.ledger input::placeholder,
+.ledger textarea::placeholder {
+  color: rgba(242, 240, 246, 0.26);
+}
+
+.ledger .row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 620px) {
+  .ledger .row2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ledger button,
+.ledger .lbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, #f7f6fa, #dddbe4);
+  color: #08080a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), filter 0.16s var(--ease);
+}
+
+.ledger button:hover,
+.ledger .lbtn:hover {
+  filter: brightness(1.06);
+}
+
+.ledger button:active {
+  transform: translateY(1px);
+}
+
+.ledger button.quiet {
+  background: transparent;
+  color: rgba(242, 240, 246, 0.68);
+  border-color: var(--l-hairline-strong);
+  font-weight: 500;
+}
+
+.ledger button.quiet:hover {
+  color: #f4f2f8;
+  background: rgba(255, 255, 255, 0.04);
+  filter: none;
+}
+
+.ledger button.small,
+.ledger .lbtn.small {
+  padding: 7px 11px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.ledger button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(242, 240, 246, 0.4);
+  padding: 6px 8px;
+}
+
+.ledger button.ghost:hover {
+  color: #f4f2f8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ledger .error {
+  color: #e0667a;
+  font-size: 13px;
+}
+
+.ledger .note {
+  color: rgba(242, 240, 246, 0.38);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ledger .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--l-hairline-strong);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: rgba(242, 240, 246, 0.62);
+  text-transform: uppercase;
+}
+
+.ledger .pill.ok {
+  color: #34c395;
+  border-color: rgba(52, 195, 149, 0.35);
+}
+
+/* ------------------------------------------------------------------ login -- */
+
+.ledger.login-shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+}
+
+.ledger.login-shell .card {
+  width: min(430px, 100%);
+}
+
+.ledger.login-shell .body {
+  padding: 28px;
+  display: grid;
+  gap: 18px;
+}
+
+.ledger.login-shell h1 {
+  font-size: 22px;
+  font-weight: 520;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.ledger .brand-line {
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 246, 0.38);
+}
+
+/* ------------------------------------------------------------------- menu -- */
+
+.ledger .menu {
+  position: relative;
+}
+
+.ledger .menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.ledger .menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ledger .menu-panel {
+  position: absolute;
+  right: 0;
+  top: 32px;
+  z-index: 30;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--l-hairline-strong);
+  background: #131317;
+  box-shadow: var(--l-lift);
+  white-space: nowrap;
+}
