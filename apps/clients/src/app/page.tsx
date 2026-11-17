@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { db } from '@/lib/db'
 import { day } from '@/lib/format'
@@ -5,6 +6,20 @@ import { business } from '@/lib/settings'
 import type { Project } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
+
+/** The tab says the business name, because that is what a visitor is looking at. */
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const { name, contact } = await business()
+    const brand = name || 'Ledger'
+    return {
+      title: brand,
+      description: contact || 'Apps, panels and systems, built to order.'
+    }
+  } catch {
+    return { title: 'Ledger' }
+  }
+}
 
 /*
  * The public face of the work.
@@ -67,7 +82,7 @@ export default async function Home() {
           <div className="work-head">
             <h2>Work</h2>
             <span className="sub">
-              {work.length} {work.length === 1 ? 'project' : 'projects'}
+              {`${work.length} ${work.length === 1 ? 'project' : 'projects'}`}
             </span>
           </div>
 
