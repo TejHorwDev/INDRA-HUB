@@ -22,7 +22,8 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
         </Link>
 
         <nav className="nav" aria-label="Sections">
-          <a href="/#library">Library</a>
+          <a href="/#library">Work</a>
+          <a href="/work">All</a>
           <Link className="btn ghost keep" href="/login">
             Sign in
           </Link>
