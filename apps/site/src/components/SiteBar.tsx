@@ -23,10 +23,9 @@ export default async function SiteBar(): Promise<React.JSX.Element> {
 
         <nav className="nav" aria-label="Sections">
           <a href="/#library">Library</a>
-          <a href="/#how">Loader{version ? ` ${version}` : ''}</a>
-          <a className="btn solid keep" {...download.link}>
-            Download{weighted ? ` · ${weighted}` : ''}
-          </a>
+          <Link className="btn ghost keep" href="/login">
+            Sign in
+          </Link>
         </nav>
       </div>
     </header>

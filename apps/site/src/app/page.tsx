@@ -122,25 +122,24 @@ export default async function Home(): Promise<React.JSX.Element> {
                 INDRA LOADER {version}
               </span>
 
-              <h1 className="hero-title wordmark">Browse the library.</h1>
+              <h1 className="hero-title wordmark">Things I built.</h1>
 
               <p className="hero-sub">
-                Every build we publish, in one window — installed, kept current, and tied to your
-                account.
+                Panels, apps and loaders — made to order, hosted, and kept running. This is what
+                has shipped so far.
               </p>
 
               <div className="hero-actions">
-                <a className="btn solid lg" title={loader.name ?? undefined} {...download.link}>
-                  {DOWNLOAD}
-                  Download for Windows
+                <a className="btn solid lg" href="#library">
+                  See the work
                 </a>
-                <a className="btn ghost lg" href="#library">
-                  See the library
+                <a className="btn ghost lg" href="/login">
+                  Sign in
                 </a>
               </div>
 
               <span className="hero-meta">
-                {[file, weighted, 'Windows 10 / 11 · 64-bit'].filter(Boolean).join(' · ')}
+                {[`${products.length} builds`, 'panels · apps · loaders'].filter(Boolean).join(' · ')}
               </span>
 
               {config.notice ? <p className="hero-notice">{config.notice}</p> : null}
@@ -174,40 +173,36 @@ export default async function Home(): Promise<React.JSX.Element> {
           <section className="section" id="how">
             <div className="head">
               <p className="label">How it works</p>
-              <p className="count">Three steps</p>
+              <p className="count">Built to order</p>
             </div>
 
             <div className="steps">
               <div className="step">
                 <span>01</span>
-                <b>Install the loader</b>
-                <p>One executable{weighted ? `, ${weighted}` : ''}. Nothing else.</p>
+                <b>You describe the job</b>
+                <p>What it has to do, who uses it, what it connects to.</p>
               </div>
               <div className="step">
                 <span>02</span>
-                <b>Sign in</b>
-                <p>Your account decides what appears.</p>
+                <b>It gets built and hosted</b>
+                <p>Panel, app, database — deployed under an account you control.</p>
               </div>
               <div className="step">
                 <span>03</span>
-                <b>Open anything</b>
-                <p>Each build installs once and updates itself.</p>
+                <b>It keeps running</b>
+                <p>Updates, fixes and changes, without a release cycle every time.</p>
               </div>
             </div>
 
             <div className="band" id="get">
               <div>
-                <h2 className="wordmark">Get the loader.</h2>
-                <p>
-                  {version}
-                  {weighted ? ` · ${weighted}` : ''} · Windows 10 / 11 · 64-bit
-                </p>
+                <h2 className="wordmark">Have something that needs to exist?</h2>
+                <p>Tell me what it has to do — I will tell you what it takes.</p>
               </div>
 
               <div className="band-actions">
-                <a className="btn solid lg" title={loader.name ?? undefined} {...download.link}>
-                  {DOWNLOAD}
-                  Download
+                <a className="btn solid lg" href="/login">
+                  Sign in
                 </a>
               </div>
             </div>
