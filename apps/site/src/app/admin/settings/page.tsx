@@ -10,7 +10,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   if (user.role !== 'owner') redirect('/me')
 
   const { e } = await searchParams
-  const { name, contact } = await business()
+  const { name, contact, discord } = await business()
 
   return (
     <>
@@ -43,8 +43,21 @@ export default async function Settings({ searchParams }: { searchParams: Promise
                   placeholder="Phone · email · website"
                 />
               </div>
+              <div className="field">
+                <label htmlFor="discord">Discord invite</label>
+                <input
+                  id="discord"
+                  name="discord"
+                  defaultValue={discord}
+                  placeholder="https://discord.gg/… — where the buttons send people"
+                />
+              </div>
               <button type="submit">Save</button>
-              <p className="note">These two lines print on every PNG receipt. Nothing else does.</p>
+              <p className="note">
+                The first two lines print on every PNG receipt. The Discord invite becomes the
+                button on every work page — leave it empty and the buttons fall back to your
+                contact line.
+              </p>
             </form>
           </div>
         </div>
