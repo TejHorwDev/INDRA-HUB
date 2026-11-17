@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createOwner, signIn } from '@/app/actions'
 import { currentUser, needsOwner } from '@/lib/auth'
 import { configured, MISSING } from '@/lib/env'
 
@@ -76,7 +75,7 @@ export default async function Login({
                 One account, yours. Clients get their own logins from inside, later — and they only ever
                 see what you gave them.
               </p>
-              <form className="stack" action={createOwner}>
+              <form className="stack" action="/api/session/setup" method="post">
                 <div className="field">
                   <label htmlFor="business">Your business name</label>
                   <input id="business" name="business" placeholder="What goes on the receipt" />
@@ -103,7 +102,7 @@ export default async function Login({
           ) : (
             <>
               <h1>Sign in</h1>
-              <form className="stack" action={signIn}>
+              <form className="stack" action="/api/session/login" method="post">
                 <div className="field">
                   <label htmlFor="username">Username</label>
                   <input id="username" name="username" autoComplete="username" required />

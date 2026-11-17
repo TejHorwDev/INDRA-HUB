@@ -12,7 +12,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { db, eq } from '@/lib/db'
-import { endSession, hashPassword, needsOwner, requireOwner, requireUser, startSession, verifyPassword } from '@/lib/auth'
+import { hashPassword, requireOwner, requireUser, verifyPassword } from '@/lib/auth'
 import { nextClientNo } from '@/lib/format'
 
 function field(form: FormData, name: string): string {
@@ -42,55 +42,6 @@ async function guarded(path: string, work: () => Promise<void>): Promise<void> {
 
 function fail(path: string, message: string): never {
   redirect(`${path}?e=${encodeURIComponent(message)}`)
-}
-
-/** First run: the person who deploys this owns it. No seeded password to leak. */
-async function createOwnerInner(form: FormData): Promise<void> {
-  if (!(await needsOwner())) fail('/login', 'An owner already exists.')
-
-  const username = field(form, 'username').toLowerCase()
-  const password = field(form, 'password')
-  const business = field(form, 'business')
-
-  if (username.length < 3) fail('/login', 'Pick a username of at least 3 characters.')
-  if (password.length < 8) fail('/login', 'Use a password of at least 8 characters.')
-
-  const [user] = await db.insert<{ id: string }>('svc_users', {
-    username,
-    password_hash: hashPassword(password),
-    role: 'owner'
-  })
-
-  if (business) {
-    await db.insert('svc_settings', { key: 'business_name', value: business }).catch(() => undefined)
-  }
-
-  await startSession(user.id)
-  redirect('/')
-}
-
-async function signInInner(form: FormData): Promise<void> {
-  const username = field(form, 'username').toLowerCase()
-  const password = field(form, 'password')
-
-  const users = await db.select<{ id: string; password_hash: string; role: string; status: string }>(
-    'svc_users',
-    `select=id,password_hash,role,status&username=eq.${eq(username)}`
-  )
-
-  const user = users[0]
-  // One message for both failures: a login form is not a place to learn which usernames exist.
-  if (!user || user.status !== 'active' || !verifyPassword(password, user.password_hash)) {
-    fail('/login', 'That username and password do not match.')
-  }
-
-  await startSession(user.id)
-  redirect(user.role === 'owner' ? '/' : '/me')
-}
-
-export async function signOut(): Promise<void> {
-  await endSession()
-  redirect('/login')
 }
 
 /* ----------------------------------------------------------------- clients -- */
@@ -235,14 +186,6 @@ async function changePasswordInner(form: FormData): Promise<void> {
  * The exported surface. Each action is the same two lines: run the work, and if it failed for
  * a reason that is not a redirect, put that reason on the page.
  */
-
-export async function createOwner(form: FormData): Promise<void> {
-  await guarded('/login', () => createOwnerInner(form))
-}
-
-export async function signIn(form: FormData): Promise<void> {
-  await guarded('/login', () => signInInner(form))
-}
 
 export async function createClient(form: FormData): Promise<void> {
   await guarded('/', () => createClientInner(form))
