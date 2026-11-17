@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const token = await createSession(user.id)
-    const response = NextResponse.redirect(new URL(user.role === 'owner' ? '/' : '/me', request.url), 303)
+    const response = NextResponse.redirect(new URL(user.role === 'owner' ? '/dashboard' : '/me', request.url), 303)
     response.cookies.set(COOKIE, token, COOKIE_OPTIONS)
     return response
   } catch (error) {

@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
  */
 export default async function Portal() {
   const user = await requireUser()
-  if (user.role === 'owner') redirect('/')
+  if (user.role === 'owner') redirect('/dashboard')
 
   const client = await clientFor(user)
   if (!client) {

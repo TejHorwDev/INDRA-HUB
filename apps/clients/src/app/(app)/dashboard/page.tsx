@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/app/actions'
 import { requireUser, type ClientRow } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { day, money } from '@/lib/format'
+import { money } from '@/lib/format'
 import type { Payment, Project } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const [clients, payments, projects] = await Promise.all([
     db.select<ClientRow>('svc_clients', 'select=*&order=created_at.desc'),
     db.select<Payment>('svc_payments', 'select=*&order=paid_on.desc'),
-    db.select<Project>('svc_projects', 'select=id,client_id,title')
+    db.select<Project>('svc_projects', 'select=id,client_id,title,status')
   ])
 
   const collected = { NPR: 0, USD: 0 }
@@ -40,21 +40,35 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     perClient.set(payment.client_id, row)
   }
 
-  const projectCount = projects.reduce<Record<string, number>>((all, project) => {
+  const workCount = projects.reduce<Record<string, number>>((all, project) => {
     all[project.client_id] = (all[project.client_id] ?? 0) + 1
     return all
   }, {})
+
+  const delivered = projects.filter((project) => project.status === 'delivered').length
+  const inProgress = projects.length - delivered
 
   return (
     <>
       <div className="head">
         <div>
           <h1>Clients</h1>
-          <p>{clients.length === 0 ? 'Nobody yet — the first name goes below.' : `${clients.length} on the books`}</p>
+          <p>
+            {clients.length === 0
+              ? 'Nobody yet — the first name goes below.'
+              : `${clients.length} on the books`}
+          </p>
         </div>
+        <Link href="/" className="button quiet small">
+          View public page
+        </Link>
       </div>
 
-      {e ? <p className="error" style={{ marginBottom: 16 }}>{e}</p> : null}
+      {e ? (
+        <p className="error" style={{ marginBottom: 16 }}>
+          {e}
+        </p>
+      ) : null}
 
       <div className="grid cols-3" style={{ marginBottom: 22 }}>
         <div className="card stat">
@@ -65,12 +79,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <div className="card stat">
           <small>This month</small>
           <strong>{money(month.NPR, 'NPR')}</strong>
-          <em>{month.USD > 0 ? `plus ${money(month.USD, 'USD')}` : new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</em>
+          <em>
+            {month.USD > 0
+              ? `plus ${money(month.USD, 'USD')}`
+              : new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+          </em>
         </div>
         <div className="card stat">
-          <small>Work delivered</small>
-          <strong>{projects.length}</strong>
-          <em>{clients.length} {clients.length === 1 ? 'client' : 'clients'}</em>
+          <small>Work</small>
+          <strong>{delivered}</strong>
+          <em>
+            delivered{inProgress > 0 ? ` · ${inProgress} in progress` : ''}
+          </em>
         </div>
       </div>
 
@@ -106,7 +126,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                         </Link>
                       </td>
                       <td className="sub">{client.phone || client.email || '—'}</td>
-                      <td className="num sub">{projectCount[client.id] ?? 0}</td>
+                      <td className="num sub">{workCount[client.id] ?? 0}</td>
                       <td className="num">
                         {paid.NPR > 0 ? money(paid.NPR, 'NPR') : '—'}
                         {paid.USD > 0 ? <div className="sub">{money(paid.USD, 'USD')}</div> : null}
@@ -161,10 +181,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </div>
         </div>
       </div>
-
-      <p className="note" style={{ marginTop: 22 }}>
-        Latest payment: {payments[0] ? `${money(Number(payments[0].amount), payments[0].currency)} on ${day(payments[0].paid_on)}` : 'none recorded yet'}
-      </p>
     </>
   )
 }

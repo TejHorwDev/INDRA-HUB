@@ -17,6 +17,7 @@
   --hairline-strong: rgba(255, 255, 255, 0.13);
   --success: #34c395;
   --danger: #e0667a;
+  --lift: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --font: 'Segoe UI Variable Display', 'Segoe UI', var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   --mono: var(--font-geist-mono), ui-monospace, 'Cascadia Mono', Menlo, monospace;
@@ -450,4 +451,183 @@ button.small,
   padding: 30px;
   display: grid;
   gap: 18px;
+}
+
+/* --------------------------------------------------------------------- landing -- */
+
+/*
+ * The public page. Same material as everything else in this repo, arranged as a shopfront:
+ * a lot of air above, then the work itself as the only colour on the screen.
+ */
+
+.landing {
+  padding: 0 0 80px;
+}
+
+.hero {
+  padding: clamp(64px, 12vh, 140px) 0 clamp(48px, 9vh, 96px);
+  max-width: 900px;
+}
+
+.kicker {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 22px;
+}
+
+.hero h1 {
+  font-size: clamp(32px, 5.4vw, 62px);
+  line-height: 1.06;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.hero p {
+  margin-top: 22px;
+  max-width: 560px;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+.work-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 30px;
+  margin-bottom: 18px;
+  border-top: 1px solid var(--hairline);
+}
+
+.work-head h2 {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.workgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.workcard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 210px;
+  padding: 20px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(23, 23, 28, 0.9), rgba(12, 12, 15, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 30px 60px -40px rgba(0, 0, 0, 0.9);
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.workcard:hover {
+  border-color: var(--hairline-strong);
+  transform: translateY(-2px);
+}
+
+.workcard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tag {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.num-index {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.workcard h3 {
+  font-size: 19px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+}
+
+.workcard p {
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.workcard footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-3);
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.workcard .open {
+  color: var(--ink-2);
+  transition: color 0.16s var(--ease);
+}
+
+.workcard .open:hover {
+  color: var(--ink);
+}
+
+.landing-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 64px;
+  padding-top: 22px;
+  border-top: 1px solid var(--hairline);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* a small overflow menu, without shipping a menu library */
+.menu {
+  position: relative;
+}
+
+.menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: 32px;
+  z-index: 30;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--raised);
+  box-shadow: var(--lift);
+  white-space: nowrap;
+}
+
+.menu-panel button {
+  width: 100%;
+  justify-content: flex-start;
 }

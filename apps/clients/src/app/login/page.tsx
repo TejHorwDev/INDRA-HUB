@@ -35,7 +35,7 @@ export default async function Login({
 
   try {
     const user = await currentUser()
-    if (user) redirect(user.role === 'owner' ? '/' : '/me')
+    if (user) redirect(user.role === 'owner' ? '/dashboard' : '/me')
     first = await needsOwner()
   } catch (error) {
     const digest = (error as { digest?: unknown }).digest

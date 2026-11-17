@@ -14,7 +14,7 @@ export default async function Panel({ children }: { children: React.ReactNode })
     <>
       <header className="bar">
         <div className="wrap bar-in">
-          <Link href={owner ? '/' : '/me'} className="mark">
+          <Link href={owner ? '/dashboard' : '/me'} className="mark">
             <b>Ledger</b>
             <span>{owner ? 'clients & payments' : 'my account'}</span>
           </Link>
@@ -22,7 +22,7 @@ export default async function Panel({ children }: { children: React.ReactNode })
           <nav>
             {owner ? (
               <>
-                <Link href="/">Clients</Link>
+                <Link href="/dashboard">Clients</Link>
                 <Link href="/settings">Settings</Link>
               </>
             ) : null}

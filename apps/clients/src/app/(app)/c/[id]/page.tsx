@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
-import { createPayment, createProject, setPortalAccess } from '@/app/actions'
+import { createPayment, createProject, deleteClient, deletePayment, deleteWork, setPortalAccess, setWorkStatus } from '@/app/actions'
 import ReceiptButton from '@/components/ReceiptButton'
 import { requireUser, type ClientRow } from '@/lib/auth'
 import { db, eq } from '@/lib/db'
@@ -62,10 +62,21 @@ export default async function ClientPage({
             <span className="mono">{client.client_no}</span>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {client.phone ? <span className="pill">{client.phone}</span> : null}
           {client.email ? <span className="pill">{client.email}</span> : null}
           {portal ? <span className="pill ok">portal</span> : null}
+          <details className="menu">
+            <summary className="ghost small">⋯</summary>
+            <div className="menu-panel">
+              <form action={deleteClient}>
+                <input type="hidden" name="client_id" value={client.id} />
+                <button type="submit" className="quiet small">
+                  Delete client &amp; all their records
+                </button>
+              </form>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -121,6 +132,13 @@ export default async function ClientPage({
                       </td>
                       <td className="num">{money(Number(payment.amount), payment.currency)}</td>
                       <td className="num">
+                        <form action={deletePayment} style={{ display: 'inline' }}>
+                          <input type="hidden" name="payment_id" value={payment.id} />
+                          <input type="hidden" name="client_id" value={client.id} />
+                          <button type="submit" className="ghost small" title="Delete this payment">
+                            ✕
+                          </button>
+                        </form>{' '}
                         <ReceiptButton
                           data={{
                             no: payment.receipt_no,
@@ -237,9 +255,35 @@ export default async function ClientPage({
                             </>
                           ) : null}
                         </div>
+                        <div style={{ marginTop: 6 }}>
+                          <span className={project.status === 'delivered' ? 'pill ok' : 'pill'}>
+                            {project.status === 'delivered' ? 'delivered' : 'in progress'}
+                          </span>
+                        </div>
                       </td>
                       <td className="num">
                         {Number(project.price) > 0 ? money(Number(project.price), project.currency) : '—'}
+                      </td>
+                      <td className="num">
+                        <form action={setWorkStatus} style={{ display: 'inline' }}>
+                          <input type="hidden" name="project_id" value={project.id} />
+                          <input type="hidden" name="client_id" value={client.id} />
+                          <input
+                            type="hidden"
+                            name="status"
+                            value={project.status === 'delivered' ? 'in_progress' : 'delivered'}
+                          />
+                          <button type="submit" className="quiet small">
+                            {project.status === 'delivered' ? 'Reopen' : 'Mark delivered'}
+                          </button>
+                        </form>{' '}
+                        <form action={deleteWork} style={{ display: 'inline' }}>
+                          <input type="hidden" name="project_id" value={project.id} />
+                          <input type="hidden" name="client_id" value={client.id} />
+                          <button type="submit" className="ghost small" title="Delete this work">
+                            ✕
+                          </button>
+                        </form>
                       </td>
                     </tr>
                   ))}
@@ -291,6 +335,10 @@ export default async function ClientPage({
                 <div className="field">
                   <label htmlFor="url">Link</label>
                   <input id="url" name="url" placeholder="https://… optional" />
+                </div>
+                <div className="field">
+                  <label htmlFor="summary">Line for the public page</label>
+                  <input id="summary" name="summary" placeholder="One sentence — shown once delivered" />
                 </div>
                 <button type="submit">Add work</button>
               </form>
