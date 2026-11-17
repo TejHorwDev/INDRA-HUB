@@ -27,3 +27,6 @@ apps/*/dist/
 apps/*/release/
 apps/*/.next/
 apps/*/.vercel/
+
+# TypeScript build info
+*.tsbuildinfo
