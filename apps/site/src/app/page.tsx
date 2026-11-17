@@ -130,9 +130,9 @@ export default async function Home(): Promise<React.JSX.Element> {
                   ))}
                 </div>
 
-                {products.length > FRONT ? (
+                {products.length > 0 ? (
                   <Link className="shelf-more" href="/work">
-                    See all {products.length} builds
+                    {products.length > FRONT ? `See all ${products.length} builds` : 'All work'}
                     <span aria-hidden>→</span>
                   </Link>
                 ) : null}
