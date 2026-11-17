@@ -85,6 +85,7 @@ async function createProjectInner(form: FormData): Promise<void> {
     kind: field(form, 'kind') || 'app',
     url: field(form, 'url') || null,
     summary: field(form, 'summary') || null,
+    cover: field(form, 'cover') || null,
     status: 'in_progress',
     delivered_on: field(form, 'delivered_on') || null,
     price: Number(field(form, 'price') || 0),

@@ -5,6 +5,7 @@ export interface Project {
   kind: string
   status: string
   summary: string | null
+  cover: string | null
   url: string | null
   delivered_on: string | null
   price: number | string
