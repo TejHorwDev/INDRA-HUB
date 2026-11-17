@@ -3,6 +3,8 @@ export interface Project {
   client_id: string
   title: string
   kind: string
+  status: string
+  summary: string | null
   url: string | null
   delivered_on: string | null
   price: number | string

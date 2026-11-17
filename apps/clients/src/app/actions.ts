@@ -50,7 +50,7 @@ async function createClientInner(form: FormData): Promise<void> {
   await requireOwner()
 
   const name = field(form, 'name')
-  if (!name) fail('/', 'A client needs a name.')
+  if (!name) fail('/dashboard', 'A client needs a name.')
 
   const existing = await db.select<{ client_no: string }>('svc_clients', 'select=client_no')
   const client_no = field(form, 'client_no') || nextClientNo(existing)
@@ -66,11 +66,11 @@ async function createClientInner(form: FormData): Promise<void> {
       notes: field(form, 'notes') || null
     })
   } catch {
-    fail('/', `Client number ${client_no} is already used.`)
+    fail('/dashboard', `Client number ${client_no} is already used.`)
   }
 
-  revalidatePath('/')
-  redirect('/')
+  revalidatePath('/dashboard')
+  redirect('/dashboard')
 }
 
 async function createProjectInner(form: FormData): Promise<void> {
@@ -84,6 +84,8 @@ async function createProjectInner(form: FormData): Promise<void> {
     title,
     kind: field(form, 'kind') || 'app',
     url: field(form, 'url') || null,
+    summary: field(form, 'summary') || null,
+    status: 'in_progress',
     delivered_on: field(form, 'delivered_on') || null,
     price: Number(field(form, 'price') || 0),
     currency: field(form, 'currency') || 'NPR',
@@ -99,7 +101,7 @@ async function createPaymentInner(form: FormData): Promise<void> {
   const clientId = field(form, 'client_id')
   const amount = Number(field(form, 'amount'))
 
-  if (!clientId) fail('/', 'A payment needs a client.')
+  if (!clientId) fail('/dashboard', 'A payment needs a client.')
   if (!Number.isFinite(amount) || amount <= 0) fail(`/c/${clientId}`, 'The amount must be more than zero.')
 
   await db.insert('svc_payments', {
@@ -180,6 +182,77 @@ async function changePasswordInner(form: FormData): Promise<void> {
   redirect('/settings')
 }
 
+/* ------------------------------------------------------------------- work -- */
+
+/*
+ * Delivered is a state, not a checkbox on a form you fill in once.
+ *
+ * Work that is being built is invisible on the public page; the moment it is marked delivered
+ * it appears there, dated. Reopening it takes it back off. Both directions matter — a typo in
+ * a delivery date is worth fixing.
+ */
+async function setWorkStatusInner(form: FormData): Promise<void> {
+  await requireOwner()
+  const projectId = field(form, 'project_id')
+  const status = field(form, 'status')
+  if (!projectId) fail('/dashboard', 'Which work?')
+
+  const allowed = ['in_progress', 'delivered']
+  if (!allowed.includes(status)) fail('/dashboard', 'Unknown status.')
+
+  const rows = await db.select<{ client_id: string }>('svc_projects', `select=client_id&id=eq.${eq(projectId)}`)
+  const clientId = rows[0]?.client_id
+  if (!clientId) fail('/dashboard', 'That piece of work is gone.')
+
+  const patch: Record<string, unknown> = { status }
+  if (status === 'delivered') {
+    patch.delivered_on = field(form, 'delivered_on') || new Date().toISOString().slice(0, 10)
+  }
+
+  await db.update('svc_projects', `id=eq.${eq(projectId)}`, patch)
+
+  revalidatePath(`/c/${clientId}`)
+  revalidatePath('/')
+  revalidatePath('/dashboard')
+  redirect(`/c/${clientId}`)
+}
+
+async function deleteWorkInner(form: FormData): Promise<void> {
+  await requireOwner()
+  const projectId = field(form, 'project_id')
+  const clientId = field(form, 'client_id')
+  if (!projectId || !clientId) fail('/dashboard', 'Nothing to delete.')
+
+  await db.remove('svc_projects', `id=eq.${eq(projectId)}`)
+  revalidatePath(`/c/${clientId}`)
+  revalidatePath('/')
+  revalidatePath('/dashboard')
+  redirect(`/c/${clientId}`)
+}
+
+async function deletePaymentInner(form: FormData): Promise<void> {
+  await requireOwner()
+  const paymentId = field(form, 'payment_id')
+  const clientId = field(form, 'client_id')
+  if (!paymentId || !clientId) fail('/dashboard', 'Nothing to delete.')
+
+  await db.remove('svc_payments', `id=eq.${eq(paymentId)}`)
+  revalidatePath(`/c/${clientId}`)
+  revalidatePath('/dashboard')
+  redirect(`/c/${clientId}`)
+}
+
+async function deleteClientInner(form: FormData): Promise<void> {
+  await requireOwner()
+  const clientId = field(form, 'client_id')
+  if (!clientId) fail('/dashboard', 'Nothing to delete.')
+
+  // Payments, work, the portal login and its sessions all cascade from this one row.
+  await db.remove('svc_clients', `id=eq.${eq(clientId)}`)
+  revalidatePath('/dashboard')
+  redirect('/dashboard')
+}
+
 /* ------------------------------------------------------------------ guards -- */
 
 /*
@@ -188,12 +261,12 @@ async function changePasswordInner(form: FormData): Promise<void> {
  */
 
 export async function createClient(form: FormData): Promise<void> {
-  await guarded('/', () => createClientInner(form))
+  await guarded('/dashboard', () => createClientInner(form))
 }
 
 function clientPath(form: FormData): string {
   const id = form.get('client_id')
-  return typeof id === 'string' && id ? `/c/${id}` : '/'
+  return typeof id === 'string' && id ? `/c/${id}` : '/dashboard'
 }
 
 export async function createProject(form: FormData): Promise<void> {
@@ -214,4 +287,20 @@ export async function saveBusiness(form: FormData): Promise<void> {
 
 export async function changePassword(form: FormData): Promise<void> {
   await guarded('/settings', () => changePasswordInner(form))
+}
+
+export async function setWorkStatus(form: FormData): Promise<void> {
+  await guarded(clientPath(form), () => setWorkStatusInner(form))
+}
+
+export async function deleteWork(form: FormData): Promise<void> {
+  await guarded(clientPath(form), () => deleteWorkInner(form))
+}
+
+export async function deletePayment(form: FormData): Promise<void> {
+  await guarded(clientPath(form), () => deletePaymentInner(form))
+}
+
+export async function deleteClient(form: FormData): Promise<void> {
+  await guarded('/dashboard', () => deleteClientInner(form))
 }
