@@ -4,7 +4,8 @@ import { notFound, redirect } from 'next/navigation'
 import Media from '@/components/Media'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
-import { downloadTarget, getConfig, getLoader, getProduct, getProducts, size } from '@/lib/catalogue'
+import { getConfig, getLoader, getProduct, getProducts, size } from '@/lib/catalogue'
+import { business, contactLink } from '@/lib/ledger/settings'
 
 export const revalidate = 10
 
@@ -59,9 +60,9 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
   if (handle !== product.slug) redirect(`/p/${product.slug}`)
 
   const [loader, config] = await Promise.all([getLoader(), getConfig()])
-  const download = downloadTarget(loader, config)
+  const brand = await business().catch(() => ({ name: '', contact: '', discord: '' }))
+  const contact = contactLink(brand)
   const loaderVersion = loader.version ? `v${loader.version}` : 'latest'
-  const weighted = loader.bytes ? size(loader.bytes) : ''
   const live = product.status === 'active'
 
   return (
@@ -97,7 +98,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
 
               <p className="tagline">
                 {product.tagline ||
-                  `${product.name} installs from inside the loader — signed in as you, updated when a new build ships.`}
+                  `${product.name} is one of the things built here — ask about it, or about the one you need.`}
               </p>
 
               {product.features.length > 0 ? (
@@ -109,20 +110,19 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
               ) : null}
 
               <div className="detail-actions">
-                <a className="btn solid lg" title={loader.name ?? undefined} {...download.link}>
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <a className="btn solid lg" href={contact.href} target="_blank" rel="noreferrer">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
                     <path
-                      d="M8 2v8m0 0 3-3m-3 3L5 7M3 12.5h10"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                      d="M13.5 3.2A10.6 10.6 0 0 0 11 2.4l-.3.7a8 8 0 0 1 2.1.8 9.6 9.6 0 0 0-9.6 0 8 8 0 0 1 2.1-.8L5 2.4a10.6 10.6 0 0 0-2.5.8C1.2 5.6.7 8 .8 10.4a10.9 10.9 0 0 0 3.3 1.7l.7-1.1a7 7 0 0 1-1.1-.5l.3-.2a7.7 7.7 0 0 0 8 0l.3.2c-.3.2-.7.4-1.1.5l.7 1.1a10.9 10.9 0 0 0 3.3-1.7c.2-2.8-.5-5.2-2.7-7.2Z"
+                      fill="currentColor"
                     />
+                    <circle cx="5.9" cy="8.6" r=".9" fill="#0b0b0d" />
+                    <circle cx="10.1" cy="8.6" r=".9" fill="#0b0b0d" />
                   </svg>
-                  Download the loader
+                  {contact.label}
                 </a>
-                <Link className="btn ghost lg" href="/#library">
-                  Back to the library
+                <Link className="btn ghost lg" href="/work">
+                  See all work
                 </Link>
               </div>
 
@@ -146,7 +146,7 @@ export default async function ProductPage({ params }: Params): Promise<React.JSX
               </dl>
 
               <p className="hero-meta" style={{ marginTop: 18, display: 'block' }}>
-                {[`Loader ${loaderVersion}`, loader.name ?? '', weighted].filter(Boolean).join(' · ')}
+                {brand.contact || brand.name || 'Built to order'}
               </p>
             </div>
           </div>

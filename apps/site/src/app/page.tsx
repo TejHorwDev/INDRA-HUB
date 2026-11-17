@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import HeroFilm from '@/components/HeroFilm'
-import Media from '@/components/Media'
+import ProductCard from '@/components/ProductCard'
 import SiteBar from '@/components/SiteBar'
 import SiteFoot from '@/components/SiteFoot'
 import { downloadTarget, getConfig, getLoader, getProducts, size, type Product } from '@/lib/catalogue'
@@ -20,6 +20,8 @@ export const revalidate = 10
  * from the panel every ten seconds, so publishing in the panel publishes here.
  */
 
+const FRONT = 4
+
 const DOWNLOAD = (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
     <path
@@ -31,49 +33,6 @@ const DOWNLOAD = (
     />
   </svg>
 )
-
-const LOCK = (
-  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
-    <rect x="3.4" y="7" width="9.2" height="6.2" rx="1.6" stroke="currentColor" strokeWidth="1.2" />
-    <path d="M5.6 7V5.4a2.4 2.4 0 0 1 4.8 0V7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-  </svg>
-)
-
-function Card({ product, first }: { product: Product; first: boolean }): React.JSX.Element {
-  const live = product.status === 'active'
-  const initials = product.name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? '')
-    .join('')
-
-  return (
-    <Link className="card" href={`/p/${product.slug}`} aria-label={product.name}>
-      {/* The plate: what the card is before a clip has been asked for. */}
-      <span className="card-plate" aria-hidden>
-        <span>{initials}</span>
-      </span>
-
-      {product.image ? <Media src={product.image} dim={product.artworkDim} priority={first} /> : null}
-
-      <span className="card-scrim" aria-hidden />
-      {live ? null : (
-        <span className="card-lock" aria-hidden>
-          {LOCK}
-        </span>
-      )}
-
-      <span className="card-foot">
-        <span className="card-name">{product.name}</span>
-        <span className={live ? 'card-state live' : 'card-state off'}>
-          <i />
-          {live ? 'Available' : 'Locked'}
-        </span>
-      </span>
-    </Link>
-  )
-}
 
 export default async function Home(): Promise<React.JSX.Element> {
   const [products, loader, config] = await Promise.all([getProducts(), getLoader(), getConfig()])
@@ -152,7 +111,9 @@ export default async function Home(): Promise<React.JSX.Element> {
             <div className="head">
               <p className="label">The library</p>
               <p className="count">
-                {products.length} product{products.length === 1 ? '' : 's'} · {live.length} available
+                {products.length > FRONT
+                  ? `${FRONT} of ${products.length} · see all`
+                  : `${products.length} product${products.length === 1 ? '' : 's'} · ${live.length} available`}
               </p>
             </div>
 
@@ -162,11 +123,20 @@ export default async function Home(): Promise<React.JSX.Element> {
                 appears here within a minute.
               </p>
             ) : (
-              <div className="shelf">
-                {products.map((product, index) => (
-                  <Card key={product.id} product={product} first={index === 0} />
-                ))}
-              </div>
+              <>
+                <div className="shelf">
+                  {products.slice(0, FRONT).map((product, index) => (
+                    <ProductCard key={product.id} product={product} first={index === 0} />
+                  ))}
+                </div>
+
+                {products.length > FRONT ? (
+                  <Link className="shelf-more" href="/work">
+                    See all {products.length} builds
+                    <span aria-hidden>→</span>
+                  </Link>
+                ) : null}
+              </>
             )}
           </section>
 

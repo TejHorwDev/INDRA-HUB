@@ -156,7 +156,8 @@ async function saveBusinessInner(form: FormData): Promise<void> {
   await requireOwner()
   const entries: [string, string][] = [
     ['business_name', field(form, 'name')],
-    ['business_contact', field(form, 'contact')]
+    ['business_contact', field(form, 'contact')],
+    ['discord_url', field(form, 'discord')]
   ]
 
   for (const [key, value] of entries) {

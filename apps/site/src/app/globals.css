@@ -888,3 +888,36 @@ h1.hero-title {
     min-height: auto;
   }
 }
+
+/* --------------------------------------------------------------- shelf more -- */
+
+/*
+ * The way out of a four-card shelf. Sits under the grid, aligned with its last column, and
+ * reads as a continuation rather than a button.
+ */
+.shelf-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 26px;
+  padding: 11px 18px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+}
+
+.shelf-more:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.shelf-more span {
+  color: var(--ink-3);
+}
+
+/* A hero without a film behind it — the all-work page does not need one twice. */
+.hero.short {
+  padding: clamp(64px, 11vh, 120px) 0 clamp(40px, 7vh, 70px);
+}
