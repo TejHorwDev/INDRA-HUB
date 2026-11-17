@@ -63,27 +63,32 @@ function digest(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-/** Creates a session row and returns the cookie value. The raw token is never stored. */
-export async function startSession(userId: string): Promise<string> {
+/**
+ * Creates a session row and returns the raw token.
+ *
+ * The cookie is set by the caller — a route handler, where the response headers are ours to
+ * write. Setting it from inside a server action and then redirecting worked in every local
+ * test and then, in production, arrived as a login that bounced straight back to the login
+ * form. A route handler has no such gap: the Set-Cookie header is on the same 303 the browser
+ * follows.
+ */
+export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString('base64url')
   const expires = new Date(Date.now() + SESSION_DAYS * DAY * 1000).toISOString()
   await db.insert('svc_sessions', { user_id: userId, token_hash: digest(token), expires_at: expires })
-  const jar = await cookies()
-  jar.set(COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: SESSION_DAYS * DAY
-  })
   return token
 }
 
-export async function endSession(): Promise<void> {
-  const jar = await cookies()
-  const token = jar.get(COOKIE)?.value
-  if (token) await db.remove('svc_sessions', `token_hash=eq.${digest(token)}`)
-  jar.delete(COOKIE)
+export const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+  maxAge: SESSION_DAYS * DAY
+}
+
+export async function deleteSession(token: string): Promise<void> {
+  await db.remove('svc_sessions', `token_hash=eq.${digest(token)}`)
 }
 
 export async function currentUser(): Promise<User | null> {

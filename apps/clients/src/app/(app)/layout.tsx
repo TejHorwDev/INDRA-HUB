@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { signOut } from '@/app/actions'
 import { currentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +26,7 @@ export default async function Panel({ children }: { children: React.ReactNode })
                 <Link href="/settings">Settings</Link>
               </>
             ) : null}
-            <form action={signOut}>
+            <form action="/api/session/logout" method="post">
               <button type="submit" className="quiet small">
                 Sign out
               </button>
