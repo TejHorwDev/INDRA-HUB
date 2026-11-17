@@ -20,12 +20,32 @@ function field(form: FormData, name: string): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+/**
+ * Runs a write and turns a failure into a sentence on the page.
+ *
+ * Without this a broken database looks like a button that does nothing: the action throws,
+ * the browser stays where it is, and nobody learns why. The message keeps the database's own
+ * words — "row-level security", "duplicate key" — because those name the fix.
+ *
+ * Redirects are Next's control flow, not failures, so they pass through untouched.
+ */
+async function guarded(path: string, work: () => Promise<void>): Promise<void> {
+  try {
+    await work()
+  } catch (error) {
+    const digest = (error as { digest?: unknown }).digest
+    if (typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT')) throw error
+    const message = error instanceof Error ? error.message : String(error)
+    fail(path, message.slice(0, 240) || 'Nothing happened — the write failed without a reason.')
+  }
+}
+
 function fail(path: string, message: string): never {
   redirect(`${path}?e=${encodeURIComponent(message)}`)
 }
 
 /** First run: the person who deploys this owns it. No seeded password to leak. */
-export async function createOwner(form: FormData): Promise<void> {
+async function createOwnerInner(form: FormData): Promise<void> {
   if (!(await needsOwner())) fail('/login', 'An owner already exists.')
 
   const username = field(form, 'username').toLowerCase()
@@ -49,7 +69,7 @@ export async function createOwner(form: FormData): Promise<void> {
   redirect('/')
 }
 
-export async function signIn(form: FormData): Promise<void> {
+async function signInInner(form: FormData): Promise<void> {
   const username = field(form, 'username').toLowerCase()
   const password = field(form, 'password')
 
@@ -75,7 +95,7 @@ export async function signOut(): Promise<void> {
 
 /* ----------------------------------------------------------------- clients -- */
 
-export async function createClient(form: FormData): Promise<void> {
+async function createClientInner(form: FormData): Promise<void> {
   await requireOwner()
 
   const name = field(form, 'name')
@@ -102,7 +122,7 @@ export async function createClient(form: FormData): Promise<void> {
   redirect('/')
 }
 
-export async function createProject(form: FormData): Promise<void> {
+async function createProjectInner(form: FormData): Promise<void> {
   await requireOwner()
   const clientId = field(form, 'client_id')
   const title = field(form, 'title')
@@ -123,7 +143,7 @@ export async function createProject(form: FormData): Promise<void> {
   redirect(`/c/${clientId}`)
 }
 
-export async function createPayment(form: FormData): Promise<void> {
+async function createPaymentInner(form: FormData): Promise<void> {
   await requireOwner()
   const clientId = field(form, 'client_id')
   const amount = Number(field(form, 'amount'))
@@ -148,7 +168,7 @@ export async function createPayment(form: FormData): Promise<void> {
 }
 
 /** Gives a client a way in. Re-running it resets their password. */
-export async function setPortalAccess(form: FormData): Promise<void> {
+async function setPortalAccessInner(form: FormData): Promise<void> {
   await requireOwner()
   const clientId = field(form, 'client_id')
   const username = field(form, 'username').toLowerCase()
@@ -178,7 +198,7 @@ export async function setPortalAccess(form: FormData): Promise<void> {
   redirect(`/c/${clientId}`)
 }
 
-export async function saveBusiness(form: FormData): Promise<void> {
+async function saveBusinessInner(form: FormData): Promise<void> {
   await requireOwner()
   const entries: [string, string][] = [
     ['business_name', field(form, 'name')],
@@ -194,7 +214,7 @@ export async function saveBusiness(form: FormData): Promise<void> {
   redirect('/settings')
 }
 
-export async function changePassword(form: FormData): Promise<void> {
+async function changePasswordInner(form: FormData): Promise<void> {
   const user = await requireUser()
   const current = field(form, 'current')
   const next = field(form, 'next')
@@ -207,4 +227,48 @@ export async function changePassword(form: FormData): Promise<void> {
 
   await db.update('svc_users', `id=eq.${user.id}`, { password_hash: hashPassword(next) })
   redirect('/settings')
+}
+
+/* ------------------------------------------------------------------ guards -- */
+
+/*
+ * The exported surface. Each action is the same two lines: run the work, and if it failed for
+ * a reason that is not a redirect, put that reason on the page.
+ */
+
+export async function createOwner(form: FormData): Promise<void> {
+  await guarded('/login', () => createOwnerInner(form))
+}
+
+export async function signIn(form: FormData): Promise<void> {
+  await guarded('/login', () => signInInner(form))
+}
+
+export async function createClient(form: FormData): Promise<void> {
+  await guarded('/', () => createClientInner(form))
+}
+
+function clientPath(form: FormData): string {
+  const id = form.get('client_id')
+  return typeof id === 'string' && id ? `/c/${id}` : '/'
+}
+
+export async function createProject(form: FormData): Promise<void> {
+  await guarded(clientPath(form), () => createProjectInner(form))
+}
+
+export async function createPayment(form: FormData): Promise<void> {
+  await guarded(clientPath(form), () => createPaymentInner(form))
+}
+
+export async function setPortalAccess(form: FormData): Promise<void> {
+  await guarded(clientPath(form), () => setPortalAccessInner(form))
+}
+
+export async function saveBusiness(form: FormData): Promise<void> {
+  await guarded('/settings', () => saveBusinessInner(form))
+}
+
+export async function changePassword(form: FormData): Promise<void> {
+  await guarded('/settings', () => changePasswordInner(form))
 }
